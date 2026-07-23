@@ -19,10 +19,15 @@ SESSION_COOKIE_NAME = "argus_session"
 SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 30  # 30 days
 
 
+def _frontend_error_redirect(error: str) -> RedirectResponse:
+    frontend_url = os.environ.get("FRONTEND_URL", "http://localhost:3000")
+    return RedirectResponse(url=f"{frontend_url}/?error={error}")
+
+
 def _dev_bypass_response(email: str) -> RedirectResponse:
     user = find_tenant_user_by_email(email)
     if not user:
-        return RedirectResponse(url="/login?error=no_account")
+        return _frontend_error_redirect("no_account")
     return _issue_session_redirect(user.email, user.tenant_id, user.role)
 
 
@@ -68,7 +73,7 @@ def google_start(request: Request):
 @router.get("/callback")
 def google_callback(request: Request, code: str = ""):
     if not code:
-        return RedirectResponse(url="/login?error=missing_code")
+        return _frontend_error_redirect("missing_code")
 
     client_id = os.environ["GOOGLE_OAUTH_CLIENT_ID"]
     client_secret = os.environ["GOOGLE_OAUTH_CLIENT_SECRET"]
@@ -79,7 +84,7 @@ def google_callback(request: Request, code: str = ""):
         "redirect_uri": redirect_uri, "grant_type": "authorization_code",
     })
     if token_resp.status_code != 200:
-        return RedirectResponse(url="/login?error=google_token_exchange_failed")
+        return _frontend_error_redirect("google_token_exchange_failed")
     access_token = token_resp.json()["access_token"]
 
     profile_resp = httpx.get(
@@ -87,15 +92,15 @@ def google_callback(request: Request, code: str = ""):
         headers={"Authorization": f"Bearer {access_token}"},
     )
     if profile_resp.status_code != 200:
-        return RedirectResponse(url="/login?error=google_profile_failed")
+        return _frontend_error_redirect("google_profile_failed")
     email = profile_resp.json().get("email")
     if not email:
-        return RedirectResponse(url="/login?error=no_email")
+        return _frontend_error_redirect("no_email")
 
     user = find_tenant_user_by_email(email)
     if not user:
         # Deliberately not auto-creating — see app/auth/tenant.py.
-        return RedirectResponse(url="/login?error=no_account")
+        return _frontend_error_redirect("no_account")
 
     return _issue_session_redirect(user.email, user.tenant_id, user.role)
 
