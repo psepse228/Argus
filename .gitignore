@@ -1,0 +1,20 @@
+# Backend (Python)
+backend/.venv/
+backend/__pycache__/
+backend/**/__pycache__/
+backend/.env
+*.pyc
+
+# Frontend (Next.js)
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/.env*.local
+
+# OS / editor
+.DS_Store
+Thumbs.db
+
+# Real client assets — real floor plans/CRM screenshots/real client data,
+# not meant to live in a public repo history
+Files/

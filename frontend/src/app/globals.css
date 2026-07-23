@@ -1,0 +1,97 @@
+/* Three switchable themes (see ThemeProvider + ThemeSwitcher):
+   - "gold" (default) — the original Argus direction, Greek-watchman gold accent
+   - "mono" — minimalistic black/white/grey, no color accent at all
+   - "teal" — reused from the earlier design-variations work, tied to
+     Italiano Vero's own real logo color, not an arbitrary new pick
+   Only the --v-* block + a couple of semantic tints differ per theme; the
+   rest of the app reads these variables and never hardcodes a color. */
+:root {
+  --v-bg: #0b0d12;
+  --v-bg-soft: #12151c;
+  --v-accent: #d4a72c;
+  --v-accent-strong: #b8891a;
+  --v-accent-tint: rgba(212, 167, 44, 0.14);
+  --v-text-on-accent: #1a1300;
+
+  --color-text: #f2f3f5;
+  --color-text-soft: #a8adbb;
+  --color-text-faint: #6d7280;
+  --color-hairline: rgba(255, 255, 255, 0.09);
+  --color-hairline-soft: rgba(255, 255, 255, 0.06);
+  --glass: rgba(20, 22, 28, 0.55);
+  --glass-border: rgba(255, 255, 255, 0.2);
+  --glass-border-soft: rgba(255, 255, 255, 0.1);
+  --glass-sheen: rgba(255, 255, 255, 0.5);
+
+  --font-heading: "Onest", "Golos Text", system-ui, sans-serif;
+  --font-body: "Golos Text", "Segoe UI", sans-serif;
+
+  --success: #5ad19a;
+  --success-tint: rgba(90, 209, 154, 0.14);
+  --warning: #e0b34a;
+  --warning-tint: rgba(212, 167, 44, 0.16);
+  --danger: #f19a9a;
+  --danger-tint: rgba(248, 113, 113, 0.15);
+}
+
+:root[data-theme="gold"] {
+  --v-bg: #0b0d12; --v-bg-soft: #12151c;
+  --v-accent: #d4a72c; --v-accent-strong: #b8891a;
+  --v-accent-tint: rgba(212, 167, 44, 0.14); --v-text-on-accent: #1a1300;
+}
+
+:root[data-theme="mono"] {
+  /* No color accent at all, deliberately — "minimalistic black/white/grey" */
+  --v-bg: #0a0a0a; --v-bg-soft: #131313;
+  --v-accent: #e8e8e8; --v-accent-strong: #ffffff;
+  --v-accent-tint: rgba(232, 232, 232, 0.12); --v-text-on-accent: #0a0a0a;
+}
+
+:root[data-theme="teal"] {
+  /* Reused from the earlier "Argus — Design Variations" work — tied to
+     Italiano Vero's own real logo color, not a new invented accent. */
+  --v-bg: #0a1214; --v-bg-soft: #101c1f;
+  --v-accent: #2dd4bf; --v-accent-strong: #14b8a6;
+  --v-accent-tint: rgba(45, 212, 191, 0.14); --v-text-on-accent: #001a17;
+}
+
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  margin: 0;
+  background-color: var(--v-bg);
+  background-image:
+    radial-gradient(60% 40% at 15% -5%, color-mix(in srgb, var(--v-accent) 16%, transparent), transparent 60%),
+    radial-gradient(50% 35% at 100% 0%, rgba(99, 102, 241, 0.08), transparent 60%);
+  background-attachment: fixed;
+  color: var(--color-text);
+  font-family: var(--font-body);
+  overflow: hidden;
+}
+a { color: var(--v-accent); text-decoration: none; }
+a:hover { color: var(--v-accent-strong); }
+input, textarea { font-family: var(--font-body); }
+input::placeholder, textarea::placeholder { color: var(--color-text-faint); }
+::-webkit-scrollbar { width: 9px; height: 9px; }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 99px; }
+::-webkit-scrollbar-track { background: transparent; }
+
+.glass-panel {
+  position: relative;
+  background: var(--glass);
+  border: 1px solid var(--glass-border);
+  border-radius: 22px;
+  backdrop-filter: blur(40px) saturate(165%);
+  -webkit-backdrop-filter: blur(40px) saturate(165%);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.14), 0 24px 60px -32px rgba(0,0,0,0.75);
+  overflow: hidden;
+}
+.glass-panel::before {
+  content: "";
+  position: absolute; top: 0; left: 10%; right: 10%; height: 1px;
+  background: linear-gradient(90deg, transparent, var(--glass-sheen), transparent);
+  opacity: 0.5;
+}
+
+@keyframes argIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@keyframes argDot { 0%, 60%, 100% { opacity: .25; } 30% { opacity: 1; } }
