@@ -1,3 +1,5 @@
+import os
+
 from dotenv import load_dotenv
 load_dotenv()  # unlike Next.js, plain uvicorn does not auto-load .env — must be explicit
 
@@ -11,7 +13,7 @@ app = FastAPI(title="Argus — Italiano Vero sales ops")
 app.add_middleware(
     CORSMiddleware,
     # wildcard + credentials is invalid per browser spec — must be an exact origin
-    allow_origins=["http://localhost:3000"],
+    allow_origins=[os.environ.get("FRONTEND_URL", "http://localhost:3000")],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
