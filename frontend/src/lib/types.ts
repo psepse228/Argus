@@ -24,6 +24,17 @@ export type Lead = {
   created_at: string;
 };
 
+export type SpravkaComputedSummary = {
+  effective_price_per_m2_usd: number;
+  effective_total_usd: number;
+  payment_label: string;
+  down_payment_usd: number;
+  remaining_usd: number;
+  monthly_payment_usd: number;
+  total_installment_paid_usd: number;
+  balloon_remaining_usd: number;
+};
+
 export type SpravkaRequest = {
   id: string;
   unit_id: string;
@@ -38,6 +49,8 @@ export type SpravkaRequest = {
   generated_file_url: string | null;
   real_price_per_m2_usd?: number;
   created_at: string;
+  units?: { unit_number: string; floor: number; area_m2: number; buildings?: { name: string } };
+  computed_summary?: SpravkaComputedSummary;
 };
 
 export type PlanRate = {

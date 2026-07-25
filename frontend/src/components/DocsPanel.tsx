@@ -22,6 +22,7 @@ export function DocsPanel({ user }: { user: CurrentUser }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [actionError, setActionError] = useState("");
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   async function refresh() {
     const [b, u, r] = await Promise.all([api.buildings(), api.units(), api.spravkaRequests()]);
@@ -126,30 +127,77 @@ export function DocsPanel({ user }: { user: CurrentUser }) {
         <div style={{ display: "grid", gridTemplateColumns: "1.3fr 1.2fr 1fr 1fr 0.9fr auto", gap: 14, padding: "14px 4px", borderBottom: "1px solid var(--color-hairline)", fontSize: 11, color: "var(--color-text-faint)", textTransform: "uppercase", letterSpacing: ".05em" }}>
           <span>Юнит</span><span>План</span><span>Клиент</span><span>Кем создано</span><span>Статус</span><span></span>
         </div>
-        {requests.map((r) => (
-          <div key={r.id} style={{ display: "grid", gridTemplateColumns: "1.3fr 1.2fr 1fr 1fr 0.9fr auto", gap: 14, padding: "15px 4px", borderBottom: "1px solid var(--color-hairline-soft)", alignItems: "center", fontSize: 13 }}>
-            <span style={{ color: "var(--color-text)", fontWeight: 600 }}>{r.id.slice(0, 8)}</span>
-            <span style={{ color: "var(--color-text-soft)" }}>{PLAN_LABELS[r.plan_type] || r.plan_type}</span>
-            <span style={{ color: "var(--color-text-soft)" }}>{r.client_name}</span>
-            <span style={{ color: "var(--color-text-soft)" }}>{r.requested_by}</span>
-            <span><StatusChip status={r.status} /></span>
-            <div style={{ display: "flex", gap: 7, justifyContent: "flex-end" }}>
-              {r.generated_file_url && (
-                <a href={api.spravkaDownloadUrl(r.id)} style={{ padding: "6px 12px", borderRadius: 99, background: "rgba(255,255,255,.05)", border: "1px solid var(--color-hairline)", color: "var(--color-text-soft)", fontSize: 11.5, fontWeight: 600 }}>
-                  Скачать
-                </a>
-              )}
-              {user.role === "boss" && r.status === "pending" && (
-                <>
-                  <button onClick={() => act(r.id, "approve")} style={{ ...primaryBtnStyle, padding: "6px 12px", fontSize: 11.5 }}>Одобрить</button>
-                  <button onClick={() => act(r.id, "reject")} style={{ padding: "6px 12px", borderRadius: 99, background: "transparent", color: "var(--color-text-soft)", fontSize: 11.5, fontWeight: 600, border: "1px solid var(--color-hairline)", cursor: "pointer" }}>Отклонить</button>
-                </>
+        {requests.map((r) => {
+          const s = r.computed_summary;
+          const isOpen = expandedId === r.id;
+          return (
+            <div key={r.id} style={{ borderBottom: "1px solid var(--color-hairline-soft)" }}>
+              <div
+                onClick={() => setExpandedId(isOpen ? null : r.id)}
+                style={{ display: "grid", gridTemplateColumns: "1.3fr 1.2fr 1fr 1fr 0.9fr auto", gap: 14, padding: "15px 4px", alignItems: "center", fontSize: 13, cursor: "pointer" }}
+              >
+                <span style={{ color: "var(--color-text)", fontWeight: 600 }}>
+                  {r.units ? <>№{r.units.unit_number} · {r.units.buildings?.name}</> : "—"}
+                </span>
+                <span style={{ color: "var(--color-text-soft)" }}>{PLAN_LABELS[r.plan_type] || r.plan_type}</span>
+                <span style={{ color: "var(--color-text-soft)" }}>{r.client_name}</span>
+                <span style={{ color: "var(--color-text-soft)" }}>{r.requested_by}</span>
+                <span><StatusChip status={r.status} /></span>
+                <div style={{ display: "flex", gap: 7, justifyContent: "flex-end" }} onClick={(e) => e.stopPropagation()}>
+                  {r.generated_file_url && (
+                    <a href={api.spravkaDownloadUrl(r.id)} style={{ padding: "6px 12px", borderRadius: 99, background: "rgba(255,255,255,.05)", border: "1px solid var(--color-hairline)", color: "var(--color-text-soft)", fontSize: 11.5, fontWeight: 600 }}>
+                      Скачать
+                    </a>
+                  )}
+                  {user.role === "boss" && r.status === "pending" && (
+                    <>
+                      <button onClick={() => act(r.id, "approve")} style={{ ...primaryBtnStyle, padding: "6px 12px", fontSize: 11.5 }}>Одобрить</button>
+                      <button onClick={() => act(r.id, "reject")} style={{ padding: "6px 12px", borderRadius: 99, background: "transparent", color: "var(--color-text-soft)", fontSize: 11.5, fontWeight: 600, border: "1px solid var(--color-hairline)", cursor: "pointer" }}>Отклонить</button>
+                    </>
+                  )}
+                </div>
+              </div>
+              {isOpen && (
+                <div style={{ padding: "4px 4px 20px", display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14 }}>
+                  {!s && (
+                    <div style={{ gridColumn: "1 / -1", fontSize: 12.5, color: "var(--color-text-faint)" }}>
+                      Предпросмотр недоступен для справок, сгенерированных до этого обновления — скачайте файл.
+                    </div>
+                  )}
+                  {s && (
+                    <>
+                      <PreviewStat label="Площадь" value={r.units ? `${r.units.area_m2} м²` : "—"} />
+                      <PreviewStat label="Цена/м² (реальная)" value={`$${s.effective_price_per_m2_usd.toLocaleString()}`} />
+                      <PreviewStat label="Итого" value={`$${s.effective_total_usd.toLocaleString()}`} />
+                      <PreviewStat label="Условие" value={s.payment_label.trim()} />
+                      {s.monthly_payment_usd > 0 && (
+                        <>
+                          <PreviewStat label="Первый взнос" value={`$${s.down_payment_usd.toLocaleString()}`} />
+                          <PreviewStat label="Остаток" value={`$${s.remaining_usd.toLocaleString()}`} />
+                          <PreviewStat label="Ежемесячно" value={`$${s.monthly_payment_usd.toLocaleString()}`} />
+                          {s.balloon_remaining_usd > 0 && (
+                            <PreviewStat label="Остаток после частичной оплаты" value={`$${s.balloon_remaining_usd.toLocaleString()}`} />
+                          )}
+                        </>
+                      )}
+                    </>
+                  )}
+                </div>
               )}
             </div>
-          </div>
-        ))}
+          );
+        })}
         {requests.length === 0 && <div style={{ padding: "30px 0", textAlign: "center", color: "var(--color-text-faint)", fontSize: 13 }}>Пока нет сгенерированных справок</div>}
       </div>
+    </div>
+  );
+}
+
+function PreviewStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div style={{ padding: "10px 12px", borderRadius: 10, background: "rgba(255,255,255,.03)", border: "1px solid var(--color-hairline-soft)" }}>
+      <div style={{ fontSize: 10.5, textTransform: "uppercase", letterSpacing: ".04em", color: "var(--color-text-faint)", marginBottom: 4 }}>{label}</div>
+      <div style={{ fontSize: 14, fontWeight: 700, color: "var(--color-text)" }}>{value}</div>
     </div>
   );
 }

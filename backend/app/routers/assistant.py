@@ -19,11 +19,11 @@ class ChatRequest(BaseModel):
 
 @router.post("/boss/chat")
 def boss_chat(body: ChatRequest, user=Depends(require_boss)):
-    reply = run_chat(BOSS_SYSTEM_PROMPT, body.message, user.tenant_id, FUNCTION_SCHEMAS_BOSS_ONLY, body.history)
+    reply = run_chat(BOSS_SYSTEM_PROMPT, body.message, user.tenant_id, FUNCTION_SCHEMAS_BOSS_ONLY, body.history, user.email)
     return {"reply": reply}
 
 
 @router.post("/agent/chat")
 def agent_chat(body: ChatRequest, user=Depends(get_current_user)):
-    reply = run_chat(AGENT_SYSTEM_PROMPT, body.message, user.tenant_id, FUNCTION_SCHEMAS, body.history)
+    reply = run_chat(AGENT_SYSTEM_PROMPT, body.message, user.tenant_id, FUNCTION_SCHEMAS, body.history, user.email)
     return {"reply": reply}

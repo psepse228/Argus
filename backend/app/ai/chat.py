@@ -20,7 +20,7 @@ def _get_client() -> OpenAI:
 
 
 def run_chat(system_prompt: str, user_message: str, tenant_id: str, schemas: list[dict],
-             history: list[dict] | None = None) -> str:
+             history: list[dict] | None = None, requester_email: str | None = None) -> str:
     client = _get_client()
     messages = [{"role": "system", "content": system_prompt}]
     if history:
@@ -41,7 +41,7 @@ def run_chat(system_prompt: str, user_message: str, tenant_id: str, schemas: lis
         for tool_call in choice.message.tool_calls:
             args = json.loads(tool_call.function.arguments or "{}")
             try:
-                result = call_function(tool_call.function.name, args, tenant_id)
+                result = call_function(tool_call.function.name, args, tenant_id, requester_email)
             except Exception as e:
                 result = {"error": str(e)}
             messages.append({

@@ -39,10 +39,18 @@ def _issue_session_redirect(email: str, tenant_id: str, role: str) -> RedirectRe
     # Redirect to the actual frontend app (a separate origin/server), not a
     # same-origin path on this API — leftover from before the frontend existed.
     frontend_url = os.environ.get("FRONTEND_URL", "http://localhost:3000")
+    is_prod = os.environ.get("ENVIRONMENT") == "production"
     resp = RedirectResponse(url=f"{frontend_url}/app")
     resp.set_cookie(
         SESSION_COOKIE_NAME, token, max_age=SESSION_MAX_AGE_SECONDS,
-        httponly=True, samesite="lax", secure=os.environ.get("ENVIRONMENT") == "production",
+        httponly=True,
+        # Frontend and backend are separate Railway services (separate
+        # origins/sites), unlike Tender Agent's single-origin deployment —
+        # a Lax cookie survives the login redirect but is never attached to
+        # the frontend's subsequent cross-origin fetch() calls, so it must
+        # be None in production (requires Secure, hence the is_prod tie-in).
+        samesite="none" if is_prod else "lax",
+        secure=is_prod,
     )
     return resp
 

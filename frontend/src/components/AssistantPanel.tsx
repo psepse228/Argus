@@ -1,8 +1,16 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { api, CurrentUser } from "@/lib/api";
+import { SpravkaRequest, STATUS_LABELS } from "@/lib/types";
 
 type ChatMsg = { role: "user" | "bot"; text: string };
+
+type Digest = {
+  pending: number;
+  recent: SpravkaRequest[];
+  approvedTotal?: number;
+  avgDiscount?: number;
+};
 
 export function AssistantPanel({ user }: { user: CurrentUser }) {
   const isBoss = user.role === "boss";
@@ -16,15 +24,44 @@ export function AssistantPanel({ user }: { user: CurrentUser }) {
   ]);
   const [input, setInput] = useState("");
   const [typing, setTyping] = useState(false);
+  const [digest, setDigest] = useState<Digest | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
   }, [messages, typing]);
 
+  // "What happened while you were away" — real data, not filler. Boss sees
+  // the tenant-wide pending queue + approved/discount stats already used in
+  // Аналитика; a sales agent sees only their own requests (the list
+  // endpoint already scopes non-boss users to requested_by == their email).
+  useEffect(() => {
+    (async () => {
+      try {
+        const requests: SpravkaRequest[] = await api.spravkaRequests();
+        const pending = requests.filter((r) => r.status === "pending");
+        const recent = [...requests]
+          .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+          .slice(0, 4);
+        if (isBoss) {
+          const summary = await api.analyticsSummary();
+          setDigest({
+            pending: pending.length, recent,
+            approvedTotal: summary.spravka_requests_approved,
+            avgDiscount: summary.average_approved_discount_pct,
+          });
+        } else {
+          setDigest({ pending: pending.length, recent });
+        }
+      } catch {
+        /* best-effort — chat still works without the digest */
+      }
+    })();
+  }, [isBoss]);
+
   const suggestions = isBoss
     ? ["Что ждёт одобрения?", "Сводка по Milano", "Средний дисконт?", "Поставь цену для плана"]
-    : ["Разбери моих лидов", "Подбери юниты в Milano", "Составь письмо клиенту"];
+    : ["Начать работу над справкой", "Подбери юниты в Milano", "Составь письмо клиенту"];
 
   async function send(text?: string) {
     const v = (text ?? input).trim();
@@ -49,6 +86,34 @@ export function AssistantPanel({ user }: { user: CurrentUser }) {
     <div className="glass-panel" style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", padding: 0, overflow: "hidden" }}>
       <div ref={scrollRef} style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "26px 24px 8px" }}>
         <div style={{ maxWidth: 720, margin: "0 auto", display: "flex", flexDirection: "column", gap: 18 }}>
+          {digest && (digest.pending > 0 || digest.recent.length > 0) && (
+            <div className="glass-panel" style={{ padding: "16px 18px" }}>
+              <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: ".05em", color: "var(--color-text-faint)", marginBottom: 12 }}>
+                Пока вас не было
+              </div>
+              <div style={{ display: "flex", gap: 20, marginBottom: digest.recent.length ? 14 : 0, flexWrap: "wrap" }}>
+                <DigestStat value={digest.pending} label="ждут одобрения" accent={digest.pending > 0} />
+                {isBoss && digest.approvedTotal !== undefined && (
+                  <DigestStat value={digest.approvedTotal} label="одобрено всего" />
+                )}
+                {isBoss && digest.avgDiscount !== undefined && (
+                  <DigestStat value={`${digest.avgDiscount}%`} label="средний дисконт" />
+                )}
+              </div>
+              {digest.recent.length > 0 && (
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  {digest.recent.map((r) => (
+                    <div key={r.id} style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5, color: "var(--color-text-soft)" }}>
+                      <span>
+                        {r.units ? <>№{r.units.unit_number} · {r.units.buildings?.name}</> : "—"} — {r.client_name}
+                      </span>
+                      <span style={{ color: "var(--color-text-faint)" }}>{STATUS_LABELS[r.status] || r.status}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
           {messages.map((m, i) => (
             <div key={i} style={{ display: "flex", gap: 11, alignItems: "flex-start", flexDirection: m.role === "bot" ? "row" : "row-reverse" }}>
               {m.role === "bot" && (
@@ -125,6 +190,15 @@ export function AssistantPanel({ user }: { user: CurrentUser }) {
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+function DigestStat({ value, label, accent }: { value: number | string; label: string; accent?: boolean }) {
+  return (
+    <div>
+      <div style={{ fontSize: 20, fontWeight: 700, color: accent ? "var(--v-accent)" : "var(--color-text)" }}>{value}</div>
+      <div style={{ fontSize: 11.5, color: "var(--color-text-faint)" }}>{label}</div>
     </div>
   );
 }

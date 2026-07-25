@@ -9,6 +9,9 @@ Every function here is a plain `def` (not `async def`) since they all do
 blocking Supabase calls — see concepts/fastapi-async-blocking-io.
 """
 from app.db import get_service_client
+from app.services.spravka_service import (
+    SpravkaCreationError, create_spravka, get_unit_by_number,
+)
 
 
 def get_units(tenant_id: str, building: str | None = None, room_type: str | None = None,
@@ -112,6 +115,34 @@ def set_payment_plan_rate(tenant_id: str, building: str, plan_type: str, price_p
     return {"ok": True, "building": building, "plan_type": plan_type, "price_per_m2_usd": price_per_m2_usd}
 
 
+def create_spravka_request(
+    tenant_id: str, requester_email: str, unit_number: str, client_name: str, client_phone: str,
+    plan_type: str, down_payment_pct: float | None = None, building: str | None = None,
+    balloon_months: int | None = None, balloon_monthly_payment_usd: float | None = None,
+) -> dict:
+    """Chat-driven Справка creation — a rep describes the deal in plain
+    language instead of filling a form; this resolves the unit by number
+    (not a raw id, which no rep would type in chat) and reuses the exact
+    same pricing/generation logic the REST form uses (see
+    app/services/spravka_service.py) so there's no second, drifting code
+    path for something this financially real."""
+    client = get_service_client()
+    try:
+        unit = get_unit_by_number(client, tenant_id, unit_number, building)
+        result = create_spravka(
+            client, tenant_id, unit["id"], client_name, client_phone, plan_type,
+            requester_email, down_payment_pct, balloon_months, balloon_monthly_payment_usd,
+        )
+    except SpravkaCreationError as e:
+        return {"error": str(e)}
+    return {
+        "ok": True, "request_id": result["id"], "status": result["status"],
+        "unit_number": unit["unit_number"], "building": unit.get("buildings", {}).get("name"),
+        "real_price_per_m2_usd": result["real_price_per_m2_usd"],
+        "summary": result.get("computed_summary"),
+    }
+
+
 def get_company_info() -> dict:
     """Static company blurb for the sales-agent info-package assistant —
     real Italiano Vero project details, not invented."""
@@ -175,6 +206,35 @@ FUNCTION_SCHEMAS = [
             },
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "create_spravka_request",
+            "description": (
+                "Generate a real Справка (price quote document) for a client — the same document a rep "
+                "would otherwise build by hand. Use this whenever the user describes a deal in plain "
+                "language (unit number, client name/phone, payment plan) instead of asking them to fill "
+                "a form. Always confirm the unit number, plan type, and down payment (if not cash) are "
+                "present before calling this — ask a follow-up question for anything missing rather than "
+                "guessing. The generated file lands in the boss's review queue immediately; it is not "
+                "auto-approved."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "unit_number": {"type": "string", "description": "e.g. '38' — as the rep would say it, not a raw id"},
+                    "building": {"type": "string", "description": "e.g. Milano — only needed if the same unit number exists in more than one building"},
+                    "client_name": {"type": "string"},
+                    "client_phone": {"type": "string"},
+                    "plan_type": {"type": "string", "enum": ["cash", "installment_6", "installment_12", "installment_24"]},
+                    "down_payment_pct": {"type": "number", "description": "Required unless plan_type is 'cash'"},
+                    "balloon_months": {"type": "integer", "description": "Optional: months of a smaller payment before a lump-sum remainder (set together with balloon_monthly_payment_usd)"},
+                    "balloon_monthly_payment_usd": {"type": "number"},
+                },
+                "required": ["unit_number", "client_name", "client_phone", "plan_type"],
+            },
+        },
+    },
 ]
 
 # BOSS-ONLY — never included in the sales-agent assistant's tool list. A rep
@@ -201,7 +261,7 @@ FUNCTION_SCHEMAS_BOSS_ONLY = FUNCTION_SCHEMAS + [
 ]
 
 
-def call_function(name: str, args: dict, tenant_id: str):
+def call_function(name: str, args: dict, tenant_id: str, requester_email: str | None = None):
     if name == "get_units":
         return get_units(tenant_id, **args)
     if name == "get_pending_approvals":
@@ -214,4 +274,6 @@ def call_function(name: str, args: dict, tenant_id: str):
         return get_payment_plan_rates(tenant_id, **args)
     if name == "set_payment_plan_rate":
         return set_payment_plan_rate(tenant_id, **args)
+    if name == "create_spravka_request":
+        return create_spravka_request(tenant_id, requester_email, **args)
     raise ValueError(f"Unknown function: {name}")

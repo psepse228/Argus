@@ -5,25 +5,23 @@ rep-negotiated discount. A rep picks a plan, the system looks up the real
 rate, generates the Справка immediately (no pre-approval gate), and it lands
 in the boss's queue to confirm or reject afterward — review-after, not
 approve-before.
+
+The actual creation logic (validation, pricing lookup, file generation) now
+lives in app/services/spravka_service.py, shared with the AI assistant's
+chat-driven creation path — this router is a thin REST wrapper over it.
 """
 import os
-import re
-import shutil
-import tempfile
-from datetime import date, datetime, timezone
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel
 
 from app.db import get_service_client
 from app.deps import get_current_user, require_boss
-from app.excel_gen.models import SpravkaInput
-from app.excel_gen.writer import build_spravka
-from app.storage import download_spravka as storage_download, upload_spravka
+from app.services.spravka_service import PLAN_TYPES, SpravkaCreationError, create_spravka
+from app.storage import download_spravka as storage_download
 
 router = APIRouter(prefix="/api/spravka-requests")
-
-PLAN_TYPES = ["cash", "installment_6", "installment_12", "installment_24"]
 
 
 class SpravkaRequestCreate(BaseModel):
@@ -39,107 +37,17 @@ class SpravkaRequestCreate(BaseModel):
     balloon_monthly_payment_usd: float | None = None
 
 
-def _get_unit(client, unit_id: str, tenant_id: str) -> dict:
-    res = client.table("units").select("*").eq("id", unit_id).eq("tenant_id", tenant_id).execute()
-    if not res.data:
-        raise HTTPException(status_code=404, detail="Unit not found")
-    return res.data[0]
-
-
-def _get_plan_rate(client, tenant_id: str, building_id: str, plan_type: str) -> dict:
-    res = (
-        client.table("payment_plan_rates").select("*")
-        .eq("tenant_id", tenant_id).eq("building_id", building_id).eq("plan_type", plan_type)
-        .execute()
-    )
-    if not res.data:
-        raise HTTPException(status_code=400, detail=f"No rate set for plan '{plan_type}' on this building yet")
-    return res.data[0]
-
-
-def _installment_months_from_plan(plan_type: str) -> int | None:
-    m = re.match(r"installment_(\d+)", plan_type)
-    return int(m.group(1)) if m else None
-
-
-def _generate_and_store(req_row: dict, unit: dict, unit_building_name: str,
-                         real_price_per_m2: float, exchange_rate: float, manager_name: str) -> str:
-    """Anchor price stays unit['price_per_m2_usd'] (the illusion/list price);
-    the discount down to the real payment-plan price is expressed the same
-    way the Excel template already does it (promo_total_usd), reusing the
-    existing calc.py logic rather than inventing a second pricing path.
-
-    Generates to a local temp dir first (openpyxl needs a real path to save
-    to), uploads the result to Supabase Storage, then discards the temp dir —
-    the storage path (not a local disk path) is what gets persisted, so
-    generated files survive a backend restart."""
-    anchor_price = float(unit["price_per_m2_usd"])
-    area = float(unit["area_m2"])
-    discount_total_usd = max(0.0, (anchor_price - real_price_per_m2) * area)
-
-    plan_type = req_row["plan_type"]
-    installment_months = _installment_months_from_plan(plan_type)
-
-    inp = SpravkaInput(
-        building=unit_building_name,
-        client_name=req_row["client_name"], client_phone=req_row["client_phone"],
-        unit_number=unit["unit_number"], floor=unit["floor"], area_m2=area,
-        price_per_m2_usd_no_promo=anchor_price, exchange_rate=exchange_rate,
-        manager_name=manager_name,
-        promo_total_usd=discount_total_usd,
-        is_full_payment=(plan_type == "cash"),
-        installment_months=installment_months,
-        down_payment_pct=(req_row["down_payment_pct"] / 100) if req_row.get("down_payment_pct") else None,
-        balloon_months=req_row.get("balloon_months"),
-        balloon_monthly_payment_usd=req_row.get("balloon_monthly_payment_usd"),
-        payment_start_date=date.today(),
-    )
-    tmp_dir = tempfile.mkdtemp()
-    try:
-        out_path = os.path.join(tmp_dir, f"spravka_{req_row['id']}.xlsx")
-        build_spravka(inp, out_path)
-        return upload_spravka(req_row["tenant_id"], req_row["id"], out_path)
-    finally:
-        shutil.rmtree(tmp_dir, ignore_errors=True)
-
-
 @router.post("")
 def create_spravka_request(body: SpravkaRequestCreate, user=Depends(get_current_user)):
-    if body.plan_type not in PLAN_TYPES:
-        raise HTTPException(status_code=400, detail=f"plan_type must be one of {PLAN_TYPES}")
-    if body.plan_type != "cash" and body.down_payment_pct is None:
-        raise HTTPException(status_code=400, detail="down_payment_pct is required for installment plans")
-    if (body.balloon_months is None) != (body.balloon_monthly_payment_usd is None):
-        raise HTTPException(status_code=400, detail="balloon_months and balloon_monthly_payment_usd must be set together")
-
     client = get_service_client()
-    unit = _get_unit(client, body.unit_id, user.tenant_id)
-    building = client.table("buildings").select("name").eq("id", unit["building_id"]).execute().data[0]
-
-    rate = _get_plan_rate(client, user.tenant_id, unit["building_id"], body.plan_type)
-
-    row = {
-        "tenant_id": user.tenant_id, "unit_id": body.unit_id,
-        "client_name": body.client_name, "client_phone": body.client_phone,
-        "requested_by": user.email, "plan_type": body.plan_type,
-        "down_payment_pct": body.down_payment_pct,
-        "is_full_payment": body.plan_type == "cash",
-        "installment_months": _installment_months_from_plan(body.plan_type),
-        "balloon_months": body.balloon_months,
-        "balloon_monthly_payment_usd": body.balloon_monthly_payment_usd,
-        "status": "pending",  # generated immediately; "pending" now means "awaiting boss review", not "awaiting approval to generate"
-    }
-    inserted = client.table("spravka_requests").insert(row).execute().data[0]
-
-    file_path = _generate_and_store(
-        inserted, unit, building["name"], float(rate["price_per_m2_usd"]),
-        12200.0,  # TODO: exchange rate should also be a real per-day input, not hardcoded — flagged for the owner
-        user.email,
-    )
-    client.table("spravka_requests").update({"generated_file_url": file_path}).eq("id", inserted["id"]).execute()
-    inserted["generated_file_url"] = file_path
-    inserted["real_price_per_m2_usd"] = float(rate["price_per_m2_usd"])
-    return inserted
+    try:
+        return create_spravka(
+            client, user.tenant_id, body.unit_id, body.client_name, body.client_phone,
+            body.plan_type, user.email, body.down_payment_pct,
+            body.balloon_months, body.balloon_monthly_payment_usd,
+        )
+    except SpravkaCreationError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 @router.get("/{request_id}/download")
@@ -166,11 +74,19 @@ def download_spravka(request_id: str, user=Depends(get_current_user)):
 
 @router.get("")
 def list_spravka_requests(user=Depends(get_current_user)):
+    """Embeds the unit (number, floor, area) and its building name so the
+    dashboard can show a real, readable identifier instead of a raw row id --
+    a boss reviewing 5+ pending requests has no way to tell them apart
+    otherwise."""
     client = get_service_client()
-    q = client.table("spravka_requests").select("*").eq("tenant_id", user.tenant_id)
+    q = (
+        client.table("spravka_requests")
+        .select("*, units(unit_number, floor, area_m2, buildings(name))")
+        .eq("tenant_id", user.tenant_id)
+    )
     if user.role != "boss":
         q = q.eq("requested_by", user.email)
-    return q.execute().data
+    return q.order("created_at", desc=True).execute().data
 
 
 @router.post("/{request_id}/approve")
