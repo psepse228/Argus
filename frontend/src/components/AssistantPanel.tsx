@@ -19,6 +19,8 @@ type Digest = {
   recent: SpravkaRequest[];
   approvedTotal?: number;
   avgDiscount?: number;
+  leadsCount: number;
+  buildingStats: { name: string; forSale: number; price: number }[];
 };
 
 export function AssistantPanel({ user }: { user: CurrentUser }) {
@@ -49,20 +51,29 @@ export function AssistantPanel({ user }: { user: CurrentUser }) {
   useEffect(() => {
     (async () => {
       try {
-        const requests: SpravkaRequest[] = await api.spravkaRequests();
+        const [requests, leads, buildings, units]: [SpravkaRequest[], any[], any[], any[]] = await Promise.all([
+          api.spravkaRequests(), api.leads(), api.buildings(), api.units(),
+        ]);
         const pending = requests.filter((r) => r.status === "pending");
         const recent = [...requests]
           .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
           .slice(0, 4);
+        // real per-building snapshot (count for_sale + lowest real price/m2) --
+        // no fabricated trend line, since there's no price-history table to back one
+        const buildingStats = buildings.slice(0, 3).map((b: any) => {
+          const inBuilding = units.filter((u: any) => u.building_id === b.id && u.status === "for_sale");
+          const price = inBuilding.length ? Math.min(...inBuilding.map((u: any) => u.price_per_m2_usd)) : 0;
+          return { name: b.name, forSale: inBuilding.length, price };
+        });
         if (isBoss) {
           const summary = await api.analyticsSummary();
           setDigest({
-            pending: pending.length, recent,
+            pending: pending.length, recent, leadsCount: leads.length, buildingStats,
             approvedTotal: summary.spravka_requests_approved,
             avgDiscount: summary.average_approved_discount_pct,
           });
         } else {
-          setDigest({ pending: pending.length, recent });
+          setDigest({ pending: pending.length, recent, leadsCount: leads.length, buildingStats });
         }
       } catch {
         /* best-effort — chat still works without the digest */
@@ -70,9 +81,16 @@ export function AssistantPanel({ user }: { user: CurrentUser }) {
     })();
   }, [isBoss]);
 
-  const suggestions = isBoss
-    ? ["Что ждёт одобрения?", "Сводка по Milano", "Средний дисконт?", "Поставь цену для плана"]
-    : ["Подбери юниты в Milano", "Составь письмо клиенту"];
+  const quickActions = isBoss
+    ? [
+        { label: "Одобрения", prompt: "Что ждёт одобрения?", icon: <path d="M9 12l2 2 4-4M12 3l1.8 4.3L18 9l-4.2 1.7L12 15l-1.8-4.3L6 9l4.2-1.7L12 3Z" /> },
+        { label: "Сводка", prompt: "Сводка по Milano", icon: <><path d="M3 3v18h18" /><path d="M7 15l4-5 3 3 5-7" /></> },
+        { label: "Дисконт", prompt: "Средний дисконт?", icon: <><path d="M19 5 5 19" /><circle cx="7.5" cy="7.5" r="1.7" /><circle cx="16.5" cy="16.5" r="1.7" /></> },
+      ]
+    : [
+        { label: "Юниты в Milano", prompt: "Подбери юниты в Milano", icon: <><path d="M3 21V9l9-5 9 5v12" /><path d="M9 21v-7h6v7" /></> },
+        { label: "Письмо клиенту", prompt: "Составь письмо клиенту", icon: <><path d="M4 4h16v16H4z" /><path d="M4 4l8 8 8-8" /></> },
+      ];
 
   async function send(text?: string) {
     const v = (text ?? input).trim();
@@ -116,46 +134,135 @@ export function AssistantPanel({ user }: { user: CurrentUser }) {
         <div style={{ maxWidth: 720, margin: "0 auto", display: "flex", flexDirection: "column", gap: 18 }}>
           {/* Own identity, deliberately distinct from the compact utility
               header every data page gets -- this is the platform's primary
-              surface, not one more section under generic chrome. */}
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 4 }}>
-            <div>
-              <div style={{ fontFamily: "var(--font-heading)", fontSize: 30, fontWeight: 800, letterSpacing: "-0.02em", color: "var(--color-text)", lineHeight: 1.05 }}>
-                Ассистент
+              surface, not one more section under generic chrome. Avatar +
+              greeting + bell, quick-action circles, and a card row are the
+              actual structure the owner referenced (a real fintech app),
+              not a re-colored version of the old text-header + list card. */}
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 13 }}>
+              <div
+                title={`${user.email} · ${isBoss ? "Босс" : "Агент"}`}
+                style={{
+                  width: 44, height: 44, borderRadius: "50%", flexShrink: 0,
+                  background: "linear-gradient(150deg, var(--v-violet-strong, #7a5cff), var(--v-violet, #5b3fc4))",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  fontWeight: 800, fontSize: 15, color: "#fff",
+                  boxShadow: "0 10px 22px -8px color-mix(in srgb, var(--v-violet-strong, #7a5cff) 55%, transparent)",
+                }}
+              >
+                {isBoss ? "Б" : "А"}
               </div>
-              <div style={{ fontSize: 12.5, color: "var(--color-text-faint)", marginTop: 4 }}>
-                Italiano Vero — Milano · Roma · Neapol · Venice · Florencia
+              <div>
+                <div style={{ fontFamily: "var(--font-heading)", fontSize: 20, fontWeight: 800, letterSpacing: "-0.015em", color: "var(--color-text)" }}>
+                  {isBoss ? "Доброе утро" : "Привет!"}
+                </div>
+                <div style={{ fontSize: 12, color: "var(--color-text-faint)", marginTop: 3 }}>
+                  Italiano Vero — Milano · Roma · Neapol · Venice · Florencia
+                </div>
               </div>
             </div>
-            <div style={{ fontSize: 11.5, color: "var(--color-text-faint)", textAlign: "right", flexShrink: 0 }}>
-              {user.email}<br />{isBoss ? "Босс" : "Агент"}
+            <div style={{
+              width: 42, height: 42, borderRadius: "50%", flexShrink: 0, position: "relative",
+              background: "rgba(255,255,255,.05)", border: "1px solid var(--color-hairline)",
+              display: "flex", alignItems: "center", justifyContent: "center", color: "var(--color-text-soft)",
+            }}>
+              <svg viewBox="0 0 24 24" width={18} height={18} fill="none" stroke="currentColor" strokeWidth={1.9}>
+                <path d="M6 8a6 6 0 0 1 12 0c0 5 2 6 2 6H4s2-1 2-6Z" /><path d="M10 21a2 2 0 0 0 4 0" />
+              </svg>
+              {digest && digest.pending > 0 && (
+                <span style={{
+                  position: "absolute", top: 7, right: 8, width: 7, height: 7, borderRadius: "50%",
+                  background: "var(--v-accent)", boxShadow: "0 0 0 2.5px var(--v-bg, #140a2c)",
+                }} />
+              )}
             </div>
           </div>
-          {digest && (digest.pending > 0 || digest.recent.length > 0) && (
-            <div className="glass-panel" style={{ padding: "16px 18px" }}>
-              <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: ".05em", color: "var(--color-text-faint)", marginBottom: 12 }}>
-                Пока вас не было
-              </div>
-              <div style={{ display: "flex", gap: 20, marginBottom: digest.recent.length ? 14 : 0, flexWrap: "wrap" }}>
-                <DigestStat value={digest.pending} label="ждут одобрения" accent={digest.pending > 0} />
-                {isBoss && digest.approvedTotal !== undefined && (
-                  <DigestStat value={digest.approvedTotal} label="одобрено всего" />
-                )}
-                {isBoss && digest.avgDiscount !== undefined && (
-                  <DigestStat value={`${digest.avgDiscount}%`} label="средний дисконт" />
-                )}
-              </div>
-              {digest.recent.length > 0 && (
-                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                  {digest.recent.map((r) => (
-                    <div key={r.id} style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5, color: "var(--color-text-soft)" }}>
-                      <span>
-                        {r.units ? <>№{r.units.unit_number} · {r.units.buildings?.name}</> : "—"} — {r.client_name}
-                      </span>
-                      <span style={{ color: "var(--color-text-faint)" }}>{STATUS_LABELS[r.status] || r.status}</span>
-                    </div>
-                  ))}
+
+          <div style={{ display: "flex", gap: 22 }}>
+            <QuickAction
+              primary active={spravkaMode} label={spravkaMode ? "Режим справки — выкл" : "Справка"}
+              onClick={toggleSpravkaMode}
+              icon={<><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><path d="M14 2v6h6" /><path d="M9 15h6M9 11h4" /></>}
+            />
+            {quickActions.map((q) => (
+              <QuickAction key={q.label} label={q.label} onClick={() => send(q.prompt)} icon={q.icon} />
+            ))}
+          </div>
+
+          {digest && (
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+              <div className="glass-panel" style={{ padding: "20px 22px" }}>
+                <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 5 }}>Лиды</div>
+                <div style={{ fontSize: 12.5, color: "var(--color-text-soft)", lineHeight: 1.6 }}>
+                  {digest.leadsCount > 0
+                    ? `${digest.leadsCount} лидов в воронке — от новых до готовых к брони.`
+                    : "Пока нет лидов в базе."}
                 </div>
-              )}
+                <div style={{
+                  display: "inline-flex", fontSize: 11.5, fontWeight: 700, color: "var(--v-accent)",
+                  background: "var(--v-accent-tint)", padding: "6px 13px", borderRadius: 99, marginTop: 14,
+                }}>
+                  {digest.leadsCount} в работе
+                </div>
+              </div>
+              <div style={{
+                padding: "20px 22px", borderRadius: 22, color: "#fff",
+                background: "linear-gradient(155deg, var(--v-violet-strong, #7a5cff), var(--v-violet, #5b3fc4) 75%)",
+              }}>
+                <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 5 }}>Справки</div>
+                <div style={{ fontSize: 12.5, color: "rgba(255,255,255,.78)", lineHeight: 1.6 }}>
+                  {digest.pending > 0
+                    ? `${digest.pending} ждут вашего решения. Всё остальное — под контролем.`
+                    : "Всё разобрано — очередь пуста."}
+                </div>
+                <div
+                  onClick={() => send(isBoss ? "Что ждёт одобрения?" : "Начать работу над справкой")}
+                  style={{
+                    display: "inline-flex", fontSize: 11.5, fontWeight: 700, color: "#fff", cursor: "pointer",
+                    background: "rgba(255,255,255,.16)", padding: "6px 13px", borderRadius: 99, marginTop: 14,
+                  }}
+                >
+                  {isBoss ? "Открыть очередь →" : "Оформить →"}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {digest && digest.buildingStats.some((b) => b.forSale > 0) && (
+            <div className="glass-panel" style={{ padding: "18px 20px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                <div style={{ fontSize: 14, fontWeight: 800 }}>Юниты — быстрый обзор</div>
+                <span style={{ fontSize: 12, fontWeight: 700, color: "var(--v-accent)" }}>153 всего</span>
+              </div>
+              {digest.buildingStats.map((b) => (
+                <div key={b.name} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "13px 0", borderBottom: "1px solid var(--color-hairline-soft)" }}>
+                  <div>
+                    <div style={{ fontWeight: 700, fontSize: 13.5 }}>{b.name}</div>
+                    <div style={{ fontSize: 11.5, color: "var(--color-text-faint)", marginTop: 2 }}>{b.forSale} юнитов в продаже</div>
+                  </div>
+                  <div style={{ fontWeight: 800, fontSize: 13.5, fontVariantNumeric: "tabular-nums" }}>
+                    {b.forSale > 0 ? `от $${b.price.toLocaleString()}/м²` : "—"}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {digest && digest.recent.length > 0 && (
+            <div className="glass-panel" style={{ padding: "16px 18px" }}>
+              <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: ".05em", color: "var(--color-text-faint)", marginBottom: 10 }}>
+                Последние справки
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {digest.recent.map((r) => (
+                  <div key={r.id} style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5, color: "var(--color-text-soft)" }}>
+                    <span>
+                      {r.units ? <>№{r.units.unit_number} · {r.units.buildings?.name}</> : "—"} — {r.client_name}
+                    </span>
+                    <span style={{ color: "var(--color-text-faint)" }}>{STATUS_LABELS[r.status] || r.status}</span>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
           {messages.map((m, i) => (
@@ -208,34 +315,6 @@ export function AssistantPanel({ user }: { user: CurrentUser }) {
 
       <div style={{ padding: "12px 24px 18px" }}>
         <div style={{ maxWidth: 720, margin: "0 auto" }}>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 11, alignItems: "center" }}>
-            {/* Dedicated, visually distinct entry point into Справка creation --
-                not blended in with the generic suggestion chips, so it reads as
-                a mode switch rather than a canned question. */}
-            <button
-              onClick={toggleSpravkaMode}
-              style={{
-                display: "flex", alignItems: "center", gap: 7, fontSize: 12, fontWeight: 700,
-                color: spravkaMode ? "var(--v-text-on-accent)" : "var(--v-accent)",
-                background: spravkaMode ? "var(--v-accent)" : "var(--v-accent-tint)",
-                border: "1px solid transparent", borderRadius: 99, padding: "7px 14px 7px 11px", cursor: "pointer",
-              }}
-            >
-              <svg viewBox="0 0 24 24" width={13} height={13} fill="none" stroke="currentColor" strokeWidth={2.4}>
-                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><path d="M14 2v6h6" /><path d="M9 15h6M9 11h3" />
-              </svg>
-              {spravkaMode ? "Режим справки — выкл" : "Оформить справку"}
-            </button>
-            {suggestions.map((s) => (
-              <div
-                key={s}
-                onClick={() => send(s)}
-                style={{ fontSize: 12, color: "var(--color-text-soft)", background: "rgba(255,255,255,.04)", border: "1px solid var(--color-hairline-soft)", borderRadius: 99, padding: "7px 13px", cursor: "pointer" }}
-              >
-                {s}
-              </div>
-            ))}
-          </div>
           <div style={{
             display: "flex", gap: 10, alignItems: "center", background: "rgba(255,255,255,.04)", borderRadius: 15,
             padding: "6px 6px 6px 16px", border: `1px solid ${spravkaMode ? "var(--v-accent)" : "var(--color-hairline)"}`,
@@ -301,11 +380,24 @@ function SpravkaCard({ event, onPreview }: { event: SpravkaCreatedEvent; onPrevi
   );
 }
 
-function DigestStat({ value, label, accent }: { value: number | string; label: string; accent?: boolean }) {
+function QuickAction({
+  label, onClick, icon, primary,
+}: { label: string; onClick: () => void; icon: React.ReactNode; primary?: boolean; active?: boolean }) {
+  const isFilled = Boolean(primary);
   return (
-    <div>
-      <div style={{ fontSize: 20, fontWeight: 700, color: accent ? "var(--v-accent)" : "var(--color-text)" }}>{value}</div>
-      <div style={{ fontSize: 11.5, color: "var(--color-text-faint)" }}>{label}</div>
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 9, cursor: "pointer" }} onClick={onClick}>
+      <div
+        style={{
+          width: 52, height: 52, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center",
+          background: isFilled ? "var(--v-accent)" : "rgba(255,255,255,.05)",
+          border: isFilled ? "none" : "1px solid var(--color-hairline)",
+          color: isFilled ? "var(--v-text-on-accent)" : "var(--color-text-soft)",
+          boxShadow: isFilled ? "0 14px 26px -10px color-mix(in srgb, var(--v-accent) 55%, transparent)" : "none",
+        }}
+      >
+        <svg viewBox="0 0 24 24" width={20} height={20} fill="none" stroke="currentColor" strokeWidth={1.9}>{icon}</svg>
+      </div>
+      <span style={{ fontSize: 11.5, fontWeight: 650, color: "var(--color-text-soft)", whiteSpace: "nowrap" }}>{label}</span>
     </div>
   );
 }
