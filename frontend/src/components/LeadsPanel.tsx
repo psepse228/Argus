@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { Lead } from "@/lib/types";
+import { Dropdown } from "./Dropdown";
 
 const STAGES = [
   { key: "unsorted", label: "Неразобранное" },
@@ -51,13 +52,12 @@ export function LeadsPanel() {
                 <div key={l.id} className="glass-panel" style={{ padding: "12px 13px", borderRadius: 14, display: "flex", flexDirection: "column", gap: 8 }}>
                   <div style={{ fontSize: 13, fontWeight: 600, color: "var(--color-text)" }}>{l.phone}</div>
                   <div style={{ fontSize: 11, color: "var(--color-text-faint)" }}>{l.buy_intent || l.source || "—"}</div>
-                  <select
+                  <Dropdown
                     value={l.stage}
-                    onChange={(e) => move(l.id, e.target.value)}
-                    style={{ fontSize: 11, padding: "5px 8px", borderRadius: 8, background: "rgba(255,255,255,.05)", border: "1px solid var(--color-hairline-soft)", color: "var(--color-text-soft)" }}
-                  >
-                    {STAGES.map((s2) => <option key={s2.key} value={s2.key}>{s2.label}</option>)}
-                  </select>
+                    onChange={(v) => move(l.id, v)}
+                    options={STAGES.map((s2) => ({ value: s2.key, label: s2.label }))}
+                    style={{ fontSize: 11 }}
+                  />
                 </div>
               ))}
             </div>
