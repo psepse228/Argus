@@ -2,8 +2,17 @@
 import { useEffect, useRef, useState } from "react";
 import { api, CurrentUser } from "@/lib/api";
 import { SpravkaRequest, STATUS_LABELS } from "@/lib/types";
+import { ExcelPreviewModal } from "./ExcelPreviewModal";
 
-type ChatMsg = { role: "user" | "bot"; text: string };
+type SpravkaCreatedEvent = {
+  type: "spravka_created";
+  request_id: string;
+  unit_number: string;
+  building?: string;
+  real_price_per_m2_usd: number;
+  summary?: { effective_total_usd: number; payment_label: string };
+};
+type ChatMsg = { role: "user" | "bot"; text: string; events?: SpravkaCreatedEvent[] };
 
 type Digest = {
   pending: number;
@@ -25,6 +34,8 @@ export function AssistantPanel({ user }: { user: CurrentUser }) {
   const [input, setInput] = useState("");
   const [typing, setTyping] = useState(false);
   const [digest, setDigest] = useState<Digest | null>(null);
+  const [spravkaMode, setSpravkaMode] = useState(false);
+  const [previewId, setPreviewId] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -61,7 +72,7 @@ export function AssistantPanel({ user }: { user: CurrentUser }) {
 
   const suggestions = isBoss
     ? ["Что ждёт одобрения?", "Сводка по Milano", "Средний дисконт?", "Поставь цену для плана"]
-    : ["Начать работу над справкой", "Подбери юниты в Milano", "Составь письмо клиенту"];
+    : ["Подбери юниты в Milano", "Составь письмо клиенту"];
 
   async function send(text?: string) {
     const v = (text ?? input).trim();
@@ -73,8 +84,12 @@ export function AssistantPanel({ user }: { user: CurrentUser }) {
     try {
       const history = nextMessages.map((m) => ({ role: m.role === "bot" ? "assistant" : "user", content: m.text }));
       const call = isBoss ? api.bossChat : api.agentChat;
-      const { reply } = await call(v, history.slice(0, -1));
-      setMessages((cur) => [...cur, { role: "bot", text: reply }]);
+      const { reply, events } = await call(v, history.slice(0, -1), spravkaMode ? "spravka" : undefined);
+      const created: SpravkaCreatedEvent[] = (events || []).filter((e: any) => e.type === "spravka_created");
+      setMessages((cur) => [...cur, { role: "bot", text: reply, events: created.length ? created : undefined }]);
+      // task the button was for is done -- drop back to normal chat rather
+      // than staying narrowed to spravka-only topics for the rest of the session
+      if (created.length) setSpravkaMode(false);
     } catch (e: any) {
       setMessages((cur) => [...cur, { role: "bot", text: `Ошибка: ${e.message}` }]);
     } finally {
@@ -82,10 +97,39 @@ export function AssistantPanel({ user }: { user: CurrentUser }) {
     }
   }
 
+  function toggleSpravkaMode() {
+    setSpravkaMode((cur) => {
+      const next = !cur;
+      if (next) {
+        setMessages((m) => [...m, {
+          role: "bot",
+          text: "Режим оформления справки включён. Назовите юнит, имя и телефон клиента, план оплаты — оформлю сразу.",
+        }]);
+      }
+      return next;
+    });
+  }
+
   return (
     <div className="glass-panel" style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", padding: 0, overflow: "hidden" }}>
       <div ref={scrollRef} style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "26px 24px 8px" }}>
         <div style={{ maxWidth: 720, margin: "0 auto", display: "flex", flexDirection: "column", gap: 18 }}>
+          {/* Own identity, deliberately distinct from the compact utility
+              header every data page gets -- this is the platform's primary
+              surface, not one more section under generic chrome. */}
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 4 }}>
+            <div>
+              <div style={{ fontFamily: "var(--font-heading)", fontSize: 30, fontWeight: 800, letterSpacing: "-0.02em", color: "var(--color-text)", lineHeight: 1.05 }}>
+                Ассистент
+              </div>
+              <div style={{ fontSize: 12.5, color: "var(--color-text-faint)", marginTop: 4 }}>
+                Italiano Vero — Milano · Roma · Neapol · Venice · Florencia
+              </div>
+            </div>
+            <div style={{ fontSize: 11.5, color: "var(--color-text-faint)", textAlign: "right", flexShrink: 0 }}>
+              {user.email}<br />{isBoss ? "Босс" : "Агент"}
+            </div>
+          </div>
           {digest && (digest.pending > 0 || digest.recent.length > 0) && (
             <div className="glass-panel" style={{ padding: "16px 18px" }}>
               <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: ".05em", color: "var(--color-text-faint)", marginBottom: 12 }}>
@@ -124,19 +168,23 @@ export function AssistantPanel({ user }: { user: CurrentUser }) {
                   </svg>
                 </span>
               )}
-              <div
-                style={{
-                  maxWidth: "76%",
-                  background: m.role === "bot" ? "rgba(255,255,255,.05)" : "var(--v-accent)",
-                  color: m.role === "bot" ? "var(--color-text)" : "var(--v-text-on-accent)",
-                  border: m.role === "bot" ? "1px solid var(--color-hairline-soft)" : "none",
-                  borderRadius: m.role === "bot" ? "4px 15px 15px 15px" : "15px 15px 4px 15px",
-                  padding: "12px 15px", fontSize: 13.5, lineHeight: 1.55,
-                  fontWeight: m.role === "bot" ? 400 : 500,
-                  whiteSpace: "pre-wrap",
-                }}
-              >
-                {m.text}
+              <div style={{ maxWidth: "76%", display: "flex", flexDirection: "column", gap: 10 }}>
+                <div
+                  style={{
+                    background: m.role === "bot" ? "rgba(255,255,255,.05)" : "var(--v-accent)",
+                    color: m.role === "bot" ? "var(--color-text)" : "var(--v-text-on-accent)",
+                    border: m.role === "bot" ? "1px solid var(--color-hairline-soft)" : "none",
+                    borderRadius: m.role === "bot" ? "4px 15px 15px 15px" : "15px 15px 4px 15px",
+                    padding: "12px 15px", fontSize: 13.5, lineHeight: 1.55,
+                    fontWeight: m.role === "bot" ? 400 : 500,
+                    whiteSpace: "pre-wrap",
+                  }}
+                >
+                  {m.text}
+                </div>
+                {m.events?.map((ev) => (
+                  <SpravkaCard key={ev.request_id} event={ev} onPreview={() => setPreviewId(ev.request_id)} />
+                ))}
               </div>
             </div>
           ))}
@@ -160,7 +208,24 @@ export function AssistantPanel({ user }: { user: CurrentUser }) {
 
       <div style={{ padding: "12px 24px 18px" }}>
         <div style={{ maxWidth: 720, margin: "0 auto" }}>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 11 }}>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 11, alignItems: "center" }}>
+            {/* Dedicated, visually distinct entry point into Справка creation --
+                not blended in with the generic suggestion chips, so it reads as
+                a mode switch rather than a canned question. */}
+            <button
+              onClick={toggleSpravkaMode}
+              style={{
+                display: "flex", alignItems: "center", gap: 7, fontSize: 12, fontWeight: 700,
+                color: spravkaMode ? "var(--v-text-on-accent)" : "var(--v-accent)",
+                background: spravkaMode ? "var(--v-accent)" : "var(--v-accent-tint)",
+                border: "1px solid transparent", borderRadius: 99, padding: "7px 14px 7px 11px", cursor: "pointer",
+              }}
+            >
+              <svg viewBox="0 0 24 24" width={13} height={13} fill="none" stroke="currentColor" strokeWidth={2.4}>
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><path d="M14 2v6h6" /><path d="M9 15h6M9 11h3" />
+              </svg>
+              {spravkaMode ? "Режим справки — выкл" : "Оформить справку"}
+            </button>
             {suggestions.map((s) => (
               <div
                 key={s}
@@ -171,12 +236,15 @@ export function AssistantPanel({ user }: { user: CurrentUser }) {
               </div>
             ))}
           </div>
-          <div style={{ display: "flex", gap: 10, alignItems: "center", background: "rgba(255,255,255,.04)", border: "1px solid var(--color-hairline)", borderRadius: 15, padding: "6px 6px 6px 16px" }}>
+          <div style={{
+            display: "flex", gap: 10, alignItems: "center", background: "rgba(255,255,255,.04)", borderRadius: 15,
+            padding: "6px 6px 6px 16px", border: `1px solid ${spravkaMode ? "var(--v-accent)" : "var(--color-hairline)"}`,
+          }}>
             <input
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && send()}
-              placeholder="Спросите про юниты, условия сделки или дайте задачу…"
+              placeholder={spravkaMode ? "Юнит, имя и телефон клиента, план оплаты…" : "Спросите про юниты, условия сделки или дайте задачу…"}
               style={{ flex: 1, background: "transparent", border: "none", outline: "none", color: "var(--color-text)", fontSize: 13.5, padding: "9px 0" }}
             />
             <button
@@ -189,6 +257,45 @@ export function AssistantPanel({ user }: { user: CurrentUser }) {
             </button>
           </div>
         </div>
+      </div>
+      {previewId && <ExcelPreviewModal requestId={previewId} onClose={() => setPreviewId(null)} />}
+    </div>
+  );
+}
+
+function SpravkaCard({ event, onPreview }: { event: SpravkaCreatedEvent; onPreview: () => void }) {
+  return (
+    <div className="glass-panel" style={{ padding: "14px 16px", maxWidth: 340 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+        <span style={{ width: 26, height: 26, borderRadius: 8, background: "var(--v-accent-tint)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+          <svg viewBox="0 0 24 24" width={14} height={14} fill="none" stroke="var(--v-accent)" strokeWidth={2.2}>
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><path d="M14 2v6h6" />
+          </svg>
+        </span>
+        <div>
+          <div style={{ fontSize: 12.5, fontWeight: 700, color: "var(--color-text)" }}>
+            №{event.unit_number}{event.building ? ` · ${event.building}` : ""}
+          </div>
+          <div style={{ fontSize: 11, color: "var(--color-text-faint)" }}>Справка создана — ждёт проверки</div>
+        </div>
+      </div>
+      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5, color: "var(--color-text-soft)", marginBottom: 12 }}>
+        <span>${event.real_price_per_m2_usd}/м²</span>
+        {event.summary && <span>{event.summary.payment_label.trim()}</span>}
+      </div>
+      <div style={{ display: "flex", gap: 8 }}>
+        <button
+          onClick={onPreview}
+          style={{ flex: 1, padding: "8px 0", borderRadius: 99, background: "var(--v-accent-tint)", color: "var(--v-accent)", fontSize: 11.5, fontWeight: 700, border: "none", cursor: "pointer" }}
+        >
+          Просмотр
+        </button>
+        <a
+          href={api.spravkaDownloadUrl(event.request_id)}
+          style={{ flex: 1, textAlign: "center", padding: "8px 0", borderRadius: 99, background: "rgba(255,255,255,.05)", border: "1px solid var(--color-hairline)", color: "var(--color-text-soft)", fontSize: 11.5, fontWeight: 700 }}
+        >
+          Скачать
+        </a>
       </div>
     </div>
   );

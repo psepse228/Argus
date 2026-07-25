@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { api } from "@/lib/api";
 import { Unit, Building, STATUS_LABELS } from "@/lib/types";
 import { StatusChip } from "./StatusChip";
+import { Dropdown } from "./Dropdown";
 
 const SORTS = {
   default: { label: "По умолчанию", fn: null },
@@ -61,19 +62,26 @@ export function UnitsPanel() {
         ))}
       </div>
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 18, alignItems: "center" }}>
-        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} style={chipSelectStyle}>
-          <option value="Все">Все статусы</option>
-          {statuses.map((s) => <option key={s} value={s}>{STATUS_LABELS[s] || s}</option>)}
-        </select>
+        <Dropdown
+          value={statusFilter}
+          onChange={setStatusFilter}
+          style={{ width: 170 }}
+          options={[{ value: "Все", label: "Все статусы" }, ...statuses.map((s) => ({ value: s, label: STATUS_LABELS[s] || s }))]}
+        />
         {roomTypes.length > 0 && (
-          <select value={roomFilter} onChange={(e) => setRoomFilter(e.target.value)} style={chipSelectStyle}>
-            <option value="Все">Все типы комнат</option>
-            {roomTypes.map((r) => <option key={r} value={r}>{r}</option>)}
-          </select>
+          <Dropdown
+            value={roomFilter}
+            onChange={setRoomFilter}
+            style={{ width: 170 }}
+            options={[{ value: "Все", label: "Все типы комнат" }, ...roomTypes.map((r) => ({ value: r, label: r }))]}
+          />
         )}
-        <select value={sort} onChange={(e) => setSort(e.target.value as keyof typeof SORTS)} style={chipSelectStyle}>
-          {Object.entries(SORTS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
-        </select>
+        <Dropdown
+          value={sort}
+          onChange={(v) => setSort(v as keyof typeof SORTS)}
+          style={{ width: 150 }}
+          options={Object.entries(SORTS).map(([k, v]) => ({ value: k, label: v.label }))}
+        />
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(232px,1fr))", gap: 14 }}>
         {filtered.map((u) => (
@@ -101,9 +109,3 @@ export function UnitsPanel() {
     </div>
   );
 }
-
-const chipSelectStyle: React.CSSProperties = {
-  padding: "7px 12px", borderRadius: 99, fontSize: 12.5, fontWeight: 600,
-  background: "rgba(255,255,255,.04)", color: "var(--color-text-soft)",
-  border: "1px solid var(--color-hairline-soft)", cursor: "pointer",
-};

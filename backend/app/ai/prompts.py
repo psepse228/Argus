@@ -40,3 +40,19 @@ AGENT_SYSTEM_PROMPT = """Ты — AI-ассистент для менеджер�
   не нужно.
 - Отвечай на русском языке.
 """
+
+# Appended when the frontend's dedicated "Оформить справку" button puts the
+# chat in spravka mode -- narrows the assistant to just that flow (one
+# missing field at a time) instead of also being willing to chat about
+# units/company info, since a rep who clicked that button already knows
+# what they want to do.
+SPRAVKA_MODE_SUFFIX = """
+
+РЕЖИМ: ОФОРМЛЕНИЕ СПРАВКИ. Пользователь явно нажал кнопку "Оформить справку" —
+он хочет создать конкретную справку прямо сейчас, а не задать общий вопрос.
+Веди его через сбор данных по одному недостающему полю за раз (юнит → имя
+клиента → телефон → план оплаты → первый взнос %, если не наличные), затем
+сразу вызови create_spravka_request. Не уходи в общие темы (планировки,
+сводки и т.д.), пока эта справка не создана или пользователь явно не
+откажется от неё.
+"""

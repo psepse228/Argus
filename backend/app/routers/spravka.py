@@ -18,6 +18,7 @@ from pydantic import BaseModel
 
 from app.db import get_service_client
 from app.deps import get_current_user, require_boss
+from app.excel_gen.preview import workbook_bytes_to_preview
 from app.services.spravka_service import PLAN_TYPES, SpravkaCreationError, create_spravka
 from app.storage import download_spravka as storage_download
 
@@ -70,6 +71,24 @@ def download_spravka(request_id: str, user=Depends(get_current_user)):
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": f'attachment; filename="{os.path.basename(storage_path)}"'},
     )
+
+
+@router.get("/{request_id}/preview")
+def preview_spravka(request_id: str, user=Depends(get_current_user)):
+    """Real HUD over the real generated file -- reads the actual stored
+    .xlsx (same tenant-ownership gate as download) and returns a styled grid
+    (fonts, borders, merges, number formats) for the frontend to render as an
+    actual table, so what's shown can never drift from what "Скачать" gives
+    you. Not a hand-built numeric summary."""
+    client = get_service_client()
+    res = client.table("spravka_requests").select("generated_file_url").eq("id", request_id).eq("tenant_id", user.tenant_id).execute()
+    if not res.data or not res.data[0].get("generated_file_url"):
+        raise HTTPException(status_code=404, detail="No generated file for this request")
+    try:
+        data = storage_download(res.data[0]["generated_file_url"])
+        return workbook_bytes_to_preview(data)
+    except Exception:
+        raise HTTPException(status_code=410, detail="Generated file no longer exists in storage")
 
 
 @router.get("")

@@ -32,11 +32,12 @@ export const api = {
   rejectSpravka: (id: string) => request(`/api/spravka-requests/${id}/reject`, { method: "POST" }),
   paymentPlanRates: (buildingId?: string) =>
     request(`/api/payment-plan-rates${buildingId ? `?building_id=${buildingId}` : ""}`),
-  bossChat: (message: string, history?: any[]) =>
-    request("/api/assistant/boss/chat", { method: "POST", body: JSON.stringify({ message, history }) }),
-  agentChat: (message: string, history?: any[]) =>
-    request("/api/assistant/agent/chat", { method: "POST", body: JSON.stringify({ message, history }) }),
+  bossChat: (message: string, history?: any[], mode?: string) =>
+    request("/api/assistant/boss/chat", { method: "POST", body: JSON.stringify({ message, history, mode }) }),
+  agentChat: (message: string, history?: any[], mode?: string) =>
+    request("/api/assistant/agent/chat", { method: "POST", body: JSON.stringify({ message, history, mode }) }),
   analyticsSummary: () => request("/api/analytics/summary"),
   spravkaDownloadUrl: (requestId: string) => `${API_BASE}/api/spravka-requests/${requestId}/download`,
+  spravkaPreview: (requestId: string) => request(`/api/spravka-requests/${requestId}/preview`),
   loginUrl: () => `${API_BASE}/api/auth/google/start`,
 };

@@ -1,16 +1,77 @@
 "use client";
+import { useState } from "react";
 import { CurrentUser } from "@/lib/api";
 import { ThemeSwitcher } from "./ThemeSwitcher";
 
 export type Section = "assistant" | "units" | "leads" | "docs" | "analytics";
 
-const NAV: { key: Section; label: string; bossOnly?: boolean }[] = [
-  { key: "assistant", label: "✨ Ассистент" },
-  { key: "units", label: "🏢 Юниты" },
-  { key: "leads", label: "👥 Лиды" },
-  { key: "docs", label: "📄 Справки" },
-  { key: "analytics", label: "📊 Аналитика", bossOnly: true },
+// Ассистент is deliberately not in this list -- it's the primary surface,
+// rendered as its own dedicated rail button above a divider, not one of N
+// equal tabs. Everything below the divider is a supporting tool the
+// assistant can also reach data from, reachable directly when needed.
+const TOOLS: { key: Section; label: string; icon: JSX.Element; bossOnly?: boolean }[] = [
+  {
+    key: "units", label: "Юниты", icon: (
+      <svg viewBox="0 0 24 24" width={19} height={19} fill="none" stroke="currentColor" strokeWidth={1.8}>
+        <path d="M3 21V8l9-5 9 5v13" /><path d="M9 21v-7h6v7" />
+      </svg>
+    ),
+  },
+  {
+    key: "leads", label: "Лиды", icon: (
+      <svg viewBox="0 0 24 24" width={19} height={19} fill="none" stroke="currentColor" strokeWidth={1.8}>
+        <circle cx="9" cy="8" r="3.2" /><path d="M2.5 20c0-3.5 3-6 6.5-6s6.5 2.5 6.5 6" />
+        <circle cx="18" cy="9" r="2.4" /><path d="M15.5 20c.3-2.5 1.8-4.3 3.8-4.7" />
+      </svg>
+    ),
+  },
+  {
+    key: "docs", label: "Справки", icon: (
+      <svg viewBox="0 0 24 24" width={19} height={19} fill="none" stroke="currentColor" strokeWidth={1.8}>
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><path d="M14 2v6h6" />
+      </svg>
+    ),
+  },
+  {
+    key: "analytics", label: "Аналитика", bossOnly: true, icon: (
+      <svg viewBox="0 0 24 24" width={19} height={19} fill="none" stroke="currentColor" strokeWidth={1.8}>
+        <path d="M3 3v18h18" /><path d="M7 16l4-5 3 3 5-7" />
+      </svg>
+    ),
+  },
 ];
+
+function RailButton({
+  active, label, onClick, children, badge,
+}: { active: boolean; label: string; onClick: () => void; children: React.ReactNode; badge?: number }) {
+  return (
+    <div style={{ position: "relative" }}>
+      <button
+        onClick={onClick}
+        title={label}
+        style={{
+          width: 46, height: 46, borderRadius: 14, border: "none", cursor: "pointer",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          background: active ? "var(--v-accent)" : "rgba(255,255,255,.04)",
+          color: active ? "var(--v-text-on-accent)" : "var(--color-text-soft)",
+          transition: "background .15s ease, color .15s ease",
+        }}
+      >
+        {children}
+      </button>
+      {!!badge && (
+        <span style={{
+          position: "absolute", top: -4, right: -4, fontSize: 10, fontWeight: 700,
+          background: "var(--v-accent)", color: "var(--v-text-on-accent)",
+          borderRadius: 99, minWidth: 16, height: 16, display: "flex", alignItems: "center",
+          justifyContent: "center", padding: "0 3px",
+        }}>
+          {badge}
+        </span>
+      )}
+    </div>
+  );
+}
 
 export function Sidebar({
   user, active, onChange, pendingCount,
@@ -20,57 +81,64 @@ export function Sidebar({
   onChange: (s: Section) => void;
   pendingCount: number;
 }) {
+  const [themeOpen, setThemeOpen] = useState(false);
+
   return (
-    <div className="glass-panel" style={{ width: 240, flexShrink: 0, padding: "20px 14px", display: "flex", flexDirection: "column" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 11, padding: "2px 8px 22px" }}>
-        <div style={{ width: 30, height: 30, borderRadius: 9, background: "var(--v-accent)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-          <svg viewBox="0 0 24 24" width={17} height={17} fill="none" stroke="var(--v-text-on-accent)" strokeWidth={2.2}>
-            <circle cx="12" cy="12" r="3.4" />
-            <path d="M2 12s3.5-6.5 10-6.5S22 12 22 12s-3.5 6.5-10 6.5S2 12 2 12Z" />
-          </svg>
-        </div>
-        <div>
-          <div style={{ fontFamily: "var(--font-heading)", fontWeight: 700, fontSize: 16, lineHeight: 1, color: "var(--color-text)" }}>Argus</div>
-          <div style={{ fontSize: 10.5, color: "var(--color-text-faint)", marginTop: 3, letterSpacing: ".03em" }}>Italiano Vero</div>
-        </div>
+    <div className="glass-panel" style={{ width: 76, flexShrink: 0, padding: "18px 0", display: "flex", flexDirection: "column", alignItems: "center" }}>
+      <div style={{ width: 34, height: 34, borderRadius: 10, background: "var(--v-accent)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginBottom: 22 }}>
+        <svg viewBox="0 0 24 24" width={19} height={19} fill="none" stroke="var(--v-text-on-accent)" strokeWidth={2.2}>
+          <circle cx="12" cy="12" r="3.4" />
+          <path d="M2 12s3.5-6.5 10-6.5S22 12 22 12s-3.5 6.5-10 6.5S2 12 2 12Z" />
+        </svg>
       </div>
 
-      {NAV.filter((n) => !n.bossOnly || user.role === "boss").map((n) => {
-        const isActive = active === n.key;
-        return (
-          <div
-            key={n.key}
-            onClick={() => onChange(n.key)}
-            style={{
-              display: "flex", alignItems: "center", gap: 10, padding: "11px 12px", borderRadius: 12,
-              fontSize: 14, fontWeight: 600, marginBottom: 3, cursor: "pointer",
-              background: isActive ? "var(--v-accent-tint)" : "transparent",
-              color: isActive ? "var(--v-accent)" : "var(--color-text-soft)",
-            }}
-          >
-            <span>{n.label}</span>
-            {n.key === "docs" && pendingCount > 0 && (
-              <span style={{ marginLeft: "auto", fontSize: 10.5, fontWeight: 700, background: "var(--v-accent)", color: "var(--v-text-on-accent)", borderRadius: 99, padding: "1px 7px" }}>
-                {pendingCount}
-              </span>
-            )}
-          </div>
-        );
-      })}
+      {/* Primary surface -- visually distinct from the tools below, not one
+          of N equal siblings. Larger, always first, own accent glow. */}
+      <RailButton active={active === "assistant"} label="Ассистент" onClick={() => onChange("assistant")}>
+        <svg viewBox="0 0 24 24" width={21} height={21} fill="none" stroke="currentColor" strokeWidth={1.9}>
+          <path d="M12 3l1.8 4.3L18 9l-4.2 1.7L12 15l-1.8-4.3L6 9l4.2-1.7L12 3Z" />
+          <path d="M19 14l.9 2.1L22 17l-2.1.9L19 20l-.9-2.1L16 17l2.1-.9L19 14Z" />
+        </svg>
+      </RailButton>
 
-      <div style={{ marginTop: "auto", paddingTop: 14, borderTop: "1px solid var(--color-hairline-soft)" }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 12px 10px" }}>
-          <span style={{ fontSize: 10.5, color: "var(--color-text-faint)", letterSpacing: ".04em", textTransform: "uppercase" }}>Тема</span>
-          <ThemeSwitcher />
+      <div style={{ width: 28, height: 1, background: "var(--color-hairline-soft)", margin: "16px 0" }} />
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {TOOLS.filter((t) => !t.bossOnly || user.role === "boss").map((t) => (
+          <RailButton
+            key={t.key}
+            active={active === t.key}
+            label={t.label}
+            onClick={() => onChange(t.key)}
+            badge={t.key === "docs" ? pendingCount : undefined}
+          >
+            {t.icon}
+          </RailButton>
+        ))}
+      </div>
+
+      <div style={{ marginTop: "auto", display: "flex", flexDirection: "column", alignItems: "center", gap: 10 }}>
+        <div style={{ position: "relative" }}>
+          <button
+            onClick={() => setThemeOpen((v) => !v)}
+            title="Тема"
+            style={{ width: 32, height: 32, borderRadius: 10, border: "1px solid var(--color-hairline-soft)", background: "rgba(255,255,255,.03)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
+          >
+            <svg viewBox="0 0 24 24" width={15} height={15} fill="none" stroke="var(--color-text-soft)" strokeWidth={2}>
+              <circle cx="12" cy="12" r="4" /><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
+            </svg>
+          </button>
+          {themeOpen && (
+            <div className="glass-panel" style={{ position: "absolute", bottom: "calc(100% + 8px)", left: "50%", transform: "translateX(-50%)", padding: 10, zIndex: 30 }}>
+              <ThemeSwitcher />
+            </div>
+          )}
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 9, padding: "4px 12px 4px" }}>
-          <span style={{ width: 28, height: 28, borderRadius: "50%", background: "var(--v-accent-tint)", color: "var(--v-accent)", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: 12 }}>
-            {(user.role === "boss" ? "М" : "А")}
-          </span>
-          <div style={{ minWidth: 0 }}>
-            <div style={{ fontSize: 13, color: "var(--color-text)", fontWeight: 600 }}>{user.email.split("@")[0]}</div>
-            <div style={{ fontSize: 11, color: "var(--color-text-faint)" }}>{user.role === "boss" ? "Босс" : "Агент"}</div>
-          </div>
+        <div
+          title={`${user.email} · ${user.role === "boss" ? "Босс" : "Агент"}`}
+          style={{ width: 32, height: 32, borderRadius: "50%", background: "var(--v-accent-tint)", color: "var(--v-accent)", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: 12 }}
+        >
+          {(user.role === "boss" ? "М" : "А")}
         </div>
       </div>
     </div>

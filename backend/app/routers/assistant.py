@@ -6,7 +6,7 @@ from pydantic import BaseModel
 
 from app.deps import get_current_user, require_boss
 from app.ai.chat import ChatUnavailableError, run_chat
-from app.ai.prompts import BOSS_SYSTEM_PROMPT, AGENT_SYSTEM_PROMPT
+from app.ai.prompts import BOSS_SYSTEM_PROMPT, AGENT_SYSTEM_PROMPT, SPRAVKA_MODE_SUFFIX
 from app.ai.functions import FUNCTION_SCHEMAS, FUNCTION_SCHEMAS_BOSS_ONLY
 
 router = APIRouter(prefix="/api/assistant")
@@ -15,21 +15,24 @@ router = APIRouter(prefix="/api/assistant")
 class ChatRequest(BaseModel):
     message: str
     history: list[dict] | None = None
+    mode: str | None = None  # "spravka" when sent via the dedicated chat button
 
 
 @router.post("/boss/chat")
 def boss_chat(body: ChatRequest, user=Depends(require_boss)):
+    prompt = BOSS_SYSTEM_PROMPT + (SPRAVKA_MODE_SUFFIX if body.mode == "spravka" else "")
     try:
-        reply = run_chat(BOSS_SYSTEM_PROMPT, body.message, user.tenant_id, FUNCTION_SCHEMAS_BOSS_ONLY, body.history, user.email)
+        reply, events = run_chat(prompt, body.message, user.tenant_id, FUNCTION_SCHEMAS_BOSS_ONLY, body.history, user.email)
     except ChatUnavailableError:
         raise HTTPException(status_code=503, detail="Ассистент временно недоступен — попробуйте через минуту")
-    return {"reply": reply}
+    return {"reply": reply, "events": events}
 
 
 @router.post("/agent/chat")
 def agent_chat(body: ChatRequest, user=Depends(get_current_user)):
+    prompt = AGENT_SYSTEM_PROMPT + (SPRAVKA_MODE_SUFFIX if body.mode == "spravka" else "")
     try:
-        reply = run_chat(AGENT_SYSTEM_PROMPT, body.message, user.tenant_id, FUNCTION_SCHEMAS, body.history, user.email)
+        reply, events = run_chat(prompt, body.message, user.tenant_id, FUNCTION_SCHEMAS, body.history, user.email)
     except ChatUnavailableError:
         raise HTTPException(status_code=503, detail="Ассистент временно недоступен — попробуйте через минуту")
-    return {"reply": reply}
+    return {"reply": reply, "events": events}

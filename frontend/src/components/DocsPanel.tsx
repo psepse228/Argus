@@ -3,6 +3,8 @@ import { useEffect, useState } from "react";
 import { api, CurrentUser } from "@/lib/api";
 import { Unit, Building, SpravkaRequest, PlanRate, PLAN_LABELS } from "@/lib/types";
 import { StatusChip } from "./StatusChip";
+import { Dropdown } from "./Dropdown";
+import { ExcelPreviewModal } from "./ExcelPreviewModal";
 
 export function DocsPanel({ user }: { user: CurrentUser }) {
   const [buildings, setBuildings] = useState<Building[]>([]);
@@ -23,6 +25,7 @@ export function DocsPanel({ user }: { user: CurrentUser }) {
   const [error, setError] = useState("");
   const [actionError, setActionError] = useState("");
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [previewId, setPreviewId] = useState<string | null>(null);
 
   async function refresh() {
     const [b, u, r] = await Promise.all([api.buildings(), api.units(), api.spravkaRequests()]);
@@ -77,21 +80,28 @@ export function DocsPanel({ user }: { user: CurrentUser }) {
       <div className="glass-panel" style={{ padding: "18px 20px" }}>
         <h3 style={{ fontFamily: "var(--font-heading)", fontSize: 15, margin: "0 0 14px", color: "var(--color-text)" }}>Новая справка</h3>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
-          <select value={buildingId} onChange={(e) => { setBuildingId(e.target.value); setUnitId(""); }} style={selectStyle}>
-            <option value="">Здание…</option>
-            {buildings.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
-          </select>
-          <select value={unitId} onChange={(e) => setUnitId(e.target.value)} style={selectStyle} disabled={!buildingId}>
-            <option value="">Юнит…</option>
-            {unitOptions.map((u) => (
-              <option key={u.id} value={u.id}>№{u.unit_number} · {u.area_m2}м² · ${u.price_per_m2_usd}/м²</option>
-            ))}
-          </select>
+          <Dropdown
+            value={buildingId}
+            onChange={(v) => { setBuildingId(v); setUnitId(""); }}
+            placeholder="Здание…"
+            options={buildings.map((b) => ({ value: b.id, label: b.name }))}
+          />
+          <Dropdown
+            value={unitId}
+            onChange={setUnitId}
+            placeholder="Юнит…"
+            disabled={!buildingId}
+            options={unitOptions.map((u) => ({
+              value: u.id, label: `№${u.unit_number} · ${u.area_m2}м² · $${u.price_per_m2_usd}/м²`,
+            }))}
+          />
           <input placeholder="Имя клиента" value={clientName} onChange={(e) => setClientName(e.target.value)} style={inputStyle} />
           <input placeholder="Телефон клиента" value={clientPhone} onChange={(e) => setClientPhone(e.target.value)} style={inputStyle} />
-          <select value={planType} onChange={(e) => setPlanType(e.target.value)} style={selectStyle}>
-            {Object.entries(PLAN_LABELS).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
-          </select>
+          <Dropdown
+            value={planType}
+            onChange={setPlanType}
+            options={Object.entries(PLAN_LABELS).map(([k, l]) => ({ value: k, label: l }))}
+          />
           {planType !== "cash" && (
             <input type="number" placeholder="Первый взнос %" value={downPct} onChange={(e) => setDownPct(Number(e.target.value))} style={inputStyle} />
           )}
@@ -145,9 +155,17 @@ export function DocsPanel({ user }: { user: CurrentUser }) {
                 <span><StatusChip status={r.status} /></span>
                 <div style={{ display: "flex", gap: 7, justifyContent: "flex-end" }} onClick={(e) => e.stopPropagation()}>
                   {r.generated_file_url && (
-                    <a href={api.spravkaDownloadUrl(r.id)} style={{ padding: "6px 12px", borderRadius: 99, background: "rgba(255,255,255,.05)", border: "1px solid var(--color-hairline)", color: "var(--color-text-soft)", fontSize: 11.5, fontWeight: 600 }}>
-                      Скачать
-                    </a>
+                    <>
+                      <button
+                        onClick={() => setPreviewId(r.id)}
+                        style={{ padding: "6px 12px", borderRadius: 99, background: "var(--v-accent-tint)", border: "1px solid transparent", color: "var(--v-accent)", fontSize: 11.5, fontWeight: 600, cursor: "pointer" }}
+                      >
+                        Просмотр
+                      </button>
+                      <a href={api.spravkaDownloadUrl(r.id)} style={{ padding: "6px 12px", borderRadius: 99, background: "rgba(255,255,255,.05)", border: "1px solid var(--color-hairline)", color: "var(--color-text-soft)", fontSize: 11.5, fontWeight: 600 }}>
+                        Скачать
+                      </a>
+                    </>
                   )}
                   {user.role === "boss" && r.status === "pending" && (
                     <>
@@ -189,6 +207,7 @@ export function DocsPanel({ user }: { user: CurrentUser }) {
         })}
         {requests.length === 0 && <div style={{ padding: "30px 0", textAlign: "center", color: "var(--color-text-faint)", fontSize: 13 }}>Пока нет сгенерированных справок</div>}
       </div>
+      {previewId && <ExcelPreviewModal requestId={previewId} onClose={() => setPreviewId(null)} />}
     </div>
   );
 }
@@ -203,5 +222,4 @@ function PreviewStat({ label, value }: { label: string; value: string }) {
 }
 
 const inputStyle: React.CSSProperties = { padding: "10px 13px", borderRadius: 11, background: "rgba(255,255,255,.04)", border: "1px solid var(--color-hairline-soft)", color: "var(--color-text)", fontSize: 13 };
-const selectStyle: React.CSSProperties = { ...inputStyle };
 const primaryBtnStyle: React.CSSProperties = { padding: "10px 18px", borderRadius: 99, background: "var(--v-accent)", color: "var(--v-text-on-accent)", fontSize: 13, fontWeight: 700, border: "none", cursor: "pointer" };
