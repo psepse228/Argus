@@ -3,13 +3,24 @@
 blocking, so this stays on FastAPI's threadpool path (see
 concepts/fastapi-async-blocking-io).
 """
+import logging
 import os
 import json
-from openai import OpenAI
+from openai import APIError, OpenAI
 
 from app.ai.functions import call_function
 
+logger = logging.getLogger(__name__)
+
 _client = None
+
+
+class ChatUnavailableError(Exception):
+    """Raised when the OpenAI API itself fails (quota, rate limit, outage) --
+    distinct from a function-call failure, which is fed back to the model as
+    a tool result instead of aborting the conversation. Routers translate
+    this into a clean HTTP error instead of a raw 500 with a stack trace
+    reaching the frontend."""
 
 
 def _get_client() -> OpenAI:
@@ -17,6 +28,14 @@ def _get_client() -> OpenAI:
     if _client is None:
         _client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
     return _client
+
+
+def _complete(client: OpenAI, **kwargs):
+    try:
+        return client.chat.completions.create(**kwargs)
+    except APIError as e:
+        logger.exception("OpenAI API call failed")
+        raise ChatUnavailableError(str(e)) from e
 
 
 def run_chat(system_prompt: str, user_message: str, tenant_id: str, schemas: list[dict],
@@ -29,9 +48,7 @@ def run_chat(system_prompt: str, user_message: str, tenant_id: str, schemas: lis
 
     # up to 4 rounds of tool calls before forcing a final answer
     for _ in range(4):
-        resp = client.chat.completions.create(
-            model="gpt-4o", messages=messages, tools=schemas, tool_choice="auto",
-        )
+        resp = _complete(client, model="gpt-4o", messages=messages, tools=schemas, tool_choice="auto")
         choice = resp.choices[0]
         messages.append(choice.message.model_dump(exclude_none=True))
 
@@ -50,5 +67,5 @@ def run_chat(system_prompt: str, user_message: str, tenant_id: str, schemas: lis
             })
 
     # ran out of tool-call rounds — force a final plain answer
-    final = client.chat.completions.create(model="gpt-4o", messages=messages)
+    final = _complete(client, model="gpt-4o", messages=messages)
     return final.choices[0].message.content or ""
