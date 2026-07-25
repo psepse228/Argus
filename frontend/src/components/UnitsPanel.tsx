@@ -83,6 +83,11 @@ export function UnitsPanel() {
           options={Object.entries(SORTS).map(([k, v]) => ({ value: k, label: v.label }))}
         />
       </div>
+      {filtered.length === 0 && (
+        <div style={{ padding: "40px 0", textAlign: "center", color: "var(--color-text-faint)", fontSize: 13 }}>
+          Нет юнитов по этим фильтрам — попробуйте сбросить здание, статус или тип комнат.
+        </div>
+      )}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(232px,1fr))", gap: 14 }}>
         {filtered.map((u) => (
           <div key={u.id} className="glass-panel" style={{ padding: "16px 17px", display: "flex", flexDirection: "column", gap: 12 }}>

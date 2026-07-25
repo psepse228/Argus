@@ -1,5 +1,6 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 export type DropdownOption = { value: string; label: string };
 
@@ -7,7 +8,17 @@ export type DropdownOption = { value: string; label: string };
  * open list is always rendered by the OS/browser chrome (white background,
  * system font) no matter what CSS is applied to the closed control, which is
  * exactly the mismatch flagged live: a white Windows dropdown list sitting
- * inside an otherwise dark glassmorphic app. This renders its own list. */
+ * inside an otherwise dark glassmorphic app. This renders its own list.
+ *
+ * The option list is portaled to document.body and positioned via the
+ * trigger's real getBoundingClientRect() -- every `.glass-panel` container
+ * sets `overflow: hidden` (globals.css, for the sheen highlight), so a plain
+ * `position: absolute` popover nested inside one (a lead's Kanban card, the
+ * sidebar's theme-switcher button) gets clipped to zero visible height and
+ * silently never appears. Portaling escapes that ancestor entirely. The
+ * popover also uses a solid background rather than the shared translucent
+ * `.glass-panel` tint, since a floating popover has to fully obscure
+ * whatever page content happens to sit behind it, not blend with it. */
 export function Dropdown({
   value, onChange, options, placeholder = "Выбрать…", disabled, style,
 }: {
@@ -19,11 +30,36 @@ export function Dropdown({
   style?: React.CSSProperties;
 }) {
   const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState<{ top: number; left: number; width: number } | null>(null);
+  const triggerRef = useRef<HTMLDivElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
+
+  function reposition() {
+    const r = triggerRef.current?.getBoundingClientRect();
+    if (r) setPos({ top: r.bottom + 6, left: r.left, width: r.width });
+  }
+
+  useLayoutEffect(() => {
+    if (open) reposition();
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    function onScrollOrResize() { reposition(); }
+    window.addEventListener("scroll", onScrollOrResize, true);
+    window.addEventListener("resize", onScrollOrResize);
+    return () => {
+      window.removeEventListener("scroll", onScrollOrResize, true);
+      window.removeEventListener("resize", onScrollOrResize);
+    };
+  }, [open]);
 
   useEffect(() => {
     function onDocClick(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+      const t = e.target as Node;
+      if (triggerRef.current?.contains(t)) return;
+      if (popoverRef.current?.contains(t)) return;
+      setOpen(false);
     }
     function onEsc(e: KeyboardEvent) {
       if (e.key === "Escape") setOpen(false);
@@ -39,7 +75,7 @@ export function Dropdown({
   const selected = options.find((o) => o.value === value);
 
   return (
-    <div ref={ref} style={{ position: "relative", ...style }}>
+    <div ref={triggerRef} style={{ position: "relative", ...style }}>
       <button
         type="button"
         disabled={disabled}
@@ -61,12 +97,14 @@ export function Dropdown({
           <path d="M6 9l6 6 6-6" />
         </svg>
       </button>
-      {open && (
+      {open && pos && createPortal(
         <div
-          className="glass-panel"
+          ref={popoverRef}
           style={{
-            position: "absolute", top: "calc(100% + 6px)", left: 0, right: 0, zIndex: 40,
-            maxHeight: 260, overflowY: "auto", padding: 6,
+            position: "fixed", top: pos.top, left: pos.left, width: pos.width, zIndex: 1000,
+            maxHeight: 260, overflowY: "auto", padding: 6, borderRadius: 14,
+            background: "var(--v-bg-soft)", border: "1px solid var(--glass-border-soft)",
+            boxShadow: "0 24px 48px -20px rgba(0,0,0,0.6)",
           }}
         >
           {options.length === 0 && (
@@ -88,7 +126,8 @@ export function Dropdown({
               {o.label}
             </div>
           ))}
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

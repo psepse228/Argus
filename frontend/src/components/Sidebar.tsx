@@ -1,5 +1,6 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { CurrentUser } from "@/lib/api";
 import { ThemeSwitcher } from "./ThemeSwitcher";
 
@@ -83,10 +84,45 @@ export function Sidebar({
   pendingCount: number;
 }) {
   const [themeOpen, setThemeOpen] = useState(false);
+  const [themePos, setThemePos] = useState<{ left: number; bottom: number } | null>(null);
+  const themeBtnRef = useRef<HTMLButtonElement>(null);
+  const themePopoverRef = useRef<HTMLDivElement>(null);
+
+  function repositionTheme() {
+    const r = themeBtnRef.current?.getBoundingClientRect();
+    if (r) setThemePos({ left: r.left + r.width / 2, bottom: window.innerHeight - r.top + 8 });
+  }
+
+  useLayoutEffect(() => {
+    if (themeOpen) repositionTheme();
+  }, [themeOpen]);
+
+  useEffect(() => {
+    if (!themeOpen) return;
+    function onDocClick(e: MouseEvent) {
+      const t = e.target as Node;
+      if (themeBtnRef.current?.contains(t)) return;
+      if (themePopoverRef.current?.contains(t)) return;
+      setThemeOpen(false);
+    }
+    function onEsc(e: KeyboardEvent) { if (e.key === "Escape") setThemeOpen(false); }
+    document.addEventListener("mousedown", onDocClick);
+    document.addEventListener("keydown", onEsc);
+    return () => {
+      document.removeEventListener("mousedown", onDocClick);
+      document.removeEventListener("keydown", onEsc);
+    };
+  }, [themeOpen]);
 
   return (
     <div className="glass-panel" style={{ width: 76, flexShrink: 0, padding: "18px 0", display: "flex", flexDirection: "column", alignItems: "center" }}>
-      <div style={{ width: 34, height: 34, borderRadius: 10, background: "var(--v-accent)", boxShadow: "0 10px 22px -6px color-mix(in srgb, var(--v-accent) 65%, transparent)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginBottom: 22 }}>
+      {/* Decorative brand mark (Argus/Panoptes -- the all-seeing watchman),
+          not a control -- aria-hidden so it doesn't read as an unlabeled
+          button to assistive tech or look interactive by accident. */}
+      <div
+        aria-hidden="true"
+        style={{ width: 34, height: 34, borderRadius: 10, background: "var(--v-accent)", boxShadow: "0 10px 22px -6px color-mix(in srgb, var(--v-accent) 65%, transparent)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginBottom: 22, cursor: "default" }}
+      >
         <svg viewBox="0 0 24 24" width={19} height={19} fill="none" stroke="var(--v-text-on-accent)" strokeWidth={2.2}>
           <circle cx="12" cy="12" r="3.4" />
           <path d="M2 12s3.5-6.5 10-6.5S22 12 22 12s-3.5 6.5-10 6.5S2 12 2 12Z" />
@@ -121,6 +157,7 @@ export function Sidebar({
       <div style={{ marginTop: "auto", display: "flex", flexDirection: "column", alignItems: "center", gap: 10 }}>
         <div style={{ position: "relative" }}>
           <button
+            ref={themeBtnRef}
             onClick={() => setThemeOpen((v) => !v)}
             title="Тема"
             style={{ width: 32, height: 32, borderRadius: 10, border: "1px solid var(--color-hairline-soft)", background: "rgba(255,255,255,.03)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
@@ -129,17 +166,27 @@ export function Sidebar({
               <circle cx="12" cy="12" r="4" /><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
             </svg>
           </button>
-          {themeOpen && (
-            <div className="glass-panel" style={{ position: "absolute", bottom: "calc(100% + 8px)", left: "50%", transform: "translateX(-50%)", padding: 10, zIndex: 30 }}>
+          {/* Portaled -- this button lives inside the sidebar's own
+              .glass-panel (overflow: hidden for the sheen highlight), so a
+              plain absolutely-positioned popover here gets clipped to zero
+              visible height and silently never appears (same root cause as
+              Dropdown.tsx). */}
+          {themeOpen && themePos && createPortal(
+            <div
+              ref={themePopoverRef}
+              className="glass-panel"
+              style={{ position: "fixed", bottom: themePos.bottom, left: themePos.left, transform: "translateX(-50%)", padding: 10, zIndex: 1000 }}
+            >
               <ThemeSwitcher />
-            </div>
+            </div>,
+            document.body
           )}
         </div>
         <div
           title={`${user.email} · ${user.role === "boss" ? "Босс" : "Агент"}`}
           style={{ width: 32, height: 32, borderRadius: "50%", background: "var(--v-accent-tint)", color: "var(--v-accent)", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: 12 }}
         >
-          {(user.role === "boss" ? "М" : "А")}
+          {(user.role === "boss" ? "Б" : "А")}
         </div>
       </div>
     </div>

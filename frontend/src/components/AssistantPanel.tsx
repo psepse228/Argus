@@ -1,5 +1,6 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { api, CurrentUser } from "@/lib/api";
 import { SpravkaRequest, STATUS_LABELS } from "@/lib/types";
 import { ExcelPreviewModal } from "./ExcelPreviewModal";
@@ -16,6 +17,7 @@ type ChatMsg = { role: "user" | "bot"; text: string; events?: SpravkaCreatedEven
 
 type Digest = {
   pending: number;
+  pendingItems: SpravkaRequest[];
   recent: SpravkaRequest[];
   approvedTotal?: number;
   avgDiscount?: number;
@@ -38,7 +40,37 @@ export function AssistantPanel({ user }: { user: CurrentUser }) {
   const [digest, setDigest] = useState<Digest | null>(null);
   const [spravkaMode, setSpravkaMode] = useState(false);
   const [previewId, setPreviewId] = useState<string | null>(null);
+  const [bellOpen, setBellOpen] = useState(false);
+  const [bellPos, setBellPos] = useState<{ top: number; right: number } | null>(null);
+  const bellBtnRef = useRef<HTMLDivElement>(null);
+  const bellPopoverRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  function repositionBell() {
+    const r = bellBtnRef.current?.getBoundingClientRect();
+    if (r) setBellPos({ top: r.bottom + 8, right: window.innerWidth - r.right });
+  }
+
+  useLayoutEffect(() => {
+    if (bellOpen) repositionBell();
+  }, [bellOpen]);
+
+  useEffect(() => {
+    if (!bellOpen) return;
+    function onDocClick(e: MouseEvent) {
+      const t = e.target as Node;
+      if (bellBtnRef.current?.contains(t)) return;
+      if (bellPopoverRef.current?.contains(t)) return;
+      setBellOpen(false);
+    }
+    function onEsc(e: KeyboardEvent) { if (e.key === "Escape") setBellOpen(false); }
+    document.addEventListener("mousedown", onDocClick);
+    document.addEventListener("keydown", onEsc);
+    return () => {
+      document.removeEventListener("mousedown", onDocClick);
+      document.removeEventListener("keydown", onEsc);
+    };
+  }, [bellOpen]);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
@@ -68,12 +100,12 @@ export function AssistantPanel({ user }: { user: CurrentUser }) {
         if (isBoss) {
           const summary = await api.analyticsSummary();
           setDigest({
-            pending: pending.length, recent, leadsCount: leads.length, buildingStats,
+            pending: pending.length, pendingItems: pending, recent, leadsCount: leads.length, buildingStats,
             approvedTotal: summary.spravka_requests_approved,
             avgDiscount: summary.average_approved_discount_pct,
           });
         } else {
-          setDigest({ pending: pending.length, recent, leadsCount: leads.length, buildingStats });
+          setDigest({ pending: pending.length, pendingItems: pending, recent, leadsCount: leads.length, buildingStats });
         }
       } catch {
         /* best-effort — chat still works without the digest */
@@ -161,11 +193,16 @@ export function AssistantPanel({ user }: { user: CurrentUser }) {
                 </div>
               </div>
             </div>
-            <div style={{
-              width: 42, height: 42, borderRadius: "50%", flexShrink: 0, position: "relative",
-              background: "rgba(255,255,255,.05)", border: "1px solid var(--color-hairline)",
-              display: "flex", alignItems: "center", justifyContent: "center", color: "var(--color-text-soft)",
-            }}>
+            <div
+              ref={bellBtnRef}
+              role="button" tabIndex={0} aria-label="Уведомления"
+              onClick={() => setBellOpen((v) => !v)}
+              style={{
+                width: 42, height: 42, borderRadius: "50%", flexShrink: 0, position: "relative", cursor: "pointer",
+                background: "rgba(255,255,255,.05)", border: "1px solid var(--color-hairline)",
+                display: "flex", alignItems: "center", justifyContent: "center", color: "var(--color-text-soft)",
+              }}
+            >
               <svg viewBox="0 0 24 24" width={18} height={18} fill="none" stroke="currentColor" strokeWidth={1.9}>
                 <path d="M6 8a6 6 0 0 1 12 0c0 5 2 6 2 6H4s2-1 2-6Z" /><path d="M10 21a2 2 0 0 0 4 0" />
               </svg>
@@ -176,11 +213,38 @@ export function AssistantPanel({ user }: { user: CurrentUser }) {
                 }} />
               )}
             </div>
+            {/* Portaled -- this header sits inside the panel's own
+                .glass-panel (overflow: hidden), so a plain absolutely
+                positioned popover here would get clipped the same way the
+                lead-card dropdowns were. */}
+            {bellOpen && bellPos && createPortal(
+              <div
+                ref={bellPopoverRef}
+                className="glass-panel"
+                style={{ position: "fixed", top: bellPos.top, right: bellPos.right, width: 280, padding: "14px 16px", zIndex: 1000 }}
+              >
+                <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: ".05em", color: "var(--color-text-faint)", marginBottom: 10 }}>
+                  Ждут одобрения
+                </div>
+                {!digest || digest.pendingItems.length === 0 ? (
+                  <div style={{ fontSize: 12.5, color: "var(--color-text-faint)" }}>Пусто — всё разобрано.</div>
+                ) : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
+                    {digest.pendingItems.slice(0, 6).map((r) => (
+                      <div key={r.id} style={{ fontSize: 12.5, color: "var(--color-text-soft)" }}>
+                        {r.units ? <>№{r.units.unit_number} · {r.units.buildings?.name}</> : "—"} — {r.client_name}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>,
+              document.body
+            )}
           </div>
 
           <div style={{ display: "flex", gap: 22 }}>
             <QuickAction
-              primary active={spravkaMode} label={spravkaMode ? "Режим справки — выкл" : "Справка"}
+              primary active={spravkaMode} label={spravkaMode ? "Режим включён" : "Справка"}
               onClick={toggleSpravkaMode}
               icon={<><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><path d="M14 2v6h6" /><path d="M9 15h6M9 11h4" /></>}
             />
