@@ -1,17 +1,17 @@
 "use client";
 import { createContext, useContext, useEffect, useState } from "react";
 
-export type Theme = "gold" | "mono" | "teal";
+export type Theme = "crimson" | "mono" | "teal";
 const STORAGE_KEY = "argus-theme";
-const THEMES: Theme[] = ["gold", "mono", "teal"];
+const THEMES: Theme[] = ["crimson", "mono", "teal"];
 
 const ThemeContext = createContext<{ theme: Theme; setTheme: (t: Theme) => void }>({
-  theme: "gold",
+  theme: "crimson",
   setTheme: () => {},
 });
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setThemeState] = useState<Theme>("gold");
+  const [theme, setThemeState] = useState<Theme>("crimson");
 
   useEffect(() => {
     const stored = window.localStorage.getItem(STORAGE_KEY) as Theme | null;
@@ -32,7 +32,7 @@ export function useTheme() {
 }
 
 export const THEME_LABELS: Record<Theme, string> = {
-  gold: "Gold",
+  crimson: "Crimson",
   mono: "Mono",
   teal: "Teal",
 };

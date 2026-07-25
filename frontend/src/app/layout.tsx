@@ -5,7 +5,7 @@ export const metadata = { title: "Argus — Italiano Vero" };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="ru" data-theme="gold">
+    <html lang="ru" data-theme="crimson">
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />

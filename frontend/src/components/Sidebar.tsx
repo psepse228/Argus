@@ -54,7 +54,8 @@ function RailButton({
           display: "flex", alignItems: "center", justifyContent: "center",
           background: active ? "var(--v-accent)" : "rgba(255,255,255,.04)",
           color: active ? "var(--v-text-on-accent)" : "var(--color-text-soft)",
-          transition: "background .15s ease, color .15s ease",
+          boxShadow: active ? "0 12px 26px -9px color-mix(in srgb, var(--v-accent) 60%, transparent)" : "none",
+          transition: "background .15s ease, color .15s ease, box-shadow .15s ease",
         }}
       >
         {children}
@@ -85,7 +86,7 @@ export function Sidebar({
 
   return (
     <div className="glass-panel" style={{ width: 76, flexShrink: 0, padding: "18px 0", display: "flex", flexDirection: "column", alignItems: "center" }}>
-      <div style={{ width: 34, height: 34, borderRadius: 10, background: "var(--v-accent)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginBottom: 22 }}>
+      <div style={{ width: 34, height: 34, borderRadius: 10, background: "var(--v-accent)", boxShadow: "0 10px 22px -6px color-mix(in srgb, var(--v-accent) 65%, transparent)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginBottom: 22 }}>
         <svg viewBox="0 0 24 24" width={19} height={19} fill="none" stroke="var(--v-text-on-accent)" strokeWidth={2.2}>
           <circle cx="12" cy="12" r="3.4" />
           <path d="M2 12s3.5-6.5 10-6.5S22 12 22 12s-3.5 6.5-10 6.5S2 12 2 12Z" />
