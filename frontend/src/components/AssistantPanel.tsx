@@ -44,7 +44,26 @@ export function AssistantPanel({ user }: { user: CurrentUser }) {
   const [bellPos, setBellPos] = useState<{ top: number; right: number } | null>(null);
   const bellBtnRef = useRef<HTMLDivElement>(null);
   const bellPopoverRef = useRef<HTMLDivElement>(null);
+  const [quickPanel, setQuickPanel] = useState<{ key: string; top: number; left: number } | null>(null);
+  const quickPanelRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!quickPanel) return;
+    function onDocClick(e: MouseEvent) {
+      const t = e.target as HTMLElement;
+      if (quickPanelRef.current?.contains(t)) return;
+      if (t.closest?.("[data-quick-trigger]")) return;
+      setQuickPanel(null);
+    }
+    function onEsc(e: KeyboardEvent) { if (e.key === "Escape") setQuickPanel(null); }
+    document.addEventListener("mousedown", onDocClick);
+    document.addEventListener("keydown", onEsc);
+    return () => {
+      document.removeEventListener("mousedown", onDocClick);
+      document.removeEventListener("keydown", onEsc);
+    };
+  }, [quickPanel]);
 
   function repositionBell() {
     const r = bellBtnRef.current?.getBoundingClientRect();
@@ -113,16 +132,27 @@ export function AssistantPanel({ user }: { user: CurrentUser }) {
     })();
   }, [isBoss]);
 
+  // Boss's three secondary actions are pure data the app already has fetched
+  // (pendingItems / buildingStats / avgDiscount) -- they open a real HUD
+  // panel of that data directly, no LLM round-trip needed. The agent's two
+  // stay chat prompts since they're genuinely generative asks (matching
+  // units by loose criteria, drafting a letter) that need the assistant.
   const quickActions = isBoss
     ? [
-        { label: "Одобрения", prompt: "Что ждёт одобрения?", icon: <path d="M9 12l2 2 4-4M12 3l1.8 4.3L18 9l-4.2 1.7L12 15l-1.8-4.3L6 9l4.2-1.7L12 3Z" /> },
-        { label: "Сводка", prompt: "Сводка по Milano", icon: <><path d="M3 3v18h18" /><path d="M7 15l4-5 3 3 5-7" /></> },
-        { label: "Дисконт", prompt: "Средний дисконт?", icon: <><path d="M19 5 5 19" /><circle cx="7.5" cy="7.5" r="1.7" /><circle cx="16.5" cy="16.5" r="1.7" /></> },
+        { label: "Одобрения", panel: "approvals" as const, icon: <path d="M9 12l2 2 4-4M12 3l1.8 4.3L18 9l-4.2 1.7L12 15l-1.8-4.3L6 9l4.2-1.7L12 3Z" /> },
+        { label: "Сводка", panel: "summary" as const, icon: <><path d="M3 3v18h18" /><path d="M7 15l4-5 3 3 5-7" /></> },
+        { label: "Дисконт", panel: "discount" as const, icon: <><path d="M19 5 5 19" /><circle cx="7.5" cy="7.5" r="1.7" /><circle cx="16.5" cy="16.5" r="1.7" /></> },
       ]
     : [
         { label: "Юниты в Milano", prompt: "Подбери юниты в Milano", icon: <><path d="M3 21V9l9-5 9 5v12" /><path d="M9 21v-7h6v7" /></> },
         { label: "Письмо клиенту", prompt: "Составь письмо клиенту", icon: <><path d="M4 4h16v16H4z" /><path d="M4 4l8 8 8-8" /></> },
       ];
+
+  function openQuickPanel(key: string, e: React.MouseEvent<HTMLDivElement>) {
+    if (quickPanel?.key === key) { setQuickPanel(null); return; }
+    const r = e.currentTarget.getBoundingClientRect();
+    setQuickPanel({ key, top: r.bottom + 8, left: r.left + r.width / 2 });
+  }
 
   async function send(text?: string) {
     const v = (text ?? input).trim();
@@ -249,9 +279,71 @@ export function AssistantPanel({ user }: { user: CurrentUser }) {
               icon={<><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><path d="M14 2v6h6" /><path d="M9 15h6M9 11h4" /></>}
             />
             {quickActions.map((q) => (
-              <QuickAction key={q.label} label={q.label} onClick={() => send(q.prompt)} icon={q.icon} />
+              <QuickAction
+                key={q.label} label={q.label} icon={q.icon}
+                onClick={(e) => ("panel" in q ? openQuickPanel(q.panel, e) : send(q.prompt))}
+              />
             ))}
           </div>
+
+          {quickPanel && createPortal(
+            <div
+              ref={quickPanelRef}
+              className="glass-panel"
+              style={{ position: "fixed", top: quickPanel.top, left: quickPanel.left, transform: "translateX(-50%)", width: 300, padding: "16px 18px", zIndex: 1000 }}
+            >
+              {quickPanel.key === "approvals" && (
+                <>
+                  <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: ".05em", color: "var(--color-text-faint)", marginBottom: 10 }}>
+                    Ждут одобрения
+                  </div>
+                  {!digest || digest.pendingItems.length === 0 ? (
+                    <div style={{ fontSize: 12.5, color: "var(--color-text-faint)" }}>Пусто — всё разобрано.</div>
+                  ) : (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
+                      {digest.pendingItems.map((r) => (
+                        <div
+                          key={r.id}
+                          onClick={() => { if (r.generated_file_url) { setPreviewId(r.id); setQuickPanel(null); } }}
+                          style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 12.5, color: "var(--color-text-soft)", cursor: r.generated_file_url ? "pointer" : "default" }}
+                        >
+                          <span>{r.units ? <>№{r.units.unit_number} · {r.units.buildings?.name}</> : "—"} — {r.client_name}</span>
+                          {r.generated_file_url && <span style={{ color: "var(--v-accent)", fontWeight: 700, flexShrink: 0, marginLeft: 8 }}>Просмотр →</span>}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
+              {quickPanel.key === "summary" && digest && (
+                <>
+                  <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: ".05em", color: "var(--color-text-faint)", marginBottom: 10 }}>
+                    Сводка
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8, fontSize: 12.5, color: "var(--color-text-soft)" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between" }}><span>Лидов в работе</span><b style={{ color: "var(--color-text)" }}>{digest.leadsCount}</b></div>
+                    <div style={{ display: "flex", justifyContent: "space-between" }}><span>Справок ждёт</span><b style={{ color: "var(--color-text)" }}>{digest.pending}</b></div>
+                    <div style={{ display: "flex", justifyContent: "space-between" }}><span>Одобрено всего</span><b style={{ color: "var(--color-text)" }}>{digest.approvedTotal ?? "—"}</b></div>
+                    {digest.buildingStats.map((b) => (
+                      <div key={b.name} style={{ display: "flex", justifyContent: "space-between", paddingTop: 6, borderTop: "1px solid var(--color-hairline-soft)" }}>
+                        <span>{b.name}</span><b style={{ color: "var(--color-text)" }}>{b.forSale > 0 ? `${b.forSale} · от $${b.price.toLocaleString()}/м²` : "нет в продаже"}</b>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+              {quickPanel.key === "discount" && digest && (
+                <>
+                  <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: ".05em", color: "var(--color-text-faint)", marginBottom: 12 }}>
+                    Средний одобренный дисконт
+                  </div>
+                  <div style={{ fontSize: 34, fontWeight: 800, color: "var(--v-accent)", lineHeight: 1 }}>{digest.avgDiscount ?? 0}%</div>
+                  <div style={{ fontSize: 12, color: "var(--color-text-faint)", marginTop: 10 }}>{digest.approvedTotal ?? 0} одобренных справок всего</div>
+                </>
+              )}
+            </div>,
+            document.body
+          )}
 
           {digest && (
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
@@ -446,10 +538,10 @@ function SpravkaCard({ event, onPreview }: { event: SpravkaCreatedEvent; onPrevi
 
 function QuickAction({
   label, onClick, icon, primary,
-}: { label: string; onClick: () => void; icon: React.ReactNode; primary?: boolean; active?: boolean }) {
+}: { label: string; onClick: (e: React.MouseEvent<HTMLDivElement>) => void; icon: React.ReactNode; primary?: boolean; active?: boolean }) {
   const isFilled = Boolean(primary);
   return (
-    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 9, cursor: "pointer" }} onClick={onClick}>
+    <div data-quick-trigger style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 9, cursor: "pointer" }} onClick={onClick}>
       <div
         style={{
           width: 52, height: 52, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center",
