@@ -156,6 +156,18 @@ export const STATUS_COLORS: Record<string, { bg: string; fg: string }> = {
   rejected: { bg: "var(--danger-tint)", fg: "var(--danger)" },
 };
 
+// Mirrors LeadsPanel's own STAGES palette (kept as a separate export here
+// rather than refactoring that array -- both read the same colors, but
+// LeadsPanel's copy also carries its own labels/ordering it shouldn't lose).
+export const STAGE_COLORS: Record<string, string> = {
+  unsorted: "var(--color-text-faint)",
+  matching: "var(--v-violet-strong, #7a5cff)",
+  meeting_scheduled: "#7dd3fc",
+  meeting_held: "var(--warning)",
+  reserved: "var(--v-accent)",
+  paid_reservation: "var(--success)",
+};
+
 export const STATUS_LABELS: Record<string, string> = {
   for_sale: "В продаже",
   reserved: "Бронь",

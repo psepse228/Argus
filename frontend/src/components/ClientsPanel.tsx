@@ -1,10 +1,26 @@
 "use client";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { api, CurrentUser } from "@/lib/api";
-import { Client, ClientDetail, STATUS_LABELS, PLAN_LABELS } from "@/lib/types";
+import { Client, ClientDetail, STAGE_COLORS, STATUS_LABELS, PLAN_LABELS } from "@/lib/types";
 import { ChatThread } from "./ChatThread";
 import { DealTimeline } from "./DealTimeline";
 import { Skeleton } from "./Skeleton";
+
+/** Rolls the client's leads + справки into one "where things stand" badge --
+ * an approved deal or a pending справка takes priority over whatever stage
+ * the underlying lead is still sitting at, since those are more concrete
+ * signals of where the deal actually is. */
+function clientStage(detail: ClientDetail): { label: string; color: string } {
+  if (detail.spravka_requests.some((s) => s.status === "approved" || s.status === "auto_approved")) {
+    return { label: "Сделка одобрена", color: "var(--success)" };
+  }
+  if (detail.spravka_requests.some((s) => s.status === "pending")) {
+    return { label: "Справка на согласовании", color: "var(--warning)" };
+  }
+  const lead = detail.leads[0];
+  if (lead) return { label: STATUS_LABELS[lead.stage] || lead.stage, color: STAGE_COLORS[lead.stage] || "var(--color-text-faint)" };
+  return { label: "Новый клиент", color: "var(--color-text-faint)" };
+}
 
 /** Before this, a "client" was just free-text (name, phone) duplicated
  * independently across Лиды and Справки, with no single place to see one
@@ -73,9 +89,18 @@ export function ClientsPanel({
   }, [selected]);
 
   if (selected) {
+    const stage = clientStage(selected);
+    // Concrete apartments (a real справка was made for these) vs. buildings
+    // a lead only ever expressed interest in without a unit chosen yet --
+    // two different strengths of "considering", shown as two tiers.
+    const spravkaBuildingNames = new Set(selected.spravka_requests.map((s) => s.units?.buildings?.name).filter(Boolean));
+    const softBuildings = Array.from(
+      new Set(selected.leads.map((l) => l.buildings?.name).filter((n): n is string => !!n && !spravkaBuildingNames.has(n)))
+    );
+
     return (
       <div ref={detailRef} className={origin ? undefined : "section-enter"} style={{ flex: 1, minHeight: 0, display: "flex", gap: 16 }}>
-        <div style={{ width: 280, flexShrink: 0, display: "flex", flexDirection: "column", gap: 14, overflowY: "auto" }}>
+        <div style={{ width: 260, flexShrink: 0, display: "flex", flexDirection: "column", gap: 14, overflowY: "auto" }}>
           <button
             onClick={() => setSelected(null)}
             style={{ alignSelf: "flex-start", fontSize: 12, fontWeight: 700, color: "var(--color-text-soft)", background: "rgba(255,255,255,.04)", border: "1px solid var(--color-hairline)", borderRadius: 99, padding: "7px 13px", cursor: "pointer" }}
@@ -86,7 +111,13 @@ export function ClientsPanel({
             <div style={{ fontFamily: "var(--font-heading)", fontSize: 17, fontWeight: 700, color: "var(--color-text)" }}>
               {selected.name || selected.phone}
             </div>
-            <div style={{ fontSize: 12.5, color: "var(--color-text-faint)", marginTop: 3 }}>{selected.phone}</div>
+            <div style={{ fontSize: 12.5, color: "var(--color-text-faint)", marginTop: 3, marginBottom: 12 }}>{selected.phone}</div>
+            <span style={{
+              display: "inline-flex", fontSize: 11, fontWeight: 700, padding: "4px 11px", borderRadius: 99,
+              color: stage.color, background: `color-mix(in srgb, ${stage.color} 16%, transparent)`,
+            }}>
+              {stage.label}
+            </span>
           </div>
 
           {selected.leads.length > 0 && (
@@ -102,12 +133,38 @@ export function ClientsPanel({
             </div>
           )}
 
-          {selected.spravka_requests.length > 0 && (
-            <div className="glass-panel" style={{ padding: "16px 18px" }}>
-              <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: ".05em", color: "var(--color-text-faint)", marginBottom: 10 }}>Справки</div>
+          <DealTimeline detail={selected} />
+        </div>
+
+        <div className="glass-panel" style={{ flex: 1, minWidth: 0, minHeight: 0, padding: "20px 22px", display: "flex", flexDirection: "column", gap: 16, overflowY: "auto" }}>
+          <div style={{ fontFamily: "var(--font-heading)", fontSize: 15, fontWeight: 700, color: "var(--color-text)" }}>
+            Работа с клиентом
+          </div>
+
+          <button
+            className="press"
+            onClick={() => setSpravkaMode((v) => !v)}
+            style={{
+              display: "flex", alignItems: "center", justifyContent: "center", gap: 8, alignSelf: "flex-start",
+              fontSize: 13, fontWeight: 700, cursor: "pointer", padding: "10px 18px", borderRadius: 12, border: "none",
+              color: spravkaMode ? "var(--v-text-on-accent)" : "var(--v-accent)",
+              background: spravkaMode ? "var(--v-accent)" : "var(--v-accent-tint)",
+            }}
+          >
+            <svg viewBox="0 0 24 24" width={14} height={14} fill="none" stroke="currentColor" strokeWidth={2.2}>
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><path d="M14 2v6h6" /><path d="M9 15h6M9 11h4" />
+            </svg>
+            {spravkaMode ? "Режим справки включён — говорите в чате" : "Сделать справку"}
+          </button>
+
+          <div>
+            <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: ".05em", color: "var(--color-text-faint)", marginBottom: 10 }}>Квартиры</div>
+            {selected.spravka_requests.length === 0 && softBuildings.length === 0 ? (
+              <div style={{ fontSize: 12.5, color: "var(--color-text-faint)" }}>Пока ничего конкретного не выбрано.</div>
+            ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                 {selected.spravka_requests.map((s) => (
-                  <div key={s.id}>
+                  <div key={s.id} style={{ padding: "10px 12px", borderRadius: 10, background: "rgba(255,255,255,.03)", border: "1px solid var(--color-hairline-soft)" }}>
                     <div style={{ fontSize: 12.5, fontWeight: 600, color: "var(--color-text)" }}>
                       {s.units ? <>№{s.units.unit_number} · {s.units.buildings?.name}</> : "—"}
                     </div>
@@ -119,31 +176,30 @@ export function ClientsPanel({
                     )}
                   </div>
                 ))}
+                {softBuildings.length > 0 && (
+                  <div style={{ fontSize: 11.5, color: "var(--color-text-faint)" }}>
+                    Также интересовался: {softBuildings.join(", ")}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          <div>
+            <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: ".05em", color: "var(--color-text-faint)", marginBottom: 10 }}>Звонки и Telegram</div>
+            <div style={{ padding: "12px 14px", borderRadius: 10, background: "rgba(255,255,255,.03)", border: "1px dashed var(--color-hairline)" }}>
+              <div style={{ fontSize: 12, color: "var(--color-text-faint)", lineHeight: 1.5 }}>
+                Скоро — история звонков и переписки в Telegram появится здесь, когда будет готова реальная интеграция. Сейчас Argus этого не отслеживает.
               </div>
             </div>
-          )}
-
-          <DealTimeline detail={selected} />
+          </div>
         </div>
 
-        <div className="glass-panel" style={{ flex: 1, minHeight: 0, padding: "20px 22px", display: "flex", flexDirection: "column" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
-            <div style={{ fontFamily: "var(--font-heading)", fontSize: 15, fontWeight: 700, color: "var(--color-text)" }}>
-              Чат с {selected.name || selected.phone}
-            </div>
-            <div
-              data-quick-trigger
-              onClick={() => setSpravkaMode((v) => !v)}
-              style={{
-                fontSize: 11.5, fontWeight: 700, cursor: "pointer", padding: "6px 13px", borderRadius: 99,
-                color: spravkaMode ? "var(--v-text-on-accent)" : "var(--v-accent)",
-                background: spravkaMode ? "var(--v-accent)" : "var(--v-accent-tint)",
-              }}
-            >
-              {spravkaMode ? "Режим включён" : "Оформить справку"}
-            </div>
+        <div className="glass-panel" style={{ width: 340, flexShrink: 0, minHeight: 0, padding: "18px 20px", display: "flex", flexDirection: "column" }}>
+          <div style={{ fontFamily: "var(--font-heading)", fontSize: 13.5, fontWeight: 700, color: "var(--color-text)", marginBottom: 4 }}>
+            Чат · {selected.name || selected.phone}
           </div>
-          <div style={{ flex: 1, minHeight: 0, paddingTop: 14 }}>
+          <div style={{ flex: 1, minHeight: 0, paddingTop: 10 }}>
             {conversationId ? (
               <ChatThread
                 conversationId={conversationId} isBoss={user.role === "boss"} spravkaMode={spravkaMode}
