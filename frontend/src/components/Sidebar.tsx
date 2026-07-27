@@ -54,35 +54,12 @@ const TOOLS: { key: Section; label: string; icon: JSX.Element; bossOnly?: boolea
   },
 ];
 
-// macOS Dock magnification constants -- how far the cursor's influence
-// reaches (px) and how much a button under the cursor grows.
-const DOCK_SIGMA = 46;
-const DOCK_MAGNIFY = 0.4;
-
 function RailButton({
-  active, label, onClick, children, badge, sliding, hoverY,
-}: {
-  active: boolean; label: string; onClick: () => void; children: React.ReactNode; badge?: number; sliding?: boolean;
-  /** Current mouse Y (viewport coords) from the rail's shared mousemove, or
-   * null when the cursor isn't over the rail -- distance from this button's
-   * own center to that Y drives a macOS-Dock-style scale falloff. */
-  hoverY?: number | null;
-}) {
-  const btnRef = useRef<HTMLButtonElement>(null);
-  const [scale, setScale] = useState(1);
-
-  useLayoutEffect(() => {
-    if (hoverY == null || !btnRef.current) { setScale(1); return; }
-    const rect = btnRef.current.getBoundingClientRect();
-    const center = rect.top + rect.height / 2;
-    const dist = hoverY - center;
-    setScale(1 + DOCK_MAGNIFY * Math.exp(-(dist * dist) / (2 * DOCK_SIGMA * DOCK_SIGMA)));
-  }, [hoverY]);
-
+  active, label, onClick, children, badge, sliding,
+}: { active: boolean; label: string; onClick: () => void; children: React.ReactNode; badge?: number; sliding?: boolean }) {
   return (
     <div style={{ position: "relative" }}>
       <button
-        ref={btnRef}
         onClick={onClick}
         title={label}
         className={`rail-btn${active ? " is-active" : ""}`}
@@ -97,8 +74,6 @@ function RailButton({
           color: active ? "var(--v-text-on-accent)" : "var(--color-text-soft)",
           boxShadow: !sliding && active ? "0 12px 26px -9px color-mix(in srgb, var(--v-accent) 60%, transparent)" : "none",
           zIndex: 1,
-          transform: `scale(${scale}) translateY(${-(scale - 1) * 18}px)`,
-          transition: "transform .12s cubic-bezier(.2,.7,.3,1), background .15s ease, color .15s ease, box-shadow .2s ease",
         }}
       >
         {children}
@@ -196,17 +171,8 @@ export function Sidebar({
   const visibleTools = TOOLS.filter((t) => !t.bossOnly || user.role === "boss");
   const activeToolIndex = visibleTools.findIndex((t) => t.key === active);
 
-  // macOS Dock magnification -- shared across the whole rail (Ассистент +
-  // tools) so the effect feels continuous instead of resetting per group.
-  const [hoverY, setHoverY] = useState<number | null>(null);
-
   return (
-    <div
-      className="glass-panel"
-      onMouseMove={(e) => setHoverY(e.clientY)}
-      onMouseLeave={() => setHoverY(null)}
-      style={{ width: 76, flexShrink: 0, padding: "18px 0", display: "flex", flexDirection: "column", alignItems: "center" }}
-    >
+    <div className="glass-panel" style={{ width: 76, flexShrink: 0, padding: "18px 0", display: "flex", flexDirection: "column", alignItems: "center" }}>
       {/* Decorative brand mark (Argus/Panoptes -- the all-seeing watchman),
           not a control -- aria-hidden so it doesn't read as an unlabeled
           button to assistive tech or look interactive by accident. */}
@@ -222,7 +188,7 @@ export function Sidebar({
 
       {/* Primary surface -- visually distinct from the tools below, not one
           of N equal siblings. Larger, always first, own accent glow. */}
-      <RailButton active={active === "assistant"} label="Ассистент" onClick={() => onChange("assistant")} hoverY={hoverY}>
+      <RailButton active={active === "assistant"} label="Ассистент" onClick={() => onChange("assistant")}>
         <svg viewBox="0 0 24 24" width={21} height={21} fill="none" stroke="currentColor" strokeWidth={1.9}>
           <path d="M12 3l1.8 4.3L18 9l-4.2 1.7L12 15l-1.8-4.3L6 9l4.2-1.7L12 3Z" />
           <path d="M19 14l.9 2.1L22 17l-2.1.9L19 20l-.9-2.1L16 17l2.1-.9L19 14Z" />
@@ -245,7 +211,7 @@ export function Sidebar({
           />
         )}
         {visibleTools.map((t) => (
-          <RailButton key={t.key} active={active === t.key} label={t.label} onClick={() => onChange(t.key)} sliding hoverY={hoverY}>
+          <RailButton key={t.key} active={active === t.key} label={t.label} onClick={() => onChange(t.key)} sliding>
             {t.icon}
           </RailButton>
         ))}
