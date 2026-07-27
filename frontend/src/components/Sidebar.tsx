@@ -84,7 +84,7 @@ function RailButton({
 }
 
 export function Sidebar({
-  user, active, onChange, previewRole, onPreviewRoleChange,
+  user, active, onChange, previewRole, onPreviewRoleChange, onOpenSearch,
 }: {
   user: CurrentUser;
   active: Section;
@@ -95,6 +95,7 @@ export function Sidebar({
    * the real authenticated user, so backend permissions never change. */
   previewRole?: "boss" | "sales_agent";
   onPreviewRoleChange?: (r: "boss" | "sales_agent") => void;
+  onOpenSearch?: () => void;
 }) {
   const [themeOpen, setThemeOpen] = useState(false);
   const [themePos, setThemePos] = useState<{ left: number; bottom: number } | null>(null);
@@ -193,6 +194,18 @@ export function Sidebar({
       </div>
 
       <div style={{ marginTop: "auto", display: "flex", flexDirection: "column", alignItems: "center", gap: 10 }}>
+        {onOpenSearch && (
+          <button
+            onClick={onOpenSearch}
+            title="Поиск (Ctrl/⌘+K)"
+            className="press"
+            style={{ width: 32, height: 32, borderRadius: 10, border: "1px solid var(--color-hairline-soft)", background: "rgba(255,255,255,.03)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
+          >
+            <svg viewBox="0 0 24 24" width={15} height={15} fill="none" stroke="var(--color-text-soft)" strokeWidth={2}>
+              <circle cx="11" cy="11" r="7" /><path d="M21 21l-4.3-4.3" />
+            </svg>
+          </button>
+        )}
         {onPreviewRoleChange && (
           <div style={{ position: "relative" }}>
             <button

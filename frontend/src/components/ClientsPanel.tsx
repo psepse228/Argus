@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { api, CurrentUser } from "@/lib/api";
 import { Client, ClientDetail, STATUS_LABELS, PLAN_LABELS } from "@/lib/types";
 import { ChatThread } from "./ChatThread";
+import { DealTimeline } from "./DealTimeline";
 
 /** Before this, a "client" was just free-text (name, phone) duplicated
  * independently across Лиды and Справки, with no single place to see one
@@ -10,7 +11,15 @@ import { ChatThread } from "./ChatThread";
  * own profile-chat (see ChatThread) live together -- and the assistant in
  * that chat is given this exact history as context (see
  * app/ai/prompts.py::client_context_prompt), not generic advice. */
-export function ClientsPanel({ user }: { user: CurrentUser }) {
+export function ClientsPanel({
+  user, openClientId, onOpenClientHandled,
+}: {
+  user: CurrentUser;
+  /** Set from outside (e.g. Лиды's "Открыть карточку клиента" button) to
+   * drill straight into a client instead of landing on the plain list. */
+  openClientId?: string | null;
+  onOpenClientHandled?: () => void;
+}) {
   const [clients, setClients] = useState<Client[]>([]);
   const [selected, setSelected] = useState<ClientDetail | null>(null);
   const [conversationId, setConversationId] = useState<string | null>(null);
@@ -25,6 +34,14 @@ export function ClientsPanel({ user }: { user: CurrentUser }) {
     setSelected(detail);
     setConversationId(conv.id);
   }
+
+  useEffect(() => {
+    if (openClientId) {
+      openClient(openClientId);
+      onOpenClientHandled?.();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openClientId]);
 
   if (selected) {
     return (
@@ -76,6 +93,8 @@ export function ClientsPanel({ user }: { user: CurrentUser }) {
               </div>
             </div>
           )}
+
+          <DealTimeline detail={selected} />
         </div>
 
         <div className="glass-panel" style={{ flex: 1, minHeight: 0, padding: "20px 22px", display: "flex", flexDirection: "column" }}>

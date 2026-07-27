@@ -54,6 +54,21 @@ def get_unit_by_number(client, tenant_id: str, unit_number: str, building: str |
     return rows[0]
 
 
+def _get_exchange_rate(client, tenant_id: str, building_id: str) -> float:
+    """курс сум/$ actually used to price a Справка -- reads the same
+    pricing_rules row the boss can edit from Аналитика (see
+    app/routers/pricing.py::update_exchange_rate), not a fixed constant.
+    Falls back to a documented default only if no rate has been set for this
+    building yet, so a brand-new building doesn't hard-fail Справка creation."""
+    res = (
+        client.table("pricing_rules").select("exchange_rate_sum")
+        .eq("tenant_id", tenant_id).eq("building_id", building_id).is_("room_type", "null").execute()
+    )
+    if res.data:
+        return float(res.data[0]["exchange_rate_sum"])
+    return 12200.0  # placeholder — no pricing_rules row exists for this building yet
+
+
 def _get_plan_rate(client, tenant_id: str, building_id: str, plan_type: str) -> dict:
     res = (
         client.table("payment_plan_rates").select("*")
@@ -145,10 +160,10 @@ def create_spravka(
     }
     inserted = client.table("spravka_requests").insert(row).execute().data[0]
 
+    exchange_rate = _get_exchange_rate(client, tenant_id, unit["building_id"])
     file_path, summary = _generate_and_store(
         inserted, unit, building["name"], float(rate["price_per_m2_usd"]),
-        12200.0,  # TODO: exchange rate should also be a real per-day input, not hardcoded — flagged for the owner
-        requested_by,
+        exchange_rate, requested_by,
     )
     client.table("spravka_requests").update({
         "generated_file_url": file_path, "computed_summary": summary,

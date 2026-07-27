@@ -3,8 +3,15 @@ once at generation time and otherwise nothing tracks what happens to it
 afterward. This is the loan-servicing-style view: what's due, what's paid,
 what's overdue, per approved deal. See app/services/payment_schedule_service.py
 for how the schedule itself gets generated (on approval).
+
+Reminders are surfaced in-app (a "due soon" flag here, rolled up into the
+Ассистент digest) with a direct tel: link to the client, not an automated
+Telegram/WhatsApp send -- there's no bot the client has opened yet and no
+chat_id captured anywhere, so an actual outbound message isn't wired up.
+That's real infra (bot registration + a client opt-in step, same shape as
+Tender Agent's Telegram-link flow), not something to fake here.
 """
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
 
@@ -13,25 +20,30 @@ from app.deps import get_current_user
 
 router = APIRouter(prefix="/api/payments")
 
+REMINDER_DAYS = 5
+
 
 @router.get("")
 def list_payments(user=Depends(get_current_user)):
     client = get_service_client()
     q = (
         client.table("payment_schedule")
-        .select("*, spravka_requests(client_name, requested_by, units(unit_number, buildings(name)))")
+        .select("*, spravka_requests(client_name, client_phone, requested_by, units(unit_number, buildings(name)))")
         .eq("tenant_id", user.tenant_id)
     )
     rows = q.order("due_date").execute().data
     if user.role != "boss":
         rows = [r for r in rows if r.get("spravka_requests", {}).get("requested_by") == user.email]
-    today = date.today().isoformat()
+    today = date.today()
+    reminder_cutoff = (today + timedelta(days=REMINDER_DAYS)).isoformat()
+    today_iso = today.isoformat()
     for r in rows:
         # Overdue is computed for display, not persisted -- a row only ever
         # really needs to know "paid" or "not yet"; "overdue" is just
         # "not yet, and the date has passed."
-        if r["status"] == "pending" and r["due_date"] < today:
+        if r["status"] == "pending" and r["due_date"] < today_iso:
             r["status"] = "overdue"
+        r["due_soon"] = r["status"] == "pending" and r["due_date"] <= reminder_cutoff
     return rows
 
 

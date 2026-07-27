@@ -2,7 +2,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { api, CurrentUser } from "@/lib/api";
-import { SpravkaRequest, Conversation } from "@/lib/types";
+import { SpravkaRequest, Conversation, Payment } from "@/lib/types";
 import { ChatThread } from "./ChatThread";
 import { DocsPanel } from "./DocsPanel";
 
@@ -14,6 +14,7 @@ type Digest = {
   avgDiscount?: number;
   leadsCount: number;
   buildingStats: { name: string; forSale: number; price: number }[];
+  duePaymentsCount: number;
 };
 
 type View = "overview" | "docs" | string; // string = conversation id
@@ -92,8 +93,8 @@ export function AssistantPanel({ user }: { user: CurrentUser }) {
   useEffect(() => {
     (async () => {
       try {
-        const [requests, leads, buildings, units]: [SpravkaRequest[], any[], any[], any[]] = await Promise.all([
-          api.spravkaRequests(), api.leads(), api.buildings(), api.units(),
+        const [requests, leads, buildings, units, payments]: [SpravkaRequest[], any[], any[], any[], Payment[]] = await Promise.all([
+          api.spravkaRequests(), api.leads(), api.buildings(), api.units(), api.payments().catch(() => []),
         ]);
         const pending = requests.filter((r) => r.status === "pending");
         const recent = [...requests]
@@ -104,15 +105,16 @@ export function AssistantPanel({ user }: { user: CurrentUser }) {
           const price = inBuilding.length ? Math.min(...inBuilding.map((u: any) => u.price_per_m2_usd)) : 0;
           return { name: b.name, forSale: inBuilding.length, price };
         });
+        const duePaymentsCount = payments.filter((p) => p.status === "overdue" || p.due_soon).length;
         if (isBoss) {
           const summary = await api.analyticsSummary();
           setDigest({
-            pending: pending.length, pendingItems: pending, recent, leadsCount: leads.length, buildingStats,
+            pending: pending.length, pendingItems: pending, recent, leadsCount: leads.length, buildingStats, duePaymentsCount,
             approvedTotal: summary.spravka_requests_approved,
             avgDiscount: summary.average_approved_discount_pct,
           });
         } else {
-          setDigest({ pending: pending.length, pendingItems: pending, recent, leadsCount: leads.length, buildingStats });
+          setDigest({ pending: pending.length, pendingItems: pending, recent, leadsCount: leads.length, buildingStats, duePaymentsCount });
         }
       } catch {
         /* best-effort — inbox still works without the digest */
@@ -165,7 +167,7 @@ export function AssistantPanel({ user }: { user: CurrentUser }) {
             <svg viewBox="0 0 24 24" width={15} height={15} fill="none" stroke="currentColor" strokeWidth={1.9}>
               <path d="M6 8a6 6 0 0 1 12 0c0 5 2 6 2 6H4s2-1 2-6Z" /><path d="M10 21a2 2 0 0 0 4 0" />
             </svg>
-            {digest && digest.pending > 0 && (
+            {digest && (digest.pending > 0 || digest.duePaymentsCount > 0) && (
               <span style={{ position: "absolute", top: 5, right: 6, width: 6, height: 6, borderRadius: "50%", background: "var(--v-accent)", boxShadow: "0 0 0 2px var(--v-bg, #140a2c)" }} />
             )}
           </div>
@@ -182,6 +184,14 @@ export function AssistantPanel({ user }: { user: CurrentUser }) {
                     </div>
                   ))}
                 </div>
+              )}
+              {digest && digest.duePaymentsCount > 0 && (
+                <>
+                  <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: ".05em", color: "var(--warning)", margin: "14px 0 8px" }}>
+                    Платежи скоро/просрочены
+                  </div>
+                  <div style={{ fontSize: 12.5, color: "var(--color-text-soft)" }}>{digest.duePaymentsCount} — см. Платежи</div>
+                </>
               )}
             </div>,
             document.body

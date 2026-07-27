@@ -1,6 +1,7 @@
 export type Unit = {
   id: string;
   unit_number: string;
+  entrance: number | null;
   floor: number;
   room_type: string | null;
   area_m2: number;
@@ -10,6 +11,7 @@ export type Unit = {
   buildings?: { name: string };
   assigned_manager?: string | null;
   client_name?: string | null;
+  client_phone?: string | null;
 };
 
 export type Building = { id: string; name: string; project_name: string; status: string };
@@ -22,9 +24,11 @@ export type Payment = {
   due_date: string;
   amount_usd: number;
   status: "pending" | "paid" | "overdue";
+  due_soon?: boolean;
   paid_at: string | null;
   spravka_requests?: {
     client_name: string;
+    client_phone: string;
     requested_by: string;
     units?: { unit_number: string; buildings?: { name: string } };
   };
@@ -94,6 +98,7 @@ export type Client = {
 export type ClientDetail = Client & {
   leads: (Lead & { buildings?: { name: string } })[];
   spravka_requests: SpravkaRequest[];
+  payments: Payment[];
 };
 
 export type Conversation = {
@@ -112,6 +117,15 @@ export type Message = {
   content: string;
   events: any[] | null;
   created_at: string;
+};
+
+export type Commission = {
+  id: string;
+  name: string;
+  email: string;
+  commission_pct: number;
+  collected_usd: number;
+  commission_usd: number;
 };
 
 export type PlanRate = {

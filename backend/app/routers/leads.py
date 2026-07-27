@@ -6,6 +6,7 @@ from pydantic import BaseModel
 
 from app.db import get_service_client
 from app.deps import get_current_user
+from app.services.client_service import get_or_create_client
 
 router = APIRouter(prefix="/api/leads")
 
@@ -84,3 +85,21 @@ def update_lead_stage(lead_id: str, body: LeadStageUpdate, user=Depends(get_curr
     if not res.data:
         raise HTTPException(status_code=404, detail="Lead not found")
     return res.data
+
+
+@router.post("/{lead_id}/client")
+def open_lead_client(lead_id: str, user=Depends(get_current_user)):
+    """Resolves (or creates) the client profile behind a lead, so a rep can
+    jump from a lead card straight into that person's real profile/chat --
+    same identity get_or_create_client already gives Справка creation, just
+    triggered from the Лиды board instead."""
+    client = get_service_client()
+    res = client.table("leads").select("id, phone, client_id").eq("id", lead_id).eq("tenant_id", user.tenant_id).execute()
+    if not res.data:
+        raise HTTPException(status_code=404, detail="Lead not found")
+    lead = res.data[0]
+    if lead.get("client_id"):
+        return {"client_id": lead["client_id"]}
+    client_id = get_or_create_client(client, user.tenant_id, lead["phone"])
+    client.table("leads").update({"client_id": client_id}).eq("id", lead_id).eq("tenant_id", user.tenant_id).execute()
+    return {"client_id": client_id}

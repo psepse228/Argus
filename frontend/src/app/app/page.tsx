@@ -10,6 +10,7 @@ import { ClientsPanel } from "@/components/ClientsPanel";
 import { PaymentsPanel } from "@/components/PaymentsPanel";
 import { AnalyticsPanel } from "@/components/AnalyticsPanel";
 import { AssistantWidget } from "@/components/AssistantWidget";
+import { GlobalSearch } from "@/components/GlobalSearch";
 
 const TITLES: Record<Section, string> = {
   assistant: "Ассистент",
@@ -30,6 +31,22 @@ export default function AppPage() {
   // 403 for a real agent even if they somehow flipped this. Only the real
   // boss account gets the control (see canPreviewRole below).
   const [previewRole, setPreviewRole] = useState<"boss" | "sales_agent" | null>(null);
+  // Set by a Лиды card's "Открыть карточку клиента" button -- switches to
+  // Клиенты and tells it which client to drill straight into, instead of
+  // landing on the plain client list.
+  const [pendingClientId, setPendingClientId] = useState<string | null>(null);
+  // Same idea, for global search jumping straight into a unit.
+  const [pendingUnitId, setPendingUnitId] = useState<string | null>(null);
+  const [searchOpen, setSearchOpen] = useState(false);
+
+  function openClientFromLead(clientId: string) {
+    setPendingClientId(clientId);
+    setSection("clients");
+  }
+
+  function openUnitFromSearch(unitId: string) {
+    setPendingUnitId(unitId);
+  }
 
   useEffect(() => {
     api.me().then((u) => {
@@ -55,6 +72,11 @@ export default function AppPage() {
         user={effectiveUser} active={section} onChange={setSection}
         previewRole={canPreviewRole ? (previewRole || "boss") : undefined}
         onPreviewRoleChange={canPreviewRole ? changePreviewRole : undefined}
+        onOpenSearch={() => setSearchOpen(true)}
+      />
+      <GlobalSearch
+        open={searchOpen} onOpenChange={setSearchOpen} onGoTo={setSection}
+        onOpenUnit={openUnitFromSearch} onOpenClient={openClientFromLead}
       />
 
       <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 16 }}>
@@ -76,9 +98,17 @@ export default function AppPage() {
 
         <div key={section} className="section-enter" style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
           {section === "assistant" && <AssistantPanel user={effectiveUser} />}
-          {section === "units" && <UnitsPanel />}
-          {section === "leads" && <LeadsPanel />}
-          {section === "clients" && <ClientsPanel user={effectiveUser} />}
+          {section === "units" && (
+            <UnitsPanel openUnitId={pendingUnitId} onOpenUnitHandled={() => setPendingUnitId(null)} />
+          )}
+          {section === "leads" && <LeadsPanel onOpenClient={openClientFromLead} />}
+          {section === "clients" && (
+            <ClientsPanel
+              user={effectiveUser}
+              openClientId={pendingClientId}
+              onOpenClientHandled={() => setPendingClientId(null)}
+            />
+          )}
           {section === "payments" && <PaymentsPanel />}
           {section === "analytics" && effectiveUser.role === "boss" && <AnalyticsPanel />}
         </div>

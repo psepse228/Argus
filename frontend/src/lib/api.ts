@@ -22,6 +22,8 @@ export const api = {
   leads: () => request("/api/leads"),
   updateLeadStage: (id: string, stage: string) =>
     request(`/api/leads/${id}/stage`, { method: "PATCH", body: JSON.stringify({ stage }) }),
+  openLeadClient: (id: string): Promise<{ client_id: string }> =>
+    request(`/api/leads/${id}/client`, { method: "POST" }),
   spravkaRequests: () => request("/api/spravka-requests"),
   createSpravka: (body: {
     unit_id: string; client_name: string; client_phone: string;
@@ -32,11 +34,18 @@ export const api = {
   rejectSpravka: (id: string) => request(`/api/spravka-requests/${id}/reject`, { method: "POST" }),
   paymentPlanRates: (buildingId?: string) =>
     request(`/api/payment-plan-rates${buildingId ? `?building_id=${buildingId}` : ""}`),
+  exchangeRates: (): Promise<{ building_id: string; exchange_rate_sum: number; buildings?: { name: string } }[]> =>
+    request("/api/exchange-rates"),
+  updateExchangeRate: (buildingId: string, exchange_rate_sum: number) =>
+    request(`/api/exchange-rates/${buildingId}`, { method: "PATCH", body: JSON.stringify({ exchange_rate_sum }) }),
   bossChat: (message: string, conversationId: string, mode?: string) =>
     request("/api/assistant/boss/chat", { method: "POST", body: JSON.stringify({ message, conversation_id: conversationId, mode }) }),
   agentChat: (message: string, conversationId: string, mode?: string) =>
     request("/api/assistant/agent/chat", { method: "POST", body: JSON.stringify({ message, conversation_id: conversationId, mode }) }),
   analyticsSummary: () => request("/api/analytics/summary"),
+  commissions: () => request("/api/analytics/commissions"),
+  updateCommissionRate: (tenantUserId: string, commission_pct: number) =>
+    request(`/api/analytics/commissions/${tenantUserId}`, { method: "PATCH", body: JSON.stringify({ commission_pct }) }),
   spravkaDownloadUrl: (requestId: string) => `${API_BASE}/api/spravka-requests/${requestId}/download`,
   spravkaPreview: (requestId: string) => request(`/api/spravka-requests/${requestId}/preview`),
   loginUrl: () => `${API_BASE}/api/auth/google/start`,

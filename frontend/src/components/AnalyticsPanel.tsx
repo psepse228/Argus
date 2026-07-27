@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
-import { Building, PlanRate, PLAN_LABELS, STATUS_LABELS } from "@/lib/types";
+import { Building, Commission, PlanRate, PLAN_LABELS, STATUS_LABELS } from "@/lib/types";
 
 type Summary = {
   units_by_status: Record<string, number>;
@@ -14,15 +14,43 @@ export function AnalyticsPanel() {
   const [summary, setSummary] = useState<Summary | null>(null);
   const [buildings, setBuildings] = useState<Building[]>([]);
   const [ratesByBuilding, setRatesByBuilding] = useState<Record<string, PlanRate[]>>({});
+  const [commissions, setCommissions] = useState<Commission[]>([]);
+  const [savingId, setSavingId] = useState<string | null>(null);
+  const [exchangeRates, setExchangeRates] = useState<{ building_id: string; exchange_rate_sum: number; buildings?: { name: string } }[]>([]);
+  const [savingRateFor, setSavingRateFor] = useState<string | null>(null);
 
   useEffect(() => {
     api.analyticsSummary().then(setSummary);
+    api.commissions().then(setCommissions).catch(() => {});
+    api.exchangeRates().then(setExchangeRates).catch(() => {});
     api.buildings().then(async (b: Building[]) => {
       setBuildings(b);
       const entries = await Promise.all(b.map(async (bld) => [bld.id, await api.paymentPlanRates(bld.id)] as const));
       setRatesByBuilding(Object.fromEntries(entries));
     });
   }, []);
+
+  async function saveRate(id: string, pct: number) {
+    setSavingId(id);
+    try {
+      await api.updateCommissionRate(id, pct);
+      setCommissions((cur) => cur.map((c) => (
+        c.id === id ? { ...c, commission_pct: pct, commission_usd: Math.round(c.collected_usd * pct) / 100 } : c
+      )));
+    } finally {
+      setSavingId(null);
+    }
+  }
+
+  async function saveExchangeRate(buildingId: string, sum: number) {
+    setSavingRateFor(buildingId);
+    try {
+      await api.updateExchangeRate(buildingId, sum);
+      setExchangeRates((cur) => cur.map((r) => (r.building_id === buildingId ? { ...r, exchange_rate_sum: sum } : r)));
+    } finally {
+      setSavingRateFor(null);
+    }
+  }
 
   if (!summary) return <div style={{ color: "var(--color-text-faint)", fontSize: 13 }}>Загрузка…</div>;
 
@@ -62,6 +90,32 @@ export function AnalyticsPanel() {
       </div>
 
       <div className="glass-panel" style={{ padding: "18px 20px" }}>
+        <h3 style={{ fontFamily: "var(--font-heading)", fontSize: 15, margin: "0 0 4px", color: "var(--color-text)" }}>Курс (сум за $)</h3>
+        <p style={{ fontSize: 11.5, color: "var(--color-text-faint)", margin: "0 0 14px" }}>
+          Живой курс, а не фиксированное число в коде — каждая новая Справка считается по нему.
+        </p>
+        {exchangeRates.length === 0 ? (
+          <div style={{ fontSize: 12.5, color: "var(--color-text-faint)" }}>Нет заданных курсов по зданиям.</div>
+        ) : (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
+            {exchangeRates.map((r) => (
+              <label key={r.building_id} style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 12.5, background: "rgba(255,255,255,.04)", border: "1px solid var(--color-hairline)", borderRadius: 10, padding: "7px 11px" }}>
+                <span style={{ color: "var(--color-text-soft)", fontWeight: 600 }}>{r.buildings?.name}</span>
+                <input
+                  type="number" step={10} min={0} defaultValue={r.exchange_rate_sum}
+                  onBlur={(e) => {
+                    const v = parseFloat(e.target.value);
+                    if (!isNaN(v) && v !== r.exchange_rate_sum) saveExchangeRate(r.building_id, v);
+                  }}
+                  style={{ width: 76, background: "rgba(255,255,255,.04)", border: "1px solid var(--color-hairline)", borderRadius: 7, color: "var(--color-text)", fontSize: 12.5, padding: "3px 6px", textAlign: "right", opacity: savingRateFor === r.building_id ? 0.5 : 1 }}
+                />
+              </label>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="glass-panel" style={{ padding: "18px 20px" }}>
         <h3 style={{ fontFamily: "var(--font-heading)", fontSize: 15, margin: "0 0 4px", color: "var(--color-text)" }}>Реальные цены по планам оплаты</h3>
         <p style={{ fontSize: 11.5, color: "var(--color-text-faint)", margin: "0 0 14px" }}>
           Анкорная цена на шахматке — витринная. Это то, что реально используется в справках.
@@ -85,6 +139,39 @@ export function AnalyticsPanel() {
             </>
           ))}
         </div>
+      </div>
+
+      <div className="glass-panel" style={{ padding: "18px 20px" }}>
+        <h3 style={{ fontFamily: "var(--font-heading)", fontSize: 15, margin: "0 0 4px", color: "var(--color-text)" }}>Комиссии</h3>
+        <p style={{ fontSize: 11.5, color: "var(--color-text-faint)", margin: "0 0 14px" }}>
+          % от реально собранных (оплаченных) платежей — не от всей суммы сделки.
+        </p>
+        {commissions.length === 0 ? (
+          <div style={{ fontSize: 12.5, color: "var(--color-text-faint)" }}>Нет агентов с ролью sales_agent.</div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            {commissions.map((c) => (
+              <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 14, fontSize: 12.5 }}>
+                <span style={{ flex: 1, minWidth: 0, fontWeight: 700, color: "var(--color-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.name}</span>
+                <span style={{ color: "var(--color-text-faint)", width: 110, textAlign: "right" }}>собрано ${c.collected_usd.toLocaleString("en-US")}</span>
+                <label style={{ display: "flex", alignItems: "center", gap: 5, color: "var(--color-text-faint)" }}>
+                  <input
+                    type="number" step={0.5} min={0} max={100} defaultValue={c.commission_pct}
+                    onBlur={(e) => {
+                      const v = parseFloat(e.target.value);
+                      if (!isNaN(v) && v !== c.commission_pct) saveRate(c.id, v);
+                    }}
+                    style={{ width: 52, background: "rgba(255,255,255,.04)", border: "1px solid var(--color-hairline)", borderRadius: 8, color: "var(--color-text)", fontSize: 12.5, padding: "4px 6px", textAlign: "right" }}
+                  />
+                  %
+                </label>
+                <span style={{ width: 80, textAlign: "right", fontWeight: 800, color: "var(--v-accent)", opacity: savingId === c.id ? 0.5 : 1 }}>
+                  ${c.commission_usd.toLocaleString("en-US")}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

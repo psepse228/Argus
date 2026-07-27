@@ -11,7 +11,33 @@ type SpravkaCreatedEvent = {
   real_price_per_m2_usd: number;
   summary?: { effective_total_usd: number; payment_label: string };
 };
-type ChatMsg = { role: "user" | "bot"; text: string; events?: SpravkaCreatedEvent[] };
+type ToolCallEvent = { type: "tool_call"; name: string; ok: boolean };
+type ConfidenceEvent = { type: "confidence"; level: "high" | "medium" | "low" };
+type ChatEvent = SpravkaCreatedEvent | ToolCallEvent | ConfidenceEvent;
+type ChatMsg = { role: "user" | "bot"; text: string; events?: ChatEvent[] };
+
+const isToolCall = (e: ChatEvent): e is ToolCallEvent => e.type === "tool_call";
+const isSpravkaCreated = (e: ChatEvent): e is SpravkaCreatedEvent => e.type === "spravka_created";
+
+// Human labels for what the AI actually did this turn -- see
+// backend/app/ai/functions.py for the real function names these map to.
+const TOOL_LABELS: Record<string, string> = {
+  get_units: "Искал юниты",
+  get_pending_approvals: "Смотрел ожидающие справки",
+  get_sales_summary: "Считал сводку продаж",
+  get_company_info: "Смотрел данные компании",
+  get_payment_plan_rates: "Проверял тарифы рассрочки",
+  create_spravka_request: "Оформлял справку",
+  set_payment_plan_rate: "Обновлял тариф",
+};
+
+// Heuristic, not a real model-reported score -- see run_chat's docstring in
+// backend/app/ai/chat.py for what "confidence" actually measures here.
+const CONFIDENCE: Record<ConfidenceEvent["level"], { label: string; fg: string; bg: string }> = {
+  high: { label: "Уверенность: высокая", fg: "var(--success)", bg: "var(--success-tint)" },
+  medium: { label: "Уверенность: средняя", fg: "var(--warning)", bg: "var(--warning-tint)" },
+  low: { label: "Уверенность: низкая", fg: "var(--danger)", bg: "var(--danger-tint)" },
+};
 
 /** The actual message thread + input bar, shared by the general Ассистент
  * view and a client's own profile-chat -- chat history now lives in
@@ -86,9 +112,9 @@ export function ChatThread({
     try {
       const call = isBoss ? api.bossChat : api.agentChat;
       const { reply, events } = await call(v, conversationId, spravkaMode ? "spravka" : undefined);
-      const created: SpravkaCreatedEvent[] = (events || []).filter((e: any) => e.type === "spravka_created");
-      setMessages((cur) => [...cur, { role: "bot", text: reply, events: created.length ? created : undefined }]);
-      if (created.length) onSpravkaCreated?.();
+      const allEvents: ChatEvent[] = events || [];
+      setMessages((cur) => [...cur, { role: "bot", text: reply, events: allEvents.length ? allEvents : undefined }]);
+      if (allEvents.some(isSpravkaCreated)) onSpravkaCreated?.();
     } catch (e: any) {
       setMessages((cur) => [...cur, { role: "bot", text: `Ошибка: ${e.message}` }]);
     } finally {
@@ -124,7 +150,35 @@ export function ChatThread({
                 >
                   {m.text}
                 </div>
-                {m.events?.map((ev) => (
+                {m.role === "bot" && m.events && m.events.some((e) => isToolCall(e) || e.type === "confidence") && (
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                    {m.events.filter(isToolCall).map((e, i) => (
+                      <span
+                        key={i}
+                        title={e.ok ? undefined : "Этот шаг завершился с ошибкой"}
+                        style={{
+                          fontSize: 10.5, fontWeight: 600, display: "inline-flex", alignItems: "center", gap: 4,
+                          color: e.ok ? "var(--color-text-faint)" : "var(--danger)",
+                          background: "rgba(255,255,255,.04)", border: "1px solid var(--color-hairline-soft)",
+                          borderRadius: 99, padding: "3px 9px",
+                        }}
+                      >
+                        {e.ok ? "✓" : "✕"} {TOOL_LABELS[e.name] || e.name}
+                      </span>
+                    ))}
+                    {(() => {
+                      const conf = m.events!.find((e): e is ConfidenceEvent => e.type === "confidence");
+                      if (!conf) return null;
+                      const c = CONFIDENCE[conf.level];
+                      return (
+                        <span style={{ fontSize: 10.5, fontWeight: 700, color: c.fg, background: c.bg, borderRadius: 99, padding: "3px 9px" }}>
+                          {c.label}
+                        </span>
+                      );
+                    })()}
+                  </div>
+                )}
+                {m.events?.filter(isSpravkaCreated).map((ev) => (
                   <SpravkaCard key={ev.request_id} event={ev} onPreview={() => setPreviewId(ev.request_id)} />
                 ))}
               </div>

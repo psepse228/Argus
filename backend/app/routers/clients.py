@@ -54,4 +54,14 @@ def get_client(client_id: str, user=Depends(get_current_user)):
         .select("*, units(unit_number, floor, area_m2, buildings(name))")
         .eq("client_id", client_id).order("created_at", desc=True).execute().data
     )
-    return {**res.data[0], "leads": leads, "spravka_requests": spravki}
+    # Deal timeline needs this client's payment rows too, but payment_schedule
+    # only links back through spravka_request_id (no client_id column of its
+    # own) -- fetch by the spravka ids just resolved above.
+    spravka_ids = [s["id"] for s in spravki]
+    payments = (
+        client.table("payment_schedule")
+        .select("id, spravka_request_id, installment_number, label, due_date, amount_usd, status, paid_at")
+        .in_("spravka_request_id", spravka_ids).eq("tenant_id", user.tenant_id).order("due_date").execute().data
+        if spravka_ids else []
+    )
+    return {**res.data[0], "leads": leads, "spravka_requests": spravki, "payments": payments}

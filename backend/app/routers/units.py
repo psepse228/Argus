@@ -15,7 +15,9 @@ def list_units(building: str | None = None, user=Depends(get_current_user)):
     FastAPI threadpool-dispatch it automatically (see
     concepts/fastapi-async-blocking-io in the wiki)."""
     client = get_service_client()
-    q = client.table("units").select("*").eq("tenant_id", user.tenant_id)
+    # Joins the building name in -- the frontend's building filter/chess-grid
+    # both key off u.buildings.name, which a bare select("*") never returns.
+    q = client.table("units").select("*, buildings(name)").eq("tenant_id", user.tenant_id)
     if building:
         q = q.eq("building_id", building)
     res = q.execute()
