@@ -51,8 +51,8 @@ const TOOLS: { key: Section; label: string; icon: JSX.Element; bossOnly?: boolea
 ];
 
 function RailButton({
-  active, label, onClick, children, badge,
-}: { active: boolean; label: string; onClick: () => void; children: React.ReactNode; badge?: number }) {
+  active, label, onClick, children, badge, sliding,
+}: { active: boolean; label: string; onClick: () => void; children: React.ReactNode; badge?: number; sliding?: boolean }) {
   return (
     <div style={{ position: "relative" }}>
       <button
@@ -61,10 +61,15 @@ function RailButton({
         className={`rail-btn${active ? " is-active" : ""}`}
         style={{
           width: 46, height: 46, borderRadius: 14, border: "none", cursor: "pointer",
-          display: "flex", alignItems: "center", justifyContent: "center",
-          background: active ? "var(--v-accent)" : "rgba(255,255,255,.04)",
+          display: "flex", alignItems: "center", justifyContent: "center", position: "relative",
+          // When a sliding indicator lives in the parent container, this
+          // button stays transparent so that indicator (not a per-button
+          // background swap) is what visually carries "active" -- the button
+          // only ever changes icon color, never paints its own fill.
+          background: sliding ? "transparent" : active ? "var(--v-accent)" : "rgba(255,255,255,.04)",
           color: active ? "var(--v-text-on-accent)" : "var(--color-text-soft)",
-          boxShadow: active ? "0 12px 26px -9px color-mix(in srgb, var(--v-accent) 60%, transparent)" : "none",
+          boxShadow: !sliding && active ? "0 12px 26px -9px color-mix(in srgb, var(--v-accent) 60%, transparent)" : "none",
+          zIndex: 1,
         }}
       >
         {children}
@@ -159,6 +164,9 @@ export function Sidebar({
     };
   }, [roleOpen]);
 
+  const visibleTools = TOOLS.filter((t) => !t.bossOnly || user.role === "boss");
+  const activeToolIndex = visibleTools.findIndex((t) => t.key === active);
+
   return (
     <div className="glass-panel" style={{ width: 76, flexShrink: 0, padding: "18px 0", display: "flex", flexDirection: "column", alignItems: "center" }}>
       {/* Decorative brand mark (Argus/Panoptes -- the all-seeing watchman),
@@ -185,9 +193,21 @@ export function Sidebar({
 
       <div style={{ width: 28, height: 1, background: "var(--color-hairline-soft)", margin: "16px 0" }} />
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        {TOOLS.filter((t) => !t.bossOnly || user.role === "boss").map((t) => (
-          <RailButton key={t.key} active={active === t.key} label={t.label} onClick={() => onChange(t.key)}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 8, position: "relative" }}>
+        {visibleTools.length > 0 && activeToolIndex >= 0 && (
+          <div
+            aria-hidden="true"
+            style={{
+              position: "absolute", top: 0, left: 0, width: 46, height: 46, borderRadius: 14, zIndex: 0,
+              background: "var(--v-accent)",
+              boxShadow: "0 12px 26px -9px color-mix(in srgb, var(--v-accent) 60%, transparent)",
+              transform: `translateY(${activeToolIndex * 54}px)`,
+              transition: "transform .32s cubic-bezier(.2,.7,.3,1)",
+            }}
+          />
+        )}
+        {visibleTools.map((t) => (
+          <RailButton key={t.key} active={active === t.key} label={t.label} onClick={() => onChange(t.key)} sliding>
             {t.icon}
           </RailButton>
         ))}

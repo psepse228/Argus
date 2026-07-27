@@ -1,9 +1,10 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import { Unit, Building, STATUS_LABELS, STATUS_COLORS } from "@/lib/types";
 import { StatusChip } from "./StatusChip";
 import { Dropdown } from "./Dropdown";
+import { Skeleton } from "./Skeleton";
 
 const SORTS = {
   default: { label: "По умолчанию", fn: null },
@@ -31,20 +32,52 @@ export function UnitsPanel({
   // for when someone actually wants to sort/scan by price or area.
   const [view, setView] = useState<"grid" | "list">("grid");
   const [selected, setSelected] = useState<Unit | null>(null);
+  const [loading, setLoading] = useState(true);
+  // Same lightweight FLIP as Клиенты's card→detail transition -- the clicked
+  // cell/card's rect, so the detail panel visibly grows out of it.
+  const [origin, setOrigin] = useState<DOMRect | null>(null);
+  const detailRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     api.buildings().then(setBuildings);
-    api.units().then(setUnits);
+    api.units().then((u) => { setUnits(u); setLoading(false); }).catch(() => setLoading(false));
   }, []);
 
   useEffect(() => {
     if (openUnitId && units.length) {
       const u = units.find((x) => x.id === openUnitId);
-      if (u) setSelected(u);
+      if (u) { setSelected(u); setOrigin(null); }
       onOpenUnitHandled?.();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [openUnitId, units]);
+
+  function selectUnit(u: Unit, rect?: DOMRect) {
+    setSelected(u);
+    setOrigin(rect ?? null);
+  }
+
+  useLayoutEffect(() => {
+    if (!selected || !origin || !detailRef.current) return;
+    const el = detailRef.current;
+    const final = el.getBoundingClientRect();
+    const dx = origin.left - final.left;
+    const dy = origin.top - final.top;
+    const sx = origin.width / final.width;
+    const sy = origin.height / final.height;
+    el.style.transition = "none";
+    el.style.transformOrigin = "top left";
+    el.style.transform = `translate(${dx}px, ${dy}px) scale(${sx}, ${sy})`;
+    el.style.opacity = "0.4";
+    el.getBoundingClientRect();
+    requestAnimationFrame(() => {
+      el.style.transition = "transform .34s cubic-bezier(.2,.7,.3,1), opacity .24s ease";
+      el.style.transform = "none";
+      el.style.opacity = "1";
+    });
+    setOrigin(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selected]);
 
   const roomTypes = useMemo(
     () => Array.from(new Set(units.map((u) => u.room_type).filter(Boolean))) as string[],
@@ -137,24 +170,36 @@ export function UnitsPanel({
             />
           )}
         </div>
-        {filtered.length === 0 && (
+        {loading && (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(232px,1fr))", gap: 14 }}>
+            {[0, 1, 2, 3, 4, 5].map((i) => (
+              <div key={i} className="glass-panel stagger-item" style={{ ["--i" as any]: i, padding: "16px 17px", display: "flex", flexDirection: "column", gap: 12 }}>
+                <Skeleton height={16} width="70%" />
+                <Skeleton height={11} width="50%" />
+                <Skeleton height={18} width="45%" style={{ marginTop: 8 }} />
+              </div>
+            ))}
+          </div>
+        )}
+
+        {!loading && filtered.length === 0 && (
           <div style={{ padding: "40px 0", textAlign: "center", color: "var(--color-text-faint)", fontSize: 13 }}>
             Нет юнитов по этим фильтрам — попробуйте сбросить здание, статус или тип комнат.
           </div>
         )}
 
-        {view === "grid" && filtered.length > 0 && (
+        {!loading && view === "grid" && filtered.length > 0 && (
           <div style={{ display: "flex", flexDirection: "column", gap: 26 }}>
             {groupedForGrid.map(([buildingName, buildingUnits]) => (
-              <ChessGrid key={buildingName} buildingName={buildingName} units={buildingUnits} selectedId={selected?.id} onSelect={setSelected} />
+              <ChessGrid key={buildingName} buildingName={buildingName} units={buildingUnits} selectedId={selected?.id} onSelect={selectUnit} />
             ))}
           </div>
         )}
 
-        {view === "list" && (
+        {!loading && view === "list" && (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(232px,1fr))", gap: 14 }}>
-            {filtered.map((u) => (
-              <div key={u.id} onClick={() => setSelected(u)} className="glass-panel press" style={{ padding: "16px 17px", display: "flex", flexDirection: "column", gap: 12, cursor: "pointer" }}>
+            {filtered.map((u, i) => (
+              <div key={u.id} onClick={(e) => selectUnit(u, e.currentTarget.getBoundingClientRect())} className="glass-panel press stagger-item" style={{ ["--i" as any]: i % 12, padding: "16px 17px", display: "flex", flexDirection: "column", gap: 12, cursor: "pointer" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                   <div>
                     <div style={{ fontFamily: "var(--font-heading)", fontSize: 16, fontWeight: 600, color: "var(--color-text)" }}>
@@ -179,12 +224,12 @@ export function UnitsPanel({
       </div>
 
       {selected && (
-        <div className="glass-panel section-enter" style={{ width: 260, flexShrink: 0, padding: "20px 20px", alignSelf: "flex-start" }}>
+        <div ref={detailRef} className={`glass-panel${origin ? "" : " section-enter"}`} style={{ width: 260, flexShrink: 0, padding: "20px 20px", alignSelf: "flex-start" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 4 }}>
             <div style={{ fontFamily: "var(--font-heading)", fontSize: 17, fontWeight: 700, color: "var(--color-text)" }}>
               {selected.buildings?.name} №{selected.unit_number}
             </div>
-            <div onClick={() => setSelected(null)} className="press" style={{ cursor: "pointer", color: "var(--color-text-faint)", fontSize: 13, fontWeight: 700 }}>✕</div>
+            <div onClick={() => { setSelected(null); setOrigin(null); }} className="press" style={{ cursor: "pointer", color: "var(--color-text-faint)", fontSize: 13, fontWeight: 700 }}>✕</div>
           </div>
           <div style={{ marginBottom: 14 }}><StatusChip status={selected.status} /></div>
           <div style={{ display: "flex", flexDirection: "column", gap: 9, fontSize: 12.5, color: "var(--color-text-soft)" }}>

@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { Building, Commission, PlanRate, PLAN_LABELS, STATUS_LABELS } from "@/lib/types";
+import { Skeleton } from "./Skeleton";
 
 type Summary = {
   units_by_status: Record<string, number>;
@@ -52,7 +53,29 @@ export function AnalyticsPanel() {
     }
   }
 
-  if (!summary) return <div style={{ color: "var(--color-text-faint)", fontSize: 13 }}>Загрузка…</div>;
+  if (!summary) {
+    return (
+      <div style={{ flex: 1, minHeight: 0, overflowY: "auto", display: "flex", flexDirection: "column", gap: 16 }}>
+        <h1 style={{ fontFamily: "var(--font-heading)", fontSize: 23, fontWeight: 700, margin: 0, color: "var(--color-text)" }}>Аналитика</h1>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 14 }}>
+          {[0, 1, 2, 3].map((i) => (
+            <div key={i} className="glass-panel stagger-item" style={{ ["--i" as any]: i, padding: "17px 18px" }}>
+              <Skeleton height={27} width="55%" style={{ marginBottom: 8 }} />
+              <Skeleton height={11} width="80%" />
+            </div>
+          ))}
+        </div>
+        {[0, 1].map((i) => (
+          <div key={i} className="glass-panel stagger-item" style={{ ["--i" as any]: i + 4, padding: "18px 20px", display: "flex", flexDirection: "column", gap: 8 }}>
+            <Skeleton height={13} width="30%" style={{ marginBottom: 6 }} />
+            <Skeleton height={8} radius={99} />
+            <Skeleton height={8} radius={99} width="80%" />
+            <Skeleton height={8} radius={99} width="60%" />
+          </div>
+        ))}
+      </div>
+    );
+  }
 
   const kpis = [
     { value: summary.units_by_status["for_sale"] || 0, label: "В продаже" },

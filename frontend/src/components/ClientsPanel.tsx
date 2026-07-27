@@ -1,9 +1,10 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { api, CurrentUser } from "@/lib/api";
 import { Client, ClientDetail, STATUS_LABELS, PLAN_LABELS } from "@/lib/types";
 import { ChatThread } from "./ChatThread";
 import { DealTimeline } from "./DealTimeline";
+import { Skeleton } from "./Skeleton";
 
 /** Before this, a "client" was just free-text (name, phone) duplicated
  * independently across Лиды and Справки, with no single place to see one
@@ -20,16 +21,22 @@ export function ClientsPanel({
   openClientId?: string | null;
   onOpenClientHandled?: () => void;
 }) {
-  const [clients, setClients] = useState<Client[]>([]);
+  const [clients, setClients] = useState<Client[] | null>(null);
   const [selected, setSelected] = useState<ClientDetail | null>(null);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [spravkaMode, setSpravkaMode] = useState(false);
+  // The rect of whatever card was clicked -- lets the detail view animate
+  // growing out of that exact spot (a lightweight FLIP) instead of just
+  // appearing. Null when opened without a click (search, Лиды hand-off).
+  const [origin, setOrigin] = useState<DOMRect | null>(null);
+  const detailRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => { api.clients().then(setClients); }, []);
+  useEffect(() => { api.clients().then(setClients).catch(() => setClients([])); }, []);
 
-  async function openClient(id: string) {
+  async function openClient(id: string, rect?: DOMRect) {
     setSelected(null);
     setConversationId(null);
+    setOrigin(rect ?? null);
     const [detail, conv] = await Promise.all([api.clientDetail(id), api.clientConversation(id)]);
     setSelected(detail);
     setConversationId(conv.id);
@@ -43,9 +50,31 @@ export function ClientsPanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [openClientId]);
 
+  useLayoutEffect(() => {
+    if (!selected || !origin || !detailRef.current) return;
+    const el = detailRef.current;
+    const final = el.getBoundingClientRect();
+    const dx = origin.left - final.left;
+    const dy = origin.top - final.top;
+    const sx = origin.width / final.width;
+    const sy = origin.height / final.height;
+    el.style.transition = "none";
+    el.style.transformOrigin = "top left";
+    el.style.transform = `translate(${dx}px, ${dy}px) scale(${sx}, ${sy})`;
+    el.style.opacity = "0.5";
+    el.getBoundingClientRect(); // force reflow before animating to identity
+    requestAnimationFrame(() => {
+      el.style.transition = "transform .38s cubic-bezier(.2,.7,.3,1), opacity .28s ease";
+      el.style.transform = "none";
+      el.style.opacity = "1";
+    });
+    setOrigin(null); // consumed -- don't replay on unrelated re-renders
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selected]);
+
   if (selected) {
     return (
-      <div style={{ flex: 1, minHeight: 0, display: "flex", gap: 16 }}>
+      <div ref={detailRef} className={origin ? undefined : "section-enter"} style={{ flex: 1, minHeight: 0, display: "flex", gap: 16 }}>
         <div style={{ width: 280, flexShrink: 0, display: "flex", flexDirection: "column", gap: 14, overflowY: "auto" }}>
           <button
             onClick={() => setSelected(null)}
@@ -130,6 +159,29 @@ export function ClientsPanel({
     );
   }
 
+  if (clients === null) {
+    return (
+      <div style={{ flex: 1, minHeight: 0, overflowY: "auto" }}>
+        <h1 style={{ fontFamily: "var(--font-heading)", fontSize: 23, fontWeight: 700, margin: "0 0 6px", color: "var(--color-text)" }}>Клиенты</h1>
+        <Skeleton width={260} height={13} style={{ margin: "0 0 16px" }} />
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(260px,1fr))", gap: 16 }}>
+          {[0, 1, 2, 3, 4, 5].map((i) => (
+            <div key={i} className="glass-panel stagger-item" style={{ ["--i" as any]: i, padding: "18px 19px", display: "flex", flexDirection: "column", gap: 12 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 11 }}>
+                <Skeleton width={38} height={38} radius={99} />
+                <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 6 }}>
+                  <Skeleton width="70%" height={13} />
+                  <Skeleton width="50%" height={10} />
+                </div>
+              </div>
+              <Skeleton width={70} height={16} radius={99} />
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div style={{ flex: 1, minHeight: 0, overflowY: "auto" }}>
       <h1 style={{ fontFamily: "var(--font-heading)", fontSize: 23, fontWeight: 700, margin: "0 0 6px", color: "var(--color-text)" }}>Клиенты</h1>
@@ -138,15 +190,16 @@ export function ClientsPanel({
         <div style={{ color: "var(--color-text-faint)", fontSize: 13 }}>Пока нет клиентов — появятся из лидов и справок.</div>
       )}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(260px,1fr))", gap: 16 }}>
-        {clients.map((c) => <ClientCard key={c.id} client={c} onOpen={() => openClient(c.id)} />)}
+        {clients.map((c, i) => <ClientCard key={c.id} client={c} index={i} onOpen={(rect) => openClient(c.id, rect)} />)}
       </div>
     </div>
   );
 }
 
-function ClientCard({ client: c, onOpen }: { client: Client; onOpen: () => void }) {
+function ClientCard({ client: c, index, onOpen }: { client: Client; index: number; onOpen: (rect: DOMRect) => void }) {
   const active = c.leads_count > 0 || c.spravka_count > 0;
   const initial = (c.name || c.phone).trim()[0]?.toUpperCase() || "?";
+  const cardRef = useRef<HTMLDivElement>(null);
 
   function onMouseMove(e: React.MouseEvent<HTMLDivElement>) {
     const r = e.currentTarget.getBoundingClientRect();
@@ -157,14 +210,19 @@ function ClientCard({ client: c, onOpen }: { client: Client; onOpen: () => void 
   function onMouseLeave(e: React.MouseEvent<HTMLDivElement>) {
     e.currentTarget.style.transform = "";
   }
+  function open() {
+    if (cardRef.current) onOpen(cardRef.current.getBoundingClientRect());
+  }
 
   return (
     <div
-      onClick={onOpen}
+      ref={cardRef}
+      onClick={open}
       onMouseMove={onMouseMove}
       onMouseLeave={onMouseLeave}
-      className="glass-panel"
+      className="glass-panel stagger-item"
       style={{
+        ["--i" as any]: index,
         padding: "18px 19px", cursor: "pointer", display: "flex", flexDirection: "column", gap: 12,
         opacity: active ? 1 : 0.6, transition: "transform .12s ease, box-shadow .2s ease, opacity .2s ease",
       }}
@@ -196,7 +254,7 @@ function ClientCard({ client: c, onOpen }: { client: Client; onOpen: () => void 
 
       <div
         data-quick-trigger
-        onClick={(e) => { e.stopPropagation(); onOpen(); }}
+        onClick={(e) => { e.stopPropagation(); open(); }}
         className="press"
         style={{
           display: "flex", alignItems: "center", justifyContent: "center", gap: 6, marginTop: 2,

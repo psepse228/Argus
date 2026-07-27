@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { Payment, PAYMENT_STATUS_COLORS, PAYMENT_STATUS_LABELS } from "@/lib/types";
+import { Skeleton } from "./Skeleton";
 
 /** Loan-servicing-style view over payment_schedule: what's due, what's paid,
  * what's overdue, per approved Справка. Rows are generated once at approval
@@ -33,7 +34,19 @@ export function PaymentsPanel() {
     return (
       <div style={{ flex: 1, minHeight: 0, overflowY: "auto" }}>
         <h1 style={{ fontFamily: "var(--font-heading)", fontSize: 23, fontWeight: 700, margin: "0 0 6px", color: "var(--color-text)" }}>Платежи</h1>
-        <p style={{ color: "var(--color-text-faint)", fontSize: 13 }}>Загрузка…</p>
+        <Skeleton width={220} height={13} style={{ margin: "0 0 20px" }} />
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {[0, 1, 2, 3].map((i) => (
+            <div key={i} className="glass-panel stagger-item" style={{ ["--i" as any]: i, padding: "13px 16px", borderRadius: 14, display: "flex", alignItems: "center", gap: 14 }}>
+              <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 7 }}>
+                <Skeleton width="45%" height={13} />
+                <Skeleton width="65%" height={11} />
+              </div>
+              <Skeleton width={60} height={15} />
+              <Skeleton width={70} height={20} radius={99} />
+            </div>
+          ))}
+        </div>
       </div>
     );
   }
@@ -50,12 +63,12 @@ export function PaymentsPanel() {
     return `$${n.toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
   }
 
-  function Row({ p }: { p: Payment }) {
+  function Row({ p, index }: { p: Payment; index: number }) {
     const req = p.spravka_requests;
     const unit = req?.units;
     const c = PAYMENT_STATUS_COLORS[p.status];
     return (
-      <div className="glass-panel" style={{ padding: "13px 16px", borderRadius: 14, display: "flex", alignItems: "center", gap: 14 }}>
+      <div className="glass-panel stagger-item" style={{ ["--i" as any]: index, padding: "13px 16px", borderRadius: 14, display: "flex", alignItems: "center", gap: 14 }}>
         <div style={{ minWidth: 0, flex: 1 }}>
           <div style={{ fontSize: 13.5, fontWeight: 700, color: "var(--color-text)" }}>
             {req?.client_name || "—"}
@@ -134,7 +147,7 @@ export function PaymentsPanel() {
             Просрочено — {overdue.length}
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {overdue.map((p) => <Row key={p.id} p={p} />)}
+            {overdue.map((p, i) => <Row key={p.id} p={p} index={i} />)}
           </div>
         </div>
       )}
@@ -145,7 +158,7 @@ export function PaymentsPanel() {
             Скоро — {dueSoon.length}
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {dueSoon.map((p) => <Row key={p.id} p={p} />)}
+            {dueSoon.map((p, i) => <Row key={p.id} p={p} index={overdue.length + i} />)}
           </div>
         </div>
       )}
@@ -156,7 +169,7 @@ export function PaymentsPanel() {
             Ожидается — {pending.length}
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {pending.map((p) => <Row key={p.id} p={p} />)}
+            {pending.map((p, i) => <Row key={p.id} p={p} index={overdue.length + dueSoon.length + i} />)}
           </div>
         </div>
       )}
@@ -167,7 +180,7 @@ export function PaymentsPanel() {
             Оплачено — {paid.length}
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {paid.map((p) => <Row key={p.id} p={p} />)}
+            {paid.map((p, i) => <Row key={p.id} p={p} index={overdue.length + dueSoon.length + pending.length + i} />)}
           </div>
         </div>
       )}
