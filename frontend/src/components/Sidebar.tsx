@@ -43,8 +43,8 @@ const TOOLS: { key: Section; label: string; icon: JSX.Element; bossOnly?: boolea
       </svg>
     ),
   },
-  // Deprioritized too -- there's no real approved-installment deal yet at
-  // Ulkan, so this has the least live data of any tab right now.
+  // Deprioritized too -- historically the tab with the least live data
+  // (few real approved-installment deals), pushed after Аналитика/Юниты.
   {
     key: "payments", label: "Платежи", icon: (
       <svg viewBox="0 0 24 24" width={19} height={19} fill="none" stroke="currentColor" strokeWidth={1.8}>

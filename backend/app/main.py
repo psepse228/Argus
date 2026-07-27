@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.routers import auth_google, units, leads, spravka, assistant, pricing, analytics, clients, conversations, payments, workspace
 
-app = FastAPI(title="Argus — Italiano Vero sales ops")
+app = FastAPI(title="Argus — sales ops")
 
 app.add_middleware(
     CORSMiddleware,

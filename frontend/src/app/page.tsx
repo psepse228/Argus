@@ -34,7 +34,7 @@ export default function LoginPage() {
           Argus
         </h1>
         <p style={{ color: "var(--color-text-soft)", fontSize: 13, margin: "0 0 24px" }}>
-          AI-слой продаж · Italiano Vero
+          AI-слой продаж · Horizon Bay
         </p>
         <a
           href={api.loginUrl()}

@@ -146,13 +146,13 @@ def create_spravka_request(
 
 
 def get_company_info() -> dict:
-    """Static company blurb for the sales-agent info-package assistant —
-    real Italiano Vero project details, not invented."""
+    """Static company blurb for the sales-agent info-package assistant --
+    demo project details (see migration 0017), not a real developer."""
     return {
-        "project_name": "Italiano Vero",
-        "developer": "Ulkan Development",
-        "buildings": ["Milano (nearly complete)", "Roma (under construction)", "Neapol", "Venice", "Florencia"],
-        "description": "Итальянский архитектурный стиль, 5 корпусов, Ташкент.",
+        "project_name": "Horizon Bay",
+        "developer": "Meridian Group",
+        "buildings": ["Atlas (nearly complete)", "Vega (under construction)", "Orion", "Lyra", "Nova"],
+        "description": "Современный жилой комплекс, 5 корпусов, Ташкент.",
     }
 
 
@@ -165,7 +165,7 @@ FUNCTION_SCHEMAS = [
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "building": {"type": "string", "description": "e.g. Milano, Roma"},
+                    "building": {"type": "string", "description": "e.g. Atlas, Vega"},
                     "room_type": {"type": "string"},
                     "max_price_usd": {"type": "number"},
                     "status": {"type": "string", "enum": ["for_sale", "reserved", "paid_reservation", "deal_in_progress", "deal_completed", "marketing_reserve"]},
@@ -193,7 +193,7 @@ FUNCTION_SCHEMAS = [
         "type": "function",
         "function": {
             "name": "get_company_info",
-            "description": "Real Italiano Vero project/company details for building an info package to send a client.",
+            "description": "Real Horizon Bay project/company details for building an info package to send a client.",
             "parameters": {"type": "object", "properties": {}},
         },
     },
@@ -225,7 +225,7 @@ FUNCTION_SCHEMAS = [
                 "type": "object",
                 "properties": {
                     "unit_number": {"type": "string", "description": "e.g. '38' — as the rep would say it, not a raw id"},
-                    "building": {"type": "string", "description": "e.g. Milano — only needed if the same unit number exists in more than one building"},
+                    "building": {"type": "string", "description": "e.g. Atlas — only needed if the same unit number exists in more than one building"},
                     "client_name": {"type": "string"},
                     "client_phone": {"type": "string"},
                     "plan_type": {"type": "string", "enum": ["cash", "installment_6", "installment_12", "installment_24"]},

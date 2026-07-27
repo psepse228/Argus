@@ -15,6 +15,7 @@ type Digest = {
   avgDiscount?: number;
   leadsCount: number;
   buildingStats: { name: string; forSale: number; price: number }[];
+  totalUnits: number;
   duePaymentsCount: number;
 };
 
@@ -90,12 +91,12 @@ export function AssistantPanel({
         if (isBoss) {
           const summary = await api.analyticsSummary();
           setDigest({
-            pending: pending.length, pendingItems: pending, recent, leadsCount: leads.length, buildingStats, duePaymentsCount,
+            pending: pending.length, pendingItems: pending, recent, leadsCount: leads.length, buildingStats, totalUnits: units.length, duePaymentsCount,
             approvedTotal: summary.spravka_requests_approved,
             avgDiscount: summary.average_approved_discount_pct,
           });
         } else {
-          setDigest({ pending: pending.length, pendingItems: pending, recent, leadsCount: leads.length, buildingStats, duePaymentsCount });
+          setDigest({ pending: pending.length, pendingItems: pending, recent, leadsCount: leads.length, buildingStats, totalUnits: units.length, duePaymentsCount });
         }
       } catch {
         /* best-effort — inbox still works without the digest */
@@ -311,7 +312,7 @@ function OverviewContent({
         <div className="glass-panel" style={{ padding: "18px 20px" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
             <div style={{ fontSize: 14, fontWeight: 800 }}>Юниты — быстрый обзор</div>
-            <span style={{ fontSize: 12, fontWeight: 700, color: "var(--v-accent)" }}>153 всего</span>
+            <span style={{ fontSize: 12, fontWeight: 700, color: "var(--v-accent)" }}>{digest.totalUnits} всего</span>
           </div>
           {digest.buildingStats.map((b) => (
             <div key={b.name} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "13px 0", borderBottom: "1px solid var(--color-hairline-soft)" }}>
@@ -355,7 +356,7 @@ function CortegeTeaserCard() {
         </svg>
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 13.5, fontWeight: 800, color: "var(--color-text)" }}>Cortège для Italiano Vero</div>
+        <div style={{ fontSize: 13.5, fontWeight: 800, color: "var(--color-text)" }}>Cortège для Horizon Bay</div>
         <div style={{ fontSize: 12, color: "var(--color-text-faint)", marginTop: 2, lineHeight: 1.5 }}>
           AI, который сам отвечает клиентам в Instagram и Telegram — те же лиды, без ожидания менеджера.
         </div>

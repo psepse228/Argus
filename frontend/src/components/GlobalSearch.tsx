@@ -7,8 +7,8 @@ import { Section } from "./Sidebar";
 
 /** Cmd/Ctrl+K jump-to-anything -- units, leads (by phone), clients (by name
  * or phone) all client-side filtered over data already small enough to fetch
- * whole (153 units, a modest lead/client base), same as every other panel in
- * this app. Picking a unit or client hands off to the same "open this exact
+ * whole (a couple dozen units, a modest lead/client base), same as every
+ * other panel in this app. Picking a unit or client hands off to the same "open this exact
  * record" plumbing Лиды's "Открыть карточку клиента" already uses. */
 export function GlobalSearch({
   open, onOpenChange, onGoTo, onOpenUnit, onOpenClient,

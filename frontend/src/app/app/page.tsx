@@ -96,7 +96,7 @@ export default function AppPage() {
           <div className="glass-panel" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, padding: "12px 18px", flexShrink: 0 }}>
             <div style={{ minWidth: 0 }}>
               <div style={{ fontFamily: "var(--font-heading)", fontSize: 15, fontWeight: 700, color: "var(--color-text)" }}>{TITLES[section]}</div>
-              <div style={{ fontSize: 11.5, color: "var(--color-text-faint)", marginTop: 2 }}>Italiano Vero — Milano · Roma · Neapol · Venice · Florencia</div>
+              <div style={{ fontSize: 11.5, color: "var(--color-text-faint)", marginTop: 2 }}>Horizon Bay — Atlas · Vega · Orion · Lyra · Nova</div>
             </div>
             <div style={{ fontSize: 11.5, color: "var(--color-text-faint)", textAlign: "right", flexShrink: 0 }}>
               {effectiveUser.email}<br />{effectiveUser.role === "boss" ? "Босс" : "Агент"}
