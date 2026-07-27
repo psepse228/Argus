@@ -1,8 +1,9 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { api, CurrentUser } from "@/lib/api";
-import { Sidebar, Section } from "@/components/Sidebar";
+import { SpaceIndicator, Section, SPACES } from "@/components/SpaceIndicator";
+import { HudToolbar } from "@/components/HudToolbar";
 import { AssistantPanel } from "@/components/AssistantPanel";
 import { UnitsPanel } from "@/components/UnitsPanel";
 import { LeadsPanel } from "@/components/LeadsPanel";
@@ -21,41 +22,22 @@ const TITLES: Record<Section, string> = {
   analytics: "Аналитика",
 };
 
+/** Вариант А: no persistent rail -- every section is a full-screen HUD
+ * "space" you move between (swipe/scroll/arrow keys/click a dot), not tabs
+ * next to a fixed sidebar. All spaces stay mounted simultaneously (data
+ * pre-fetched, state preserved) and the container just slides -- switching
+ * feels instant, like real OS Spaces already being "live" in the background. */
 export default function AppPage() {
   const router = useRouter();
   const [user, setUser] = useState<CurrentUser | null>(null);
-  const [section, setSection] = useState<Section>("assistant");
-  // Client-side "preview as" toggle for demoing both roles to the client
-  // without switching Google accounts -- purely cosmetic: every API call
-  // still runs as the real logged-in user, so boss-only endpoints still
-  // 403 for a real agent even if they somehow flipped this. Only the real
-  // boss account gets the control (see canPreviewRole below).
+  const [activeIndex, setActiveIndex] = useState(0);
   const [previewRole, setPreviewRole] = useState<"boss" | "sales_agent" | null>(null);
-  // Set by a Лиды card's "Открыть карточку клиента" button -- switches to
-  // Клиенты and tells it which client to drill straight into, instead of
-  // landing on the plain client list.
   const [pendingClientId, setPendingClientId] = useState<string | null>(null);
-  // Same idea, for global search jumping straight into a unit.
   const [pendingUnitId, setPendingUnitId] = useState<string | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
-  // Set when a client is pinned into Мастерская (from Клиенты's
-  // ClientInfoCard, or global search) -- switches to Ассистент and tells
-  // Мастерская which client to open straight into.
   const [pendingWorkspaceClientId, setPendingWorkspaceClientId] = useState<string | null>(null);
-
-  function openClientFromLead(clientId: string) {
-    setPendingClientId(clientId);
-    setSection("clients");
-  }
-
-  function openUnitFromSearch(unitId: string) {
-    setPendingUnitId(unitId);
-  }
-
-  function openWorkspaceClient(clientId: string) {
-    setPendingWorkspaceClientId(clientId);
-    setSection("assistant");
-  }
+  const [assistantPending, setAssistantPending] = useState(0);
+  const wheelLockRef = useRef(false);
 
   useEffect(() => {
     api.me().then((u) => {
@@ -64,71 +46,139 @@ export default function AppPage() {
     });
   }, [router]);
 
-  if (!user) return null;
+  const canPreviewRole = user?.role === "boss";
+  const effectiveUser: CurrentUser | null = user && canPreviewRole && previewRole ? { ...user, role: previewRole } : user;
+  const visibleSpaces = SPACES.filter((s) => !s.bossOnly || effectiveUser?.role === "boss");
 
-  const canPreviewRole = user.role === "boss";
-  const effectiveUser: CurrentUser = canPreviewRole && previewRole ? { ...user, role: previewRole } : user;
-  const isAssistant = section === "assistant";
+  // Keep activeIndex in range if the space list shrinks (previewing as
+  // agent removes Аналитика).
+  useEffect(() => {
+    setActiveIndex((i) => Math.min(i, visibleSpaces.length - 1));
+  }, [visibleSpaces.length]);
+
+  function step(delta: number) {
+    setActiveIndex((cur) => Math.min(visibleSpaces.length - 1, Math.max(0, cur + delta)));
+  }
+
+  function goToSection(section: Section) {
+    const idx = visibleSpaces.findIndex((s) => s.key === section);
+    if (idx >= 0) setActiveIndex(idx);
+  }
+
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      const el = document.activeElement as HTMLElement | null;
+      const typing = !!el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable);
+      if (typing) return;
+      if (e.key === "ArrowRight") { e.preventDefault(); step(1); }
+      else if (e.key === "ArrowLeft") { e.preventDefault(); step(-1); }
+    }
+    function onWheel(e: WheelEvent) {
+      if (Math.abs(e.deltaX) <= Math.abs(e.deltaY) || Math.abs(e.deltaX) < 30) return;
+      if (wheelLockRef.current) return;
+      wheelLockRef.current = true;
+      step(e.deltaX > 0 ? 1 : -1);
+      setTimeout(() => { wheelLockRef.current = false; }, 550);
+    }
+    window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("wheel", onWheel, { passive: true });
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("wheel", onWheel);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visibleSpaces.length]);
+
+  function openClientFromLead(clientId: string) {
+    setPendingClientId(clientId);
+    goToSection("clients");
+  }
+
+  function openUnitFromSearch(unitId: string) {
+    setPendingUnitId(unitId);
+  }
+
+  function openWorkspaceClient(clientId: string) {
+    setPendingWorkspaceClientId(clientId);
+    goToSection("assistant");
+  }
 
   function changePreviewRole(r: "boss" | "sales_agent") {
     setPreviewRole(r);
-    if (r === "sales_agent" && section === "analytics") setSection("assistant");
+    if (r === "sales_agent" && visibleSpaces[activeIndex]?.key === "analytics") goToSection("assistant");
   }
 
+  if (!user || !effectiveUser) return null;
+
+  const activeKey = visibleSpaces[activeIndex]?.key;
+  const isAssistant = activeKey === "assistant";
+
   return (
-    <div style={{ display: "flex", height: "100vh", minHeight: 720, padding: 16, gap: 16 }}>
-      <Sidebar
-        user={effectiveUser} active={section} onChange={setSection}
+    <div style={{ position: "relative", height: "100vh", minHeight: 720, overflow: "hidden" }}>
+      <HudToolbar
+        user={effectiveUser}
         previewRole={canPreviewRole ? (previewRole || "boss") : undefined}
         onPreviewRoleChange={canPreviewRole ? changePreviewRole : undefined}
         onOpenSearch={() => setSearchOpen(true)}
       />
       <GlobalSearch
-        open={searchOpen} onOpenChange={setSearchOpen} onGoTo={setSection}
+        open={searchOpen} onOpenChange={setSearchOpen} onGoTo={goToSection}
         onOpenUnit={openUnitFromSearch} onOpenClient={openClientFromLead}
       />
+      <SpaceIndicator
+        user={effectiveUser} activeIndex={activeIndex} onJump={setActiveIndex}
+        badges={{ assistant: assistantPending }}
+      />
 
-      <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 16 }}>
-        {/* Assistant is the primary surface -- it renders its own identity
-            (greeting, digest, and now Справки too) instead of sitting under
-            the same generic title-bar chrome every data page gets. */}
-        {!isAssistant && (
-          <div className="glass-panel" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, padding: "12px 18px", flexShrink: 0 }}>
-            <div style={{ minWidth: 0 }}>
-              <div style={{ fontFamily: "var(--font-heading)", fontSize: 15, fontWeight: 700, color: "var(--color-text)" }}>{TITLES[section]}</div>
-              <div style={{ fontSize: 11.5, color: "var(--color-text-faint)", marginTop: 2 }}>Horizon Bay — Atlas · Vega · Orion · Lyra · Nova</div>
-            </div>
-            <div style={{ fontSize: 11.5, color: "var(--color-text-faint)", textAlign: "right", flexShrink: 0 }}>
-              {effectiveUser.email}<br />{effectiveUser.role === "boss" ? "Босс" : "Агент"}
-              {previewRole && <div style={{ color: "var(--v-accent)", fontWeight: 700 }}>Предпросмотр</div>}
+      <div
+        style={{
+          display: "flex", height: "100%", width: `${visibleSpaces.length * 100}%`,
+          transform: `translateX(-${(100 / visibleSpaces.length) * activeIndex}%)`,
+          transition: "transform .5s cubic-bezier(.2,.7,.3,1)",
+        }}
+      >
+        {visibleSpaces.map((s) => (
+          <div key={s.key} style={{ width: `${100 / visibleSpaces.length}%`, height: "100%", padding: 16, display: "flex", flexDirection: "column", gap: 16, minHeight: 0 }}>
+            {s.key !== "assistant" && (
+              <div className="glass-panel" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, padding: "12px 18px", flexShrink: 0 }}>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontFamily: "var(--font-heading)", fontSize: 15, fontWeight: 700, color: "var(--color-text)" }}>{TITLES[s.key]}</div>
+                  <div style={{ fontSize: 11.5, color: "var(--color-text-faint)", marginTop: 2 }}>Horizon Bay — Atlas · Vega · Orion · Lyra · Nova</div>
+                </div>
+                <div style={{ fontSize: 11.5, color: "var(--color-text-faint)", textAlign: "right", flexShrink: 0 }}>
+                  {effectiveUser.email}<br />{effectiveUser.role === "boss" ? "Босс" : "Агент"}
+                  {previewRole && <div style={{ color: "var(--v-accent)", fontWeight: 700 }}>Предпросмотр</div>}
+                </div>
+              </div>
+            )}
+            <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
+              {s.key === "assistant" && (
+                <AssistantPanel
+                  user={effectiveUser}
+                  openWorkspaceClientId={pendingWorkspaceClientId}
+                  onWorkspaceClientHandled={() => setPendingWorkspaceClientId(null)}
+                  onPendingChange={setAssistantPending}
+                />
+              )}
+              {s.key === "units" && (
+                <UnitsPanel openUnitId={pendingUnitId} onOpenUnitHandled={() => setPendingUnitId(null)} onOpenClient={openClientFromLead} />
+              )}
+              {s.key === "leads" && <LeadsPanel onOpenClient={openClientFromLead} />}
+              {s.key === "clients" && (
+                <ClientsPanel
+                  openClientId={pendingClientId}
+                  onOpenClientHandled={() => setPendingClientId(null)}
+                  onOpenWorkspace={openWorkspaceClient}
+                />
+              )}
+              {s.key === "payments" && <PaymentsPanel />}
+              {s.key === "analytics" && effectiveUser.role === "boss" && <AnalyticsPanel />}
             </div>
           </div>
-        )}
-
-        <div key={section} className="section-enter" style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
-          {section === "assistant" && (
-            <AssistantPanel
-              user={effectiveUser}
-              openWorkspaceClientId={pendingWorkspaceClientId}
-              onWorkspaceClientHandled={() => setPendingWorkspaceClientId(null)}
-            />
-          )}
-          {section === "units" && (
-            <UnitsPanel openUnitId={pendingUnitId} onOpenUnitHandled={() => setPendingUnitId(null)} onOpenClient={openClientFromLead} />
-          )}
-          {section === "leads" && <LeadsPanel onOpenClient={openClientFromLead} />}
-          {section === "clients" && (
-            <ClientsPanel
-              openClientId={pendingClientId}
-              onOpenClientHandled={() => setPendingClientId(null)}
-              onOpenWorkspace={openWorkspaceClient}
-            />
-          )}
-          {section === "payments" && <PaymentsPanel />}
-          {section === "analytics" && effectiveUser.role === "boss" && <AnalyticsPanel />}
-        </div>
+        ))}
       </div>
-      <AssistantWidget user={effectiveUser} />
+
+      {!isAssistant && <AssistantWidget user={effectiveUser} />}
     </div>
   );
 }

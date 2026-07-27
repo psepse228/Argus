@@ -28,13 +28,16 @@ type View = "overview" | "workshop";
  * -- that's the floating AssistantWidget now; anything client-specific
  * happens inside a client's own workspace in Мастерская. */
 export function AssistantPanel({
-  user, openWorkspaceClientId, onWorkspaceClientHandled,
+  user, openWorkspaceClientId, onWorkspaceClientHandled, onPendingChange,
 }: {
   user: CurrentUser;
   /** Set from outside (Клиенты's "Открыть в Мастерской", Лиды hand-off) to
    * jump straight into Мастерская with this client already open. */
   openWorkspaceClientId?: string | null;
   onWorkspaceClientHandled?: () => void;
+  /** Reports the pending-approvals count up to the space indicator's badge
+   * -- this panel owns the real digest fetch, the indicator just needs the number. */
+  onPendingChange?: (n: number) => void;
 }) {
   const isBoss = user.role === "boss";
   const [digest, setDigest] = useState<Digest | null>(null);
@@ -88,6 +91,7 @@ export function AssistantPanel({
           return { name: b.name, forSale: inBuilding.length, price };
         });
         const duePaymentsCount = payments.filter((p) => p.status === "overdue" || p.due_soon).length;
+        onPendingChange?.(pending.length);
         if (isBoss) {
           const summary = await api.analyticsSummary();
           setDigest({

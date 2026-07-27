@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { api } from "@/lib/api";
 import { Unit, Lead, Client } from "@/lib/types";
-import { Section } from "./Sidebar";
+import { Section } from "./SpaceIndicator";
 
 /** Cmd/Ctrl+K jump-to-anything -- units, leads (by phone), clients (by name
  * or phone) all client-side filtered over data already small enough to fetch
