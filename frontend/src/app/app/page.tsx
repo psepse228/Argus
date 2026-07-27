@@ -24,6 +24,12 @@ export default function AppPage() {
   const [user, setUser] = useState<CurrentUser | null>(null);
   const [section, setSection] = useState<Section>("assistant");
   const [pendingCount, setPendingCount] = useState(0);
+  // Client-side "preview as" toggle for demoing both roles to the client
+  // without switching Google accounts -- purely cosmetic: every API call
+  // still runs as the real logged-in user, so boss-only endpoints still
+  // 403 for a real agent even if they somehow flipped this. Only the real
+  // boss account gets the control (see canPreviewRole below).
+  const [previewRole, setPreviewRole] = useState<"boss" | "sales_agent" | null>(null);
 
   useEffect(() => {
     api.me().then((u) => {
@@ -39,11 +45,22 @@ export default function AppPage() {
 
   if (!user) return null;
 
+  const canPreviewRole = user.role === "boss";
+  const effectiveUser: CurrentUser = canPreviewRole && previewRole ? { ...user, role: previewRole } : user;
   const isAssistant = section === "assistant";
+
+  function changePreviewRole(r: "boss" | "sales_agent") {
+    setPreviewRole(r);
+    if (r === "sales_agent" && section === "analytics") setSection("assistant");
+  }
 
   return (
     <div style={{ display: "flex", height: "100vh", minHeight: 720, padding: 16, gap: 16 }}>
-      <Sidebar user={user} active={section} onChange={setSection} pendingCount={pendingCount} />
+      <Sidebar
+        user={effectiveUser} active={section} onChange={setSection} pendingCount={pendingCount}
+        previewRole={canPreviewRole ? (previewRole || "boss") : undefined}
+        onPreviewRoleChange={canPreviewRole ? changePreviewRole : undefined}
+      />
 
       <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 16 }}>
         {/* Assistant is the primary surface -- it renders its own identity
@@ -57,17 +74,18 @@ export default function AppPage() {
               <div style={{ fontSize: 11.5, color: "var(--color-text-faint)", marginTop: 2 }}>Italiano Vero — Milano · Roma · Neapol · Venice · Florencia</div>
             </div>
             <div style={{ fontSize: 11.5, color: "var(--color-text-faint)", textAlign: "right", flexShrink: 0 }}>
-              {user.email}<br />{user.role === "boss" ? "Босс" : "Агент"}
+              {effectiveUser.email}<br />{effectiveUser.role === "boss" ? "Босс" : "Агент"}
+              {previewRole && <div style={{ color: "var(--v-accent)", fontWeight: 700 }}>Предпросмотр</div>}
             </div>
           </div>
         )}
 
-        {section === "assistant" && <AssistantPanel user={user} />}
+        {section === "assistant" && <AssistantPanel user={effectiveUser} />}
         {section === "units" && <UnitsPanel />}
         {section === "leads" && <LeadsPanel />}
-        {section === "clients" && <ClientsPanel user={user} />}
-        {section === "docs" && <DocsPanel user={user} />}
-        {section === "analytics" && user.role === "boss" && <AnalyticsPanel />}
+        {section === "clients" && <ClientsPanel user={effectiveUser} />}
+        {section === "docs" && <DocsPanel user={effectiveUser} />}
+        {section === "analytics" && effectiveUser.role === "boss" && <AnalyticsPanel />}
       </div>
     </div>
   );

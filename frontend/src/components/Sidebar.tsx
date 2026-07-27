@@ -12,13 +12,6 @@ export type Section = "assistant" | "units" | "leads" | "clients" | "docs" | "an
 // assistant can also reach data from, reachable directly when needed.
 const TOOLS: { key: Section; label: string; icon: JSX.Element; bossOnly?: boolean }[] = [
   {
-    key: "units", label: "Юниты", icon: (
-      <svg viewBox="0 0 24 24" width={19} height={19} fill="none" stroke="currentColor" strokeWidth={1.8}>
-        <path d="M3 21V8l9-5 9 5v13" /><path d="M9 21v-7h6v7" />
-      </svg>
-    ),
-  },
-  {
     key: "clients", label: "Клиенты", icon: (
       <svg viewBox="0 0 24 24" width={19} height={19} fill="none" stroke="currentColor" strokeWidth={1.8}>
         <circle cx="12" cy="8" r="3.4" /><path d="M4.5 21c0-4.1 3.4-7 7.5-7s7.5 2.9 7.5 7" />
@@ -44,6 +37,14 @@ const TOOLS: { key: Section; label: string; icon: JSX.Element; bossOnly?: boolea
     key: "analytics", label: "Аналитика", bossOnly: true, icon: (
       <svg viewBox="0 0 24 24" width={19} height={19} fill="none" stroke="currentColor" strokeWidth={1.8}>
         <path d="M3 3v18h18" /><path d="M7 16l4-5 3 3 5-7" />
+      </svg>
+    ),
+  },
+  // Deprioritized per owner's feedback -- least-used tool, pushed to last.
+  {
+    key: "units", label: "Юниты", icon: (
+      <svg viewBox="0 0 24 24" width={19} height={19} fill="none" stroke="currentColor" strokeWidth={1.8}>
+        <path d="M3 21V8l9-5 9 5v13" /><path d="M9 21v-7h6v7" />
       </svg>
     ),
   },
@@ -83,17 +84,28 @@ function RailButton({
 }
 
 export function Sidebar({
-  user, active, onChange, pendingCount,
+  user, active, onChange, pendingCount, previewRole, onPreviewRoleChange,
 }: {
   user: CurrentUser;
   active: Section;
   onChange: (s: Section) => void;
   pendingCount: number;
+  /** Only set for the real boss account -- lets them flip the whole app's
+   * view to what an agent sees, for client demos, without a second Google
+   * login. Purely cosmetic on the frontend; every request still runs as
+   * the real authenticated user, so backend permissions never change. */
+  previewRole?: "boss" | "sales_agent";
+  onPreviewRoleChange?: (r: "boss" | "sales_agent") => void;
 }) {
   const [themeOpen, setThemeOpen] = useState(false);
   const [themePos, setThemePos] = useState<{ left: number; bottom: number } | null>(null);
   const themeBtnRef = useRef<HTMLButtonElement>(null);
   const themePopoverRef = useRef<HTMLDivElement>(null);
+
+  const [roleOpen, setRoleOpen] = useState(false);
+  const [rolePos, setRolePos] = useState<{ left: number; bottom: number } | null>(null);
+  const roleBtnRef = useRef<HTMLButtonElement>(null);
+  const rolePopoverRef = useRef<HTMLDivElement>(null);
 
   function repositionTheme() {
     const r = themeBtnRef.current?.getBoundingClientRect();
@@ -120,6 +132,32 @@ export function Sidebar({
       document.removeEventListener("keydown", onEsc);
     };
   }, [themeOpen]);
+
+  function repositionRole() {
+    const r = roleBtnRef.current?.getBoundingClientRect();
+    if (r) setRolePos({ left: r.left + r.width / 2, bottom: window.innerHeight - r.top + 8 });
+  }
+
+  useLayoutEffect(() => {
+    if (roleOpen) repositionRole();
+  }, [roleOpen]);
+
+  useEffect(() => {
+    if (!roleOpen) return;
+    function onDocClick(e: MouseEvent) {
+      const t = e.target as Node;
+      if (roleBtnRef.current?.contains(t)) return;
+      if (rolePopoverRef.current?.contains(t)) return;
+      setRoleOpen(false);
+    }
+    function onEsc(e: KeyboardEvent) { if (e.key === "Escape") setRoleOpen(false); }
+    document.addEventListener("mousedown", onDocClick);
+    document.addEventListener("keydown", onEsc);
+    return () => {
+      document.removeEventListener("mousedown", onDocClick);
+      document.removeEventListener("keydown", onEsc);
+    };
+  }, [roleOpen]);
 
   return (
     <div className="glass-panel" style={{ width: 76, flexShrink: 0, padding: "18px 0", display: "flex", flexDirection: "column", alignItems: "center" }}>
@@ -162,6 +200,51 @@ export function Sidebar({
       </div>
 
       <div style={{ marginTop: "auto", display: "flex", flexDirection: "column", alignItems: "center", gap: 10 }}>
+        {onPreviewRoleChange && (
+          <div style={{ position: "relative" }}>
+            <button
+              ref={roleBtnRef}
+              onClick={() => setRoleOpen((v) => !v)}
+              title="Показать как…"
+              style={{
+                width: 32, height: 32, borderRadius: 10, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+                border: previewRole === "sales_agent" ? "1px solid var(--v-accent)" : "1px solid var(--color-hairline-soft)",
+                background: previewRole === "sales_agent" ? "var(--v-accent-tint)" : "rgba(255,255,255,.03)",
+                color: previewRole === "sales_agent" ? "var(--v-accent)" : "var(--color-text-soft)",
+              }}
+            >
+              <svg viewBox="0 0 24 24" width={15} height={15} fill="none" stroke="currentColor" strokeWidth={2}>
+                <path d="M2 12s3.5-6.5 10-6.5S22 12 22 12s-3.5 6.5-10 6.5S2 12 2 12Z" /><circle cx="12" cy="12" r="3" />
+              </svg>
+            </button>
+            {roleOpen && rolePos && createPortal(
+              <div
+                ref={rolePopoverRef}
+                className="glass-panel"
+                style={{ position: "fixed", bottom: rolePos.bottom, left: rolePos.left, transform: "translateX(-50%)", padding: 8, zIndex: 1000, width: 150 }}
+              >
+                <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: ".05em", color: "var(--color-text-faint)", padding: "4px 8px 8px" }}>
+                  Показать как
+                </div>
+                {(["boss", "sales_agent"] as const).map((r) => (
+                  <div
+                    key={r}
+                    onClick={() => { onPreviewRoleChange(r); setRoleOpen(false); }}
+                    style={{
+                      fontSize: 12.5, padding: "8px 10px", borderRadius: 8, cursor: "pointer",
+                      background: previewRole === r ? "var(--v-accent-tint)" : "transparent",
+                      color: previewRole === r ? "var(--v-accent)" : "var(--color-text)",
+                      fontWeight: previewRole === r ? 700 : 500,
+                    }}
+                  >
+                    {r === "boss" ? "Босс" : "Агент"}
+                  </div>
+                ))}
+              </div>,
+              document.body
+            )}
+          </div>
+        )}
         <div style={{ position: "relative" }}>
           <button
             ref={themeBtnRef}
