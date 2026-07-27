@@ -1,10 +1,13 @@
 "use client";
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
-import { ClientDetail, PRIORITY_COLORS, PRIORITY_LABELS, Priority, STAGE_COLORS, STATUS_LABELS, PLAN_LABELS } from "@/lib/types";
+import { Building, ClientDetail, PRIORITY_COLORS, PRIORITY_LABELS, Priority, STAGE_COLORS, STATUS_LABELS, PLAN_LABELS, PlanRate, Unit } from "@/lib/types";
 import { ChatThread } from "./ChatThread";
 import { DealTimeline } from "./DealTimeline";
+import { Dropdown } from "./Dropdown";
 import { TelegramPreviewModal } from "./TelegramPreviewModal";
+
+const inputStyle: React.CSSProperties = { padding: "9px 12px", borderRadius: 10, background: "rgba(255,255,255,.04)", border: "1px solid var(--color-hairline-soft)", color: "var(--color-text)", fontSize: 12.5 };
 
 /** Rolls the client's leads + справки into one "where things stand" badge --
  * an approved deal or a pending справка takes priority over whatever stage
@@ -35,16 +38,73 @@ export function ClientWorkspace({ clientId, isBoss }: { clientId: string; isBoss
   const [cortegePreviewOpen, setCortegePreviewOpen] = useState(false);
   const [actionError, setActionError] = useState("");
 
+  // Manual справка form -- restores the old DocsPanel path (form → boss
+  // approval queue) alongside the AI-chat spravka mode, since not every rep
+  // wants to talk to the assistant just to pick a unit and a plan.
+  const [formOpen, setFormOpen] = useState(false);
+  const [buildings, setBuildings] = useState<Building[]>([]);
+  const [units, setUnits] = useState<Unit[]>([]);
+  const [rates, setRates] = useState<PlanRate[]>([]);
+  const [buildingId, setBuildingId] = useState("");
+  const [unitId, setUnitId] = useState("");
+  const [planType, setPlanType] = useState("installment_6");
+  const [downPct, setDownPct] = useState(30);
+  const [useBalloon, setUseBalloon] = useState(false);
+  const [balloonMonths, setBalloonMonths] = useState(9);
+  const [balloonMonthlyUsd, setBalloonMonthlyUsd] = useState(0);
+  const [formBusy, setFormBusy] = useState(false);
+  const [formError, setFormError] = useState("");
+
   useEffect(() => {
     setSelected(null);
     setConversationId(null);
     setSpravkaMode(false);
+    setFormOpen(false);
     (async () => {
       const [detail, conv] = await Promise.all([api.clientDetail(clientId), api.clientConversation(clientId)]);
       setSelected(detail);
       setConversationId(conv.id);
     })();
   }, [clientId]);
+
+  useEffect(() => {
+    if (formOpen && buildings.length === 0) {
+      api.buildings().then(setBuildings);
+      api.units().then((u: Unit[]) => setUnits(u.filter((x) => x.status === "for_sale")));
+    }
+  }, [formOpen, buildings.length]);
+
+  useEffect(() => {
+    if (buildingId) api.paymentPlanRates(buildingId).then(setRates);
+  }, [buildingId]);
+
+  const unitOptions = units.filter((u) => !buildingId || u.building_id === buildingId);
+  const currentRate = rates.find((r) => r.plan_type === planType);
+
+  async function submitForm() {
+    if (!selected) return;
+    setFormError("");
+    if (!unitId) { setFormError("Выберите юнит"); return; }
+    setFormBusy(true);
+    try {
+      const wantsBalloon = planType !== "cash" && useBalloon;
+      await api.createSpravka({
+        unit_id: unitId, client_name: selected.name || selected.phone, client_phone: selected.phone,
+        plan_type: planType, down_payment_pct: planType === "cash" ? undefined : downPct,
+        balloon_months: wantsBalloon ? balloonMonths : undefined,
+        balloon_monthly_payment_usd: wantsBalloon ? balloonMonthlyUsd : undefined,
+      });
+      setFormOpen(false);
+      setUnitId("");
+      setUseBalloon(false);
+      const detail = await api.clientDetail(clientId);
+      setSelected(detail);
+    } catch (e: any) {
+      setFormError(e.message);
+    } finally {
+      setFormBusy(false);
+    }
+  }
 
   async function saveFollowup(patch: { priority?: Priority | null; next_followup_at?: string | null; next_followup_note?: string | null }) {
     if (!selected) return;
@@ -157,21 +217,104 @@ export function ClientWorkspace({ clientId, isBoss }: { clientId: string; isBoss
         </div>
         {actionError && <div style={{ fontSize: 12, color: "var(--danger)" }}>{actionError}</div>}
 
-        <button
-          className="press"
-          onClick={() => setSpravkaMode((v) => !v)}
-          style={{
-            display: "flex", alignItems: "center", justifyContent: "center", gap: 8, alignSelf: "flex-start",
-            fontSize: 13, fontWeight: 700, cursor: "pointer", padding: "10px 18px", borderRadius: 12, border: "none",
-            color: spravkaMode ? "var(--v-text-on-accent)" : "var(--v-accent)",
-            background: spravkaMode ? "var(--v-accent)" : "var(--v-accent-tint)",
-          }}
-        >
-          <svg viewBox="0 0 24 24" width={14} height={14} fill="none" stroke="currentColor" strokeWidth={2.2}>
-            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><path d="M14 2v6h6" /><path d="M9 15h6M9 11h4" />
-          </svg>
-          {spravkaMode ? "Режим справки включён — говорите в чате" : "Сделать справку"}
-        </button>
+        {!formOpen && !spravkaMode && (
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <button
+              className="press"
+              onClick={() => setFormOpen(true)}
+              style={{
+                display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                fontSize: 13, fontWeight: 700, cursor: "pointer", padding: "10px 18px", borderRadius: 12, border: "none",
+                color: "var(--v-accent)", background: "var(--v-accent-tint)",
+              }}
+            >
+              <svg viewBox="0 0 24 24" width={14} height={14} fill="none" stroke="currentColor" strokeWidth={2.2}>
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><path d="M14 2v6h6" /><path d="M9 15h6M9 11h4" />
+              </svg>
+              Сделать справку
+            </button>
+            <span onClick={() => setSpravkaMode(true)} className="press" style={{ fontSize: 12, fontWeight: 600, color: "var(--color-text-faint)", cursor: "pointer" }}>
+              или через AI-чат →
+            </span>
+          </div>
+        )}
+
+        {formOpen && (
+          <div className="glass-panel" style={{ padding: "16px 18px", display: "flex", flexDirection: "column", gap: 10 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: "var(--color-text)" }}>Новая справка — {selected.name || selected.phone}</div>
+              <div onClick={() => setFormOpen(false)} className="press" style={{ cursor: "pointer", color: "var(--color-text-faint)", fontSize: 12, fontWeight: 700 }}>✕</div>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+              <Dropdown
+                value={buildingId}
+                onChange={(v) => { setBuildingId(v); setUnitId(""); }}
+                placeholder="Здание…"
+                options={buildings.map((b) => ({ value: b.id, label: b.name }))}
+              />
+              <Dropdown
+                value={unitId}
+                onChange={setUnitId}
+                placeholder="Юнит…"
+                disabled={!buildingId}
+                options={unitOptions.map((u) => ({ value: u.id, label: `№${u.unit_number} · ${u.area_m2}м² · $${u.price_per_m2_usd}/м²` }))}
+              />
+              <Dropdown
+                value={planType}
+                onChange={setPlanType}
+                options={Object.entries(PLAN_LABELS).map(([k, l]) => ({ value: k, label: l }))}
+              />
+              {planType !== "cash" && (
+                <input type="number" placeholder="Первый взнос %" value={downPct} onChange={(e) => setDownPct(Number(e.target.value))} style={inputStyle} />
+              )}
+            </div>
+            {planType !== "cash" && (
+              <div>
+                <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "var(--color-text-soft)", cursor: "pointer", marginBottom: useBalloon ? 8 : 0 }}>
+                  <input type="checkbox" checked={useBalloon} onChange={(e) => setUseBalloon(e.target.checked)} />
+                  Частичная оплата с остатком
+                </label>
+                {useBalloon && (
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                    <input type="number" placeholder="Срок (мес)" value={balloonMonths} onChange={(e) => setBalloonMonths(Number(e.target.value))} style={inputStyle} />
+                    <input type="number" placeholder="Ежемесячный платёж ($)" value={balloonMonthlyUsd} onChange={(e) => setBalloonMonthlyUsd(Number(e.target.value))} style={inputStyle} />
+                  </div>
+                )}
+              </div>
+            )}
+            {currentRate && (
+              <div style={{ fontSize: 12, color: "var(--v-accent)", fontWeight: 600 }}>
+                Реальная цена по этому плану: ${currentRate.price_per_m2_usd}/м²
+              </div>
+            )}
+            {formError && <div style={{ fontSize: 12, color: "var(--danger)" }}>{formError}</div>}
+            <button
+              onClick={submitForm}
+              disabled={formBusy}
+              className="press"
+              style={{ alignSelf: "flex-start", padding: "9px 18px", borderRadius: 99, background: "var(--v-accent)", color: "var(--v-text-on-accent)", fontSize: 13, fontWeight: 700, border: "none", cursor: "pointer", opacity: formBusy ? 0.7 : 1 }}
+            >
+              {formBusy ? "Генерирую…" : "Сгенерировать справку"}
+            </button>
+          </div>
+        )}
+
+        {spravkaMode && (
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <span style={{
+              display: "flex", alignItems: "center", gap: 8, fontSize: 13, fontWeight: 700, padding: "10px 18px", borderRadius: 12,
+              color: "var(--v-text-on-accent)", background: "var(--v-accent)",
+            }}>
+              <svg viewBox="0 0 24 24" width={14} height={14} fill="none" stroke="currentColor" strokeWidth={2.2}>
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><path d="M14 2v6h6" /><path d="M9 15h6M9 11h4" />
+              </svg>
+              Режим справки включён — говорите в чате
+            </span>
+            <span onClick={() => setSpravkaMode(false)} className="press" style={{ fontSize: 12, fontWeight: 600, color: "var(--color-text-faint)", cursor: "pointer" }}>
+              выключить
+            </span>
+          </div>
+        )}
 
         <div>
           <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: ".05em", color: "var(--color-text-faint)", marginBottom: 10 }}>Квартиры</div>

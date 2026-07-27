@@ -12,17 +12,19 @@ export type Section = "assistant" | "units" | "leads" | "clients" | "payments" |
 // assistant can also reach data from, reachable directly when needed.
 const TOOLS: { key: Section; label: string; icon: JSX.Element; bossOnly?: boolean }[] = [
   {
-    key: "clients", label: "Клиенты", icon: (
-      <svg viewBox="0 0 24 24" width={19} height={19} fill="none" stroke="currentColor" strokeWidth={1.8}>
-        <circle cx="12" cy="8" r="3.4" /><path d="M4.5 21c0-4.1 3.4-7 7.5-7s7.5 2.9 7.5 7" />
-      </svg>
-    ),
-  },
-  {
     key: "leads", label: "Лиды", icon: (
       <svg viewBox="0 0 24 24" width={19} height={19} fill="none" stroke="currentColor" strokeWidth={1.8}>
         <circle cx="9" cy="8" r="3.2" /><path d="M2.5 20c0-3.5 3-6 6.5-6s6.5 2.5 6.5 6" />
         <circle cx="18" cy="9" r="2.4" /><path d="M15.5 20c.3-2.5 1.8-4.3 3.8-4.7" />
+      </svg>
+    ),
+  },
+  // Mostly a directory now -- actually working a client happens in
+  // Мастерская (Ассистент), so this doesn't need top billing anymore.
+  {
+    key: "clients", label: "Клиенты", icon: (
+      <svg viewBox="0 0 24 24" width={19} height={19} fill="none" stroke="currentColor" strokeWidth={1.8}>
+        <circle cx="12" cy="8" r="3.4" /><path d="M4.5 21c0-4.1 3.4-7 7.5-7s7.5 2.9 7.5 7" />
       </svg>
     ),
   },

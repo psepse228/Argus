@@ -23,6 +23,8 @@ export function ClientsPanel({
 }) {
   const [clients, setClients] = useState<Client[] | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
+  const [showUnnamed, setShowUnnamed] = useState(false);
 
   useEffect(() => { api.clients().then(setClients).catch(() => setClients([])); }, []);
 
@@ -33,15 +35,13 @@ export function ClientsPanel({
     }
   }, [openClientId, onOpenClientHandled]);
 
-  if (selectedId) {
-    return (
-      <ClientInfoCard
-        clientId={selectedId}
-        onBack={() => setSelectedId(null)}
-        onOpenWorkspace={onOpenWorkspace}
-      />
-    );
-  }
+  const modal = selectedId && (
+    <ClientInfoCard
+      clientId={selectedId}
+      onClose={() => setSelectedId(null)}
+      onOpenWorkspace={onOpenWorkspace}
+    />
+  );
 
   if (clients === null) {
     return (
@@ -62,14 +62,12 @@ export function ClientsPanel({
             </div>
           ))}
         </div>
+        {modal}
       </div>
     );
   }
 
-  // Order, not paper-pile: priority first (hot → cold → none), then whoever
-  // actually has something going on (leads/справки), then alphabetical --
-  // instead of raw creation order mixing test rows in with real clients.
-  const sorted = [...clients].sort((a, b) => {
+  function rank(a: Client, b: Client): number {
     const pa = a.priority ? PRIORITY_RANK[a.priority] : 3;
     const pb = b.priority ? PRIORITY_RANK[b.priority] : 3;
     if (pa !== pb) return pa - pb;
@@ -77,7 +75,18 @@ export function ClientsPanel({
     const activeB = b.leads_count + b.spravka_count > 0 ? 0 : 1;
     if (activeA !== activeB) return activeA - activeB;
     return (a.name || a.phone).localeCompare(b.name || b.phone);
-  });
+  }
+
+  const q = query.trim().toLowerCase();
+  const filtered = q ? clients.filter((c) => (c.name || "").toLowerCase().includes(q) || c.phone.includes(q)) : clients;
+
+  // A real name is the actual signal of "someone worth looking at" -- a bare
+  // phone number is just a lead that was never named, and there are dozens
+  // of those (see 0009's seed leads). Splitting them out is what actually
+  // fixes the "paper pile" feel -- sorting alone still put 20 phone-number
+  // cards in the same grid as 2 real people.
+  const named = [...filtered.filter((c) => c.name)].sort(rank);
+  const unnamed = [...filtered.filter((c) => !c.name)].sort(rank);
 
   return (
     <div style={{ flex: 1, minHeight: 0, overflowY: "auto" }}>
@@ -86,9 +95,59 @@ export function ClientsPanel({
       {clients.length === 0 && (
         <div style={{ color: "var(--color-text-faint)", fontSize: 13 }}>Пока нет клиентов — появятся из лидов и справок.</div>
       )}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(260px,1fr))", gap: 16 }}>
-        {sorted.map((c, i) => <ClientCard key={c.id} client={c} index={i} onOpen={() => setSelectedId(c.id)} />)}
-      </div>
+      {clients.length > 0 && (
+        <input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Поиск по имени или телефону…"
+          style={{ width: "100%", maxWidth: 360, padding: "10px 14px", borderRadius: 12, background: "rgba(255,255,255,.04)", border: "1px solid var(--color-hairline)", color: "var(--color-text)", fontSize: 13, marginBottom: 20 }}
+        />
+      )}
+
+      {named.length > 0 && (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(260px,1fr))", gap: 16, marginBottom: unnamed.length > 0 ? 22 : 0 }}>
+          {named.map((c, i) => <ClientCard key={c.id} client={c} index={i} onOpen={() => setSelectedId(c.id)} />)}
+        </div>
+      )}
+
+      {unnamed.length > 0 && (
+        <div>
+          <div
+            onClick={() => setShowUnnamed((v) => !v)}
+            className="press"
+            style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", marginBottom: showUnnamed ? 12 : 0 }}
+          >
+            <svg viewBox="0 0 24 24" width={13} height={13} fill="none" stroke="var(--color-text-faint)" strokeWidth={2.5} style={{ transform: showUnnamed ? "rotate(90deg)" : "none", transition: "transform .15s ease" }}>
+              <path d="M9 6l6 6-6 6" />
+            </svg>
+            <span style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: ".05em", color: "var(--color-text-faint)" }}>
+              Без имени (только телефон из лида) — {unnamed.length}
+            </span>
+          </div>
+          {showUnnamed && (
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+              {unnamed.map((c) => (
+                <div
+                  key={c.id}
+                  onClick={() => setSelectedId(c.id)}
+                  className="press"
+                  style={{
+                    fontSize: 12, color: "var(--color-text-faint)", background: "rgba(255,255,255,.03)",
+                    border: "1px solid var(--color-hairline-soft)", borderRadius: 99, padding: "6px 13px", cursor: "pointer",
+                  }}
+                >
+                  {c.phone}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {named.length === 0 && unnamed.length === 0 && q && (
+        <div style={{ color: "var(--color-text-faint)", fontSize: 13 }}>Ничего не найдено по «{query}».</div>
+      )}
+      {modal}
     </div>
   );
 }
