@@ -20,13 +20,18 @@ type ChatMsg = { role: "user" | "bot"; text: string; events?: SpravkaCreatedEven
  * spravkaMode is a controlled prop (not owned here) because the parent's
  * "Справка" quick-action button needs to show/toggle it too. */
 export function ChatThread({
-  conversationId, isBoss, spravkaMode, onSpravkaCreated, greeting,
+  conversationId, isBoss, spravkaMode, onSpravkaCreated, greeting, initialPrompt, onInitialPromptSent,
 }: {
   conversationId: string;
   isBoss: boolean;
   spravkaMode: boolean;
   onSpravkaCreated?: () => void;
   greeting: string;
+  /** Fired once, right after this (freshly created, empty) conversation
+   * loads -- lets a quick-action button that spawns a new chat also send
+   * its canned prompt into it, instead of leaving an empty thread. */
+  initialPrompt?: string;
+  onInitialPromptSent?: () => void;
 }) {
   const [messages, setMessages] = useState<ChatMsg[]>([]);
   const [loaded, setLoaded] = useState(false);
@@ -35,9 +40,11 @@ export function ChatThread({
   const [previewId, setPreviewId] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const prevSpravkaMode = useRef(spravkaMode);
+  const firedInitialPrompt = useRef(false);
 
   useEffect(() => {
     setLoaded(false);
+    firedInitialPrompt.current = false;
     api.conversationMessages(conversationId).then((rows: any[]) => {
       setMessages(
         rows.length
@@ -47,6 +54,14 @@ export function ChatThread({
       setLoaded(true);
     }).catch(() => setLoaded(true));
   }, [conversationId]);
+
+  useEffect(() => {
+    if (loaded && initialPrompt && !firedInitialPrompt.current) {
+      firedInitialPrompt.current = true;
+      onInitialPromptSent?.();
+      send(initialPrompt);
+    }
+  }, [loaded, initialPrompt]);
 
   useEffect(() => {
     if (!prevSpravkaMode.current && spravkaMode) {

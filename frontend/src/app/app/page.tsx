@@ -7,7 +7,6 @@ import { AssistantPanel } from "@/components/AssistantPanel";
 import { UnitsPanel } from "@/components/UnitsPanel";
 import { LeadsPanel } from "@/components/LeadsPanel";
 import { ClientsPanel } from "@/components/ClientsPanel";
-import { DocsPanel } from "@/components/DocsPanel";
 import { AnalyticsPanel } from "@/components/AnalyticsPanel";
 
 const TITLES: Record<Section, string> = {
@@ -15,7 +14,6 @@ const TITLES: Record<Section, string> = {
   units: "Юниты",
   leads: "Лиды",
   clients: "Клиенты",
-  docs: "Справки",
   analytics: "Аналитика",
 };
 
@@ -23,7 +21,6 @@ export default function AppPage() {
   const router = useRouter();
   const [user, setUser] = useState<CurrentUser | null>(null);
   const [section, setSection] = useState<Section>("assistant");
-  const [pendingCount, setPendingCount] = useState(0);
   // Client-side "preview as" toggle for demoing both roles to the client
   // without switching Google accounts -- purely cosmetic: every API call
   // still runs as the real logged-in user, so boss-only endpoints still
@@ -37,11 +34,6 @@ export default function AppPage() {
       else setUser(u);
     });
   }, [router]);
-
-  useEffect(() => {
-    if (!user) return;
-    api.spravkaRequests().then((reqs: any[]) => setPendingCount(reqs.filter((r) => r.status === "pending").length));
-  }, [user, section]);
 
   if (!user) return null;
 
@@ -57,16 +49,15 @@ export default function AppPage() {
   return (
     <div style={{ display: "flex", height: "100vh", minHeight: 720, padding: 16, gap: 16 }}>
       <Sidebar
-        user={effectiveUser} active={section} onChange={setSection} pendingCount={pendingCount}
+        user={effectiveUser} active={section} onChange={setSection}
         previewRole={canPreviewRole ? (previewRole || "boss") : undefined}
         onPreviewRoleChange={canPreviewRole ? changePreviewRole : undefined}
       />
 
       <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 16 }}>
         {/* Assistant is the primary surface -- it renders its own identity
-            (greeting, digest) instead of sitting under the same generic
-            title-bar chrome every data page gets. Everything else keeps the
-            compact utility header, since those really are supporting tools. */}
+            (greeting, digest, and now Справки too) instead of sitting under
+            the same generic title-bar chrome every data page gets. */}
         {!isAssistant && (
           <div className="glass-panel" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, padding: "12px 18px", flexShrink: 0 }}>
             <div style={{ minWidth: 0 }}>
@@ -84,7 +75,6 @@ export default function AppPage() {
         {section === "units" && <UnitsPanel />}
         {section === "leads" && <LeadsPanel />}
         {section === "clients" && <ClientsPanel user={effectiveUser} />}
-        {section === "docs" && <DocsPanel user={effectiveUser} />}
         {section === "analytics" && effectiveUser.role === "boss" && <AnalyticsPanel />}
       </div>
     </div>

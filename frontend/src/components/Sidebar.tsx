@@ -4,7 +4,7 @@ import { createPortal } from "react-dom";
 import { CurrentUser } from "@/lib/api";
 import { ThemeSwitcher } from "./ThemeSwitcher";
 
-export type Section = "assistant" | "units" | "leads" | "clients" | "docs" | "analytics";
+export type Section = "assistant" | "units" | "leads" | "clients" | "analytics";
 
 // Ассистент is deliberately not in this list -- it's the primary surface,
 // rendered as its own dedicated rail button above a divider, not one of N
@@ -23,13 +23,6 @@ const TOOLS: { key: Section; label: string; icon: JSX.Element; bossOnly?: boolea
       <svg viewBox="0 0 24 24" width={19} height={19} fill="none" stroke="currentColor" strokeWidth={1.8}>
         <circle cx="9" cy="8" r="3.2" /><path d="M2.5 20c0-3.5 3-6 6.5-6s6.5 2.5 6.5 6" />
         <circle cx="18" cy="9" r="2.4" /><path d="M15.5 20c.3-2.5 1.8-4.3 3.8-4.7" />
-      </svg>
-    ),
-  },
-  {
-    key: "docs", label: "Справки", icon: (
-      <svg viewBox="0 0 24 24" width={19} height={19} fill="none" stroke="currentColor" strokeWidth={1.8}>
-        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><path d="M14 2v6h6" />
       </svg>
     ),
   },
@@ -84,12 +77,11 @@ function RailButton({
 }
 
 export function Sidebar({
-  user, active, onChange, pendingCount, previewRole, onPreviewRoleChange,
+  user, active, onChange, previewRole, onPreviewRoleChange,
 }: {
   user: CurrentUser;
   active: Section;
   onChange: (s: Section) => void;
-  pendingCount: number;
   /** Only set for the real boss account -- lets them flip the whole app's
    * view to what an agent sees, for client demos, without a second Google
    * login. Purely cosmetic on the frontend; every request still runs as
@@ -187,13 +179,7 @@ export function Sidebar({
 
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         {TOOLS.filter((t) => !t.bossOnly || user.role === "boss").map((t) => (
-          <RailButton
-            key={t.key}
-            active={active === t.key}
-            label={t.label}
-            onClick={() => onChange(t.key)}
-            badge={t.key === "docs" ? pendingCount : undefined}
-          >
+          <RailButton key={t.key} active={active === t.key} label={t.label} onClick={() => onChange(t.key)}>
             {t.icon}
           </RailButton>
         ))}
