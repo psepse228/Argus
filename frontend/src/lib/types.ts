@@ -16,6 +16,11 @@ export type Unit = {
 
 export type Building = { id: string; name: string; project_name: string; status: string };
 
+export type UnitInterest = {
+  spravka_requests: { id: string; client_id: string | null; client_name: string; client_phone: string; plan_type: string; status: string; created_at: string }[];
+  soft_leads: { id: string; client_id: string | null; phone: string; stage: string; source: string | null; created_at: string }[];
+};
+
 export type Payment = {
   id: string;
   spravka_request_id: string;
@@ -46,6 +51,15 @@ export const PAYMENT_STATUS_COLORS: Record<string, { bg: string; fg: string }> =
   overdue: { bg: "var(--danger-tint)", fg: "var(--danger)" },
 };
 
+export type Priority = "hot" | "warm" | "cold";
+
+export const PRIORITY_LABELS: Record<Priority, string> = { hot: "Горячий", warm: "Тёплый", cold: "Холодный" };
+export const PRIORITY_COLORS: Record<Priority, { bg: string; fg: string }> = {
+  hot: { bg: "var(--danger-tint)", fg: "var(--danger)" },
+  warm: { bg: "var(--warning-tint)", fg: "var(--warning)" },
+  cold: { bg: "rgba(125,211,252,0.14)", fg: "#7dd3fc" },
+};
+
 export type Lead = {
   id: string;
   phone: string;
@@ -53,6 +67,7 @@ export type Lead = {
   buy_intent: string | null;
   stage: string;
   assigned_manager: string | null;
+  priority?: Priority | null;
   is_stale?: boolean;
   created_at: string;
 };
@@ -93,6 +108,9 @@ export type Client = {
   created_at: string;
   leads_count: number;
   spravka_count: number;
+  priority?: Priority | null;
+  next_followup_at?: string | null;
+  next_followup_note?: string | null;
 };
 
 export type ClientDetail = Client & {
@@ -117,6 +135,19 @@ export type Message = {
   content: string;
   events: any[] | null;
   created_at: string;
+};
+
+export type ManagerPerformance = {
+  id: string;
+  name: string;
+  email: string;
+  leads_assigned: number;
+  leads_converted: number;
+  conversion_rate: number;
+  spravka_created: number;
+  spravka_approved: number;
+  approval_rate: number;
+  collected_usd: number;
 };
 
 export type Commission = {

@@ -18,8 +18,15 @@ STALE_DAYS = 3
 STALE_STAGES = {"unsorted", "matching"}
 
 
+PRIORITIES = ["hot", "warm", "cold"]
+
+
 class LeadStageUpdate(BaseModel):
     stage: str
+
+
+class LeadPriorityUpdate(BaseModel):
+    priority: str | None = None
 
 
 def _auto_assign_unassigned(client, tenant_id: str, leads: list[dict]) -> None:
@@ -85,6 +92,20 @@ def update_lead_stage(lead_id: str, body: LeadStageUpdate, user=Depends(get_curr
     if not res.data:
         raise HTTPException(status_code=404, detail="Lead not found")
     return res.data
+
+
+@router.patch("/{lead_id}/priority")
+def update_lead_priority(lead_id: str, body: LeadPriorityUpdate, user=Depends(get_current_user)):
+    if body.priority is not None and body.priority not in PRIORITIES:
+        raise HTTPException(status_code=400, detail=f"priority must be one of {PRIORITIES}")
+    client = get_service_client()
+    res = (
+        client.table("leads").update({"priority": body.priority})
+        .eq("id", lead_id).eq("tenant_id", user.tenant_id).execute()
+    )
+    if not res.data:
+        raise HTTPException(status_code=404, detail="Lead not found")
+    return res.data[0]
 
 
 @router.post("/{lead_id}/client")

@@ -5,6 +5,7 @@ import { api, CurrentUser } from "@/lib/api";
 import { SpravkaRequest, Conversation, Payment } from "@/lib/types";
 import { ChatThread } from "./ChatThread";
 import { DocsPanel } from "./DocsPanel";
+import { TodayQueue } from "./TodayQueue";
 
 type Digest = {
   pending: number;
@@ -344,6 +345,8 @@ function OverviewContent({
           )}
         </div>
       )}
+
+      {tab === "home" && <TodayQueue isBoss={isBoss} />}
 
       {tab === "home" && digest && (
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>

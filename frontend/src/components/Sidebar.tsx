@@ -27,13 +27,6 @@ const TOOLS: { key: Section; label: string; icon: JSX.Element; bossOnly?: boolea
     ),
   },
   {
-    key: "payments", label: "Платежи", icon: (
-      <svg viewBox="0 0 24 24" width={19} height={19} fill="none" stroke="currentColor" strokeWidth={1.8}>
-        <rect x="3" y="6" width="18" height="13" rx="2.2" /><path d="M3 10.5h18" /><path d="M7 14.5h4" />
-      </svg>
-    ),
-  },
-  {
     key: "analytics", label: "Аналитика", bossOnly: true, icon: (
       <svg viewBox="0 0 24 24" width={19} height={19} fill="none" stroke="currentColor" strokeWidth={1.8}>
         <path d="M3 3v18h18" /><path d="M7 16l4-5 3 3 5-7" />
@@ -45,6 +38,15 @@ const TOOLS: { key: Section; label: string; icon: JSX.Element; bossOnly?: boolea
     key: "units", label: "Юниты", icon: (
       <svg viewBox="0 0 24 24" width={19} height={19} fill="none" stroke="currentColor" strokeWidth={1.8}>
         <path d="M3 21V8l9-5 9 5v13" /><path d="M9 21v-7h6v7" />
+      </svg>
+    ),
+  },
+  // Deprioritized too -- there's no real approved-installment deal yet at
+  // Ulkan, so this has the least live data of any tab right now.
+  {
+    key: "payments", label: "Платежи", icon: (
+      <svg viewBox="0 0 24 24" width={19} height={19} fill="none" stroke="currentColor" strokeWidth={1.8}>
+        <rect x="3" y="6" width="18" height="13" rx="2.2" /><path d="M3 10.5h18" /><path d="M7 14.5h4" />
       </svg>
     ),
   },

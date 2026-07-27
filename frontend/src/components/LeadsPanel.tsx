@@ -1,9 +1,11 @@
 "use client";
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
-import { Lead } from "@/lib/types";
+import { Lead, PRIORITY_COLORS, PRIORITY_LABELS, Priority } from "@/lib/types";
 import { Dropdown } from "./Dropdown";
 import { Skeleton } from "./Skeleton";
+
+const PRIORITIES: Priority[] = ["hot", "warm", "cold"];
 
 // Mirrors backend/app/routers/leads.py::STALE_DAYS -- only used for the tooltip copy.
 const STALE_DAYS = 3;
@@ -36,6 +38,15 @@ export function LeadsPanel({ onOpenClient }: { onOpenClient: (clientId: string) 
       setLeads((cur) => cur && cur.map((l) => (l.id === id ? { ...l, stage } : l)));
     } catch (e: any) {
       setError(`Не удалось изменить стадию: ${e.message}`);
+    }
+  }
+
+  async function setPriority(id: string, priority: Priority | null) {
+    setLeads((cur) => cur && cur.map((l) => (l.id === id ? { ...l, priority } : l)));
+    try {
+      await api.updateLeadPriority(id, priority);
+    } catch (e: any) {
+      setError(`Не удалось сохранить приоритет: ${e.message}`);
     }
   }
 
@@ -121,6 +132,25 @@ export function LeadsPanel({ onOpenClient }: { onOpenClient: (clientId: string) 
                   {l.assigned_manager && (
                     <div style={{ fontSize: 10.5, color: "var(--v-accent)", fontWeight: 600 }}>{l.assigned_manager}</div>
                   )}
+                  <div style={{ display: "flex", gap: 4 }}>
+                    {PRIORITIES.map((p) => {
+                      const active = l.priority === p;
+                      const c = PRIORITY_COLORS[p];
+                      return (
+                        <div
+                          key={p}
+                          title={PRIORITY_LABELS[p]}
+                          onClick={() => setPriority(l.id, active ? null : p)}
+                          className="press"
+                          style={{
+                            width: 16, height: 16, borderRadius: "50%", cursor: "pointer",
+                            background: active ? c.fg : "rgba(255,255,255,.06)",
+                            border: active ? "none" : "1px solid var(--color-hairline)",
+                          }}
+                        />
+                      );
+                    })}
+                  </div>
                   <Dropdown
                     value={l.stage}
                     onChange={(v) => move(l.id, v)}

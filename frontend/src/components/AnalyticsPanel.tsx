@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
-import { Building, Commission, PlanRate, PLAN_LABELS, STATUS_LABELS } from "@/lib/types";
+import { Building, Commission, ManagerPerformance, PlanRate, PLAN_LABELS, STATUS_LABELS } from "@/lib/types";
 import { Skeleton } from "./Skeleton";
 
 type Summary = {
@@ -19,11 +19,13 @@ export function AnalyticsPanel() {
   const [savingId, setSavingId] = useState<string | null>(null);
   const [exchangeRates, setExchangeRates] = useState<{ building_id: string; exchange_rate_sum: number; buildings?: { name: string } }[]>([]);
   const [savingRateFor, setSavingRateFor] = useState<string | null>(null);
+  const [managerPerf, setManagerPerf] = useState<ManagerPerformance[] | null>(null);
 
   useEffect(() => {
     api.analyticsSummary().then(setSummary);
     api.commissions().then(setCommissions).catch(() => {});
     api.exchangeRates().then(setExchangeRates).catch(() => {});
+    api.managerPerformance().then(setManagerPerf).catch(() => setManagerPerf([]));
     api.buildings().then(async (b: Building[]) => {
       setBuildings(b);
       const entries = await Promise.all(b.map(async (bld) => [bld.id, await api.paymentPlanRates(bld.id)] as const));
@@ -95,6 +97,44 @@ export function AnalyticsPanel() {
             <div style={{ fontSize: 12, color: "var(--color-text-faint)", marginTop: 6 }}>{k.label}</div>
           </div>
         ))}
+      </div>
+
+      <div className="glass-panel" style={{ padding: "20px 22px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
+          <h3 style={{ fontFamily: "var(--font-heading)", fontSize: 16, margin: 0, color: "var(--color-text)" }}>Эффективность менеджеров</h3>
+          <span style={{ fontSize: 9.5, fontWeight: 800, letterSpacing: ".04em", color: "var(--v-text-on-accent)", background: "linear-gradient(150deg, var(--v-violet-strong, #7a5cff), var(--v-violet, #5b3fc4))", borderRadius: 99, padding: "3px 9px" }}>
+            AI-АНАЛИЗ
+          </span>
+        </div>
+        <p style={{ fontSize: 11.5, color: "var(--color-text-faint)", margin: "0 0 16px" }}>
+          AI собирает работу каждого менеджера по Лидам, Справкам и Платежам в одну сводку — не нужно сверять три раздела вручную.
+        </p>
+        {!managerPerf ? (
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            {[0, 1].map((i) => <Skeleton key={i} height={40} />)}
+          </div>
+        ) : managerPerf.length === 0 ? (
+          <div style={{ fontSize: 12.5, color: "var(--color-text-faint)" }}>Нет агентов с ролью sales_agent.</div>
+        ) : (
+          <div style={{ overflowX: "auto" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1.3fr 1fr 1fr 1fr 1fr", gap: 10, minWidth: 560, fontSize: 11, color: "var(--color-text-faint)", textTransform: "uppercase", letterSpacing: ".03em", paddingBottom: 8, borderBottom: "1px solid var(--color-hairline-soft)" }}>
+              <span>Менеджер</span>
+              <span>Лиды</span>
+              <span>Конверсия</span>
+              <span>Справки</span>
+              <span>Собрано</span>
+            </div>
+            {managerPerf.map((m) => (
+              <div key={m.id} style={{ display: "grid", gridTemplateColumns: "1.3fr 1fr 1fr 1fr 1fr", gap: 10, minWidth: 560, fontSize: 12.5, padding: "12px 0", borderBottom: "1px solid var(--color-hairline-soft)", alignItems: "center" }}>
+                <span style={{ fontWeight: 700, color: "var(--color-text)" }}>{m.name}</span>
+                <span style={{ color: "var(--color-text-soft)" }}>{m.leads_assigned} <span style={{ color: "var(--color-text-faint)" }}>({m.leads_converted} в брони)</span></span>
+                <span style={{ fontWeight: 700, color: m.conversion_rate >= 20 ? "var(--success)" : "var(--color-text-soft)" }}>{m.conversion_rate}%</span>
+                <span style={{ color: "var(--color-text-soft)" }}>{m.spravka_created} <span style={{ color: "var(--color-text-faint)" }}>({m.approval_rate}% одобрено)</span></span>
+                <span style={{ fontWeight: 800, color: "var(--v-accent)" }}>${m.collected_usd.toLocaleString("en-US")}</span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="glass-panel" style={{ padding: "18px 20px" }}>

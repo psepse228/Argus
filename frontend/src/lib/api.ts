@@ -19,11 +19,14 @@ export const api = {
   me: (): Promise<CurrentUser | null> => request("/api/auth/me").catch(() => null),
   buildings: () => request("/api/units/buildings"),
   units: (building?: string) => request(`/api/units${building ? `?building=${encodeURIComponent(building)}` : ""}`),
+  unitInterest: (unitId: string) => request(`/api/units/${unitId}/interest`),
   leads: () => request("/api/leads"),
   updateLeadStage: (id: string, stage: string) =>
     request(`/api/leads/${id}/stage`, { method: "PATCH", body: JSON.stringify({ stage }) }),
   openLeadClient: (id: string): Promise<{ client_id: string }> =>
     request(`/api/leads/${id}/client`, { method: "POST" }),
+  updateLeadPriority: (id: string, priority: string | null) =>
+    request(`/api/leads/${id}/priority`, { method: "PATCH", body: JSON.stringify({ priority }) }),
   spravkaRequests: () => request("/api/spravka-requests"),
   createSpravka: (body: {
     unit_id: string; client_name: string; client_phone: string;
@@ -44,6 +47,7 @@ export const api = {
     request("/api/assistant/agent/chat", { method: "POST", body: JSON.stringify({ message, conversation_id: conversationId, mode }) }),
   analyticsSummary: () => request("/api/analytics/summary"),
   commissions: () => request("/api/analytics/commissions"),
+  managerPerformance: () => request("/api/analytics/manager-performance"),
   updateCommissionRate: (tenantUserId: string, commission_pct: number) =>
     request(`/api/analytics/commissions/${tenantUserId}`, { method: "PATCH", body: JSON.stringify({ commission_pct }) }),
   spravkaDownloadUrl: (requestId: string) => `${API_BASE}/api/spravka-requests/${requestId}/download`,
@@ -59,6 +63,8 @@ export const api = {
 
   clients: () => request("/api/clients"),
   clientDetail: (id: string) => request(`/api/clients/${id}`),
+  updateClientFollowup: (id: string, body: { priority?: string | null; next_followup_at?: string | null; next_followup_note?: string | null }) =>
+    request(`/api/clients/${id}/followup`, { method: "PATCH", body: JSON.stringify(body) }),
 
   payments: () => request("/api/payments"),
   markPaymentPaid: (id: string) => request(`/api/payments/${id}/mark-paid`, { method: "POST" }),

@@ -5,12 +5,23 @@ profile-chat conversation (see routers/conversations.py) where a rep's
 entire back-and-forth about that person, plus their real Справки, live
 together.
 """
+from datetime import date
+
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
 
 from app.db import get_service_client
 from app.deps import get_current_user
 
 router = APIRouter(prefix="/api/clients")
+
+PRIORITIES = ["hot", "warm", "cold"]
+
+
+class ClientFollowupUpdate(BaseModel):
+    priority: str | None = None
+    next_followup_at: date | None = None
+    next_followup_note: str | None = None
 
 
 @router.get("")
@@ -65,3 +76,22 @@ def get_client(client_id: str, user=Depends(get_current_user)):
         if spravka_ids else []
     )
     return {**res.data[0], "leads": leads, "spravka_requests": spravki, "payments": payments}
+
+
+@router.patch("/{client_id}/followup")
+def update_client_followup(client_id: str, body: ClientFollowupUpdate, user=Depends(get_current_user)):
+    """Manual stand-in for a real call log -- there's no telephony/Telegram
+    integration to auto-populate this, so a rep logs it themselves right
+    after a call (priority + when to reach out next + why)."""
+    if body.priority is not None and body.priority not in PRIORITIES:
+        raise HTTPException(status_code=400, detail=f"priority must be one of {PRIORITIES}")
+    client = get_service_client()
+    updates = {k: v for k, v in body.model_dump(mode="json").items() if k in body.model_fields_set}
+    if not updates:
+        raise HTTPException(status_code=400, detail="No fields to update")
+    updated = (
+        client.table("clients").update(updates).eq("id", client_id).eq("tenant_id", user.tenant_id).execute().data
+    )
+    if not updated:
+        raise HTTPException(status_code=404, detail="Client not found")
+    return updated[0]

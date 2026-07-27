@@ -99,7 +99,7 @@ export default function AppPage() {
         <div key={section} className="section-enter" style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
           {section === "assistant" && <AssistantPanel user={effectiveUser} />}
           {section === "units" && (
-            <UnitsPanel openUnitId={pendingUnitId} onOpenUnitHandled={() => setPendingUnitId(null)} />
+            <UnitsPanel openUnitId={pendingUnitId} onOpenUnitHandled={() => setPendingUnitId(null)} onOpenClient={openClientFromLead} />
           )}
           {section === "leads" && <LeadsPanel onOpenClient={openClientFromLead} />}
           {section === "clients" && (

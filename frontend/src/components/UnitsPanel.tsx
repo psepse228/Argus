@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { api } from "@/lib/api";
-import { Unit, Building, STATUS_LABELS, STATUS_COLORS } from "@/lib/types";
+import { Unit, Building, STATUS_LABELS, STATUS_COLORS, UnitInterest } from "@/lib/types";
 import { StatusChip } from "./StatusChip";
 import { Dropdown } from "./Dropdown";
 import { Skeleton } from "./Skeleton";
@@ -15,11 +15,13 @@ const SORTS = {
 } as const;
 
 export function UnitsPanel({
-  openUnitId, onOpenUnitHandled,
+  openUnitId, onOpenUnitHandled, onOpenClient,
 }: {
   /** Set from outside (e.g. global search) to drill straight into a unit. */
   openUnitId?: string | null;
   onOpenUnitHandled?: () => void;
+  /** Jumps to Клиенты for a specific client -- reused for "who wants this unit". */
+  onOpenClient?: (clientId: string) => void;
 } = {}) {
   const [buildings, setBuildings] = useState<Building[]>([]);
   const [units, setUnits] = useState<Unit[]>([]);
@@ -37,11 +39,18 @@ export function UnitsPanel({
   // cell/card's rect, so the detail panel visibly grows out of it.
   const [origin, setOrigin] = useState<DOMRect | null>(null);
   const detailRef = useRef<HTMLDivElement>(null);
+  const [interest, setInterest] = useState<UnitInterest | null>(null);
 
   useEffect(() => {
     api.buildings().then(setBuildings);
     api.units().then((u) => { setUnits(u); setLoading(false); }).catch(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    if (!selected) { setInterest(null); return; }
+    setInterest(null);
+    api.unitInterest(selected.id).then(setInterest).catch(() => setInterest({ spravka_requests: [], soft_leads: [] }));
+  }, [selected]);
 
   useEffect(() => {
     if (openUnitId && units.length) {
@@ -249,6 +258,40 @@ export function UnitsPanel({
               </div>
             )}
           </div>
+
+          <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid var(--color-hairline-soft)" }}>
+            <div style={{ fontSize: 10.5, textTransform: "uppercase", letterSpacing: ".05em", color: "var(--color-text-faint)", marginBottom: 10 }}>Кто интересуется</div>
+            {!interest ? (
+              <Skeleton height={13} width="60%" />
+            ) : interest.spravka_requests.length === 0 && interest.soft_leads.length === 0 ? (
+              <div style={{ fontSize: 12, color: "var(--color-text-faint)" }}>Пока никто не оформлял справку и не оставлял лид на это здание.</div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {interest.spravka_requests.map((s) => (
+                  <div
+                    key={s.id}
+                    onClick={() => s.client_id && onOpenClient?.(s.client_id)}
+                    className={s.client_id ? "press" : undefined}
+                    style={{ padding: "8px 10px", borderRadius: 9, background: "var(--v-accent-tint)", cursor: s.client_id ? "pointer" : "default" }}
+                  >
+                    <div style={{ fontSize: 12, fontWeight: 700, color: "var(--v-accent)" }}>{s.client_name}</div>
+                    <div style={{ fontSize: 10.5, color: "var(--color-text-faint)" }}>Справка · {STATUS_LABELS[s.status] || s.status}</div>
+                  </div>
+                ))}
+                {interest.soft_leads.map((l) => (
+                  <div
+                    key={l.id}
+                    onClick={() => l.client_id && onOpenClient?.(l.client_id)}
+                    className={l.client_id ? "press" : undefined}
+                    style={{ padding: "8px 10px", borderRadius: 9, background: "rgba(255,255,255,.03)", cursor: l.client_id ? "pointer" : "default" }}
+                  >
+                    <div style={{ fontSize: 12, fontWeight: 700, color: "var(--color-text)" }}>{l.phone}</div>
+                    <div style={{ fontSize: 10.5, color: "var(--color-text-faint)" }}>Лид (это здание) · {STATUS_LABELS[l.stage] || l.stage}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>
@@ -257,7 +300,7 @@ export function UnitsPanel({
 
 function ChessGrid({
   buildingName, units, selectedId, onSelect,
-}: { buildingName: string; units: Unit[]; selectedId?: string; onSelect: (u: Unit) => void }) {
+}: { buildingName: string; units: Unit[]; selectedId?: string; onSelect: (u: Unit, rect?: DOMRect) => void }) {
   const floors = Array.from(new Set(units.map((u) => u.floor))).sort((a, b) => b - a);
   return (
     <div>
@@ -277,7 +320,7 @@ function ChessGrid({
                   return (
                     <div
                       key={u.id}
-                      onClick={() => onSelect(u)}
+                      onClick={(e) => onSelect(u, e.currentTarget.getBoundingClientRect())}
                       title={`№${u.unit_number} · ${u.floor} эт · ${STATUS_LABELS[u.status] || u.status}`}
                       className="press"
                       style={{
