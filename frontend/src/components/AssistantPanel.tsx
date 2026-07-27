@@ -2,10 +2,9 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { api, CurrentUser } from "@/lib/api";
-import { SpravkaRequest, Conversation, Payment } from "@/lib/types";
-import { ChatThread } from "./ChatThread";
-import { DocsPanel } from "./DocsPanel";
+import { SpravkaRequest, Payment } from "@/lib/types";
 import { TodayQueue } from "./TodayQueue";
+import { WorkshopPanel } from "./WorkshopPanel";
 
 type Digest = {
   pending: number;
@@ -18,55 +17,35 @@ type Digest = {
   duePaymentsCount: number;
 };
 
-type View = "overview" | "docs" | string; // string = conversation id
+type View = "overview" | "workshop";
 
-function conversationLabel(c: Conversation): string {
-  if (c.title) return c.title;
-  const d = new Date(c.created_at);
-  return `Чат — ${d.toLocaleDateString("ru-RU", { day: "numeric", month: "short" })}, ${d.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })}`;
-}
-
-/** Ассистент and Справки used to be two separate sections doing overlapping
- * things (chat-driven spravka creation vs. the form). Merged into one
- * inbox-style shell: a left list to pick what you're doing (dashboard
- * overview, the Справки form/history, or any chat thread) and a right pane
- * that fills with whichever is selected -- instead of a HUD dashboard
- * permanently stacked above every single chat regardless of length. */
-export function AssistantPanel({ user }: { user: CurrentUser }) {
+/** Ассистент's Обзор (digest) and Мастерская (the client-workspace tab that
+ * replaced the old standalone Справки form/list) live in one inbox-style
+ * shell: a left nav to pick which, and a right pane that fills with
+ * whichever is selected. General freeform chat no longer lives here at all
+ * -- that's the floating AssistantWidget now; anything client-specific
+ * happens inside a client's own workspace in Мастерская. */
+export function AssistantPanel({
+  user, openWorkspaceClientId, onWorkspaceClientHandled,
+}: {
+  user: CurrentUser;
+  /** Set from outside (Клиенты's "Открыть в Мастерской", Лиды hand-off) to
+   * jump straight into Мастерская with this client already open. */
+  openWorkspaceClientId?: string | null;
+  onWorkspaceClientHandled?: () => void;
+}) {
   const isBoss = user.role === "boss";
   const [digest, setDigest] = useState<Digest | null>(null);
-  const [conversations, setConversations] = useState<Conversation[]>([]);
   const [view, setView] = useState<View>("overview");
-  const [pendingPrompt, setPendingPrompt] = useState<{ id: string; text: string } | null>(null);
+
+  useEffect(() => {
+    if (openWorkspaceClientId) setView("workshop");
+  }, [openWorkspaceClientId]);
 
   const [bellOpen, setBellOpen] = useState(false);
   const [bellPos, setBellPos] = useState<{ top: number; right: number } | null>(null);
   const bellBtnRef = useRef<HTMLDivElement>(null);
   const bellPopoverRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    api.conversations().then(setConversations).catch(() => {});
-  }, []);
-
-  async function startNewChat() {
-    const created = await api.createConversation();
-    setConversations((cur) => [created, ...cur]);
-    setView(created.id);
-  }
-
-  async function deleteChat(id: string, e: React.MouseEvent) {
-    e.stopPropagation();
-    await api.deleteConversation(id).catch(() => {});
-    setConversations((cur) => cur.filter((c) => c.id !== id));
-    if (view === id) setView("overview");
-  }
-
-  async function startPromptChat(prompt: string) {
-    const created = await api.createConversation();
-    setConversations((cur) => [created, ...cur]);
-    setPendingPrompt({ id: created.id, text: prompt });
-    setView(created.id);
-  }
 
   function repositionBell() {
     const r = bellBtnRef.current?.getBoundingClientRect();
@@ -129,14 +108,14 @@ export function AssistantPanel({ user }: { user: CurrentUser }) {
         { label: "Сводка", panel: "summary" as const, icon: <><path d="M3 3v18h18" /><path d="M7 15l4-5 3 3 5-7" /></> },
         { label: "Дисконт", panel: "discount" as const, icon: <><path d="M19 5 5 19" /><circle cx="7.5" cy="7.5" r="1.7" /><circle cx="16.5" cy="16.5" r="1.7" /></> },
       ]
-    : [
-        { label: "Юниты в Milano", prompt: "Подбери юниты в Milano", icon: <><path d="M3 21V9l9-5 9 5v12" /><path d="M9 21v-7h6v7" /></> },
-        { label: "Письмо клиенту", prompt: "Составь письмо клиенту", icon: <><path d="M4 4h16v16H4z" /><path d="M4 4l8 8 8-8" /></> },
-      ];
+    : [];
 
-  const greeting = isBoss
-    ? "Доброе утро. Я слежу за юнитами, лидами и справками Italiano Vero. Спросите что угодно."
-    : "Привет! Помогу подобрать юниты, оформить справку, согласовать условия и разобрать лидов.";
+  // Bell popover items jump straight into that client's Мастерская workspace
+  // instead of just being read-only text.
+  const [bellJumpClientId, setBellJumpClientId] = useState<string | null>(null);
+  const pendingApprovals = (digest?.pendingItems || [])
+    .filter((r) => r.client_id)
+    .map((r) => ({ client_id: r.client_id!, client_name: r.client_name }));
 
   return (
     <div className="glass-panel" style={{ flex: 1, minHeight: 0, display: "flex", padding: 0, overflow: "hidden" }}>
@@ -180,7 +159,17 @@ export function AssistantPanel({ user }: { user: CurrentUser }) {
               ) : (
                 <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
                   {digest.pendingItems.slice(0, 6).map((r) => (
-                    <div key={r.id} style={{ fontSize: 12.5, color: "var(--color-text-soft)" }}>
+                    <div
+                      key={r.id}
+                      onClick={() => {
+                        if (!r.client_id) return;
+                        setBellJumpClientId(r.client_id);
+                        setView("workshop");
+                        setBellOpen(false);
+                      }}
+                      className={r.client_id ? "press" : undefined}
+                      style={{ fontSize: 12.5, color: "var(--color-text-soft)", cursor: r.client_id ? "pointer" : "default" }}
+                    >
                       {r.units ? <>№{r.units.unit_number} · {r.units.buildings?.name}</> : "—"} — {r.client_name}
                     </div>
                   ))}
@@ -201,71 +190,27 @@ export function AssistantPanel({ user }: { user: CurrentUser }) {
 
         <InboxRow active={view === "overview"} onClick={() => setView("overview")} label="Обзор" icon={<><path d="M3 3v18h18" /><path d="M7 15l4-5 3 3 5-7" /></>} />
         <InboxRow
-          active={view === "docs"} onClick={() => setView("docs")} label="Справки"
-          icon={<><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><path d="M14 2v6h6" /></>}
+          active={view === "workshop"} onClick={() => setView("workshop")} label="Мастерская"
+          icon={<><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.1-3.1a4 4 0 0 1-5.3 5.3L6.4 20.6a2 2 0 0 1-2.8-2.8L12.7 8.7a4 4 0 0 1 5.3-5.3z" /></>}
           badge={digest?.pending}
         />
 
-        <div style={{ height: 1, background: "var(--color-hairline-soft)", margin: "10px 6px" }} />
-
-        <div
-          onClick={startNewChat}
-          className="press"
-          style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12.5, fontWeight: 700, color: "var(--v-accent)", padding: "9px 10px", borderRadius: 9, cursor: "pointer" }}
-        >
-          <svg viewBox="0 0 24 24" width={14} height={14} fill="none" stroke="currentColor" strokeWidth={2.2}><path d="M12 5v14M5 12h14" /></svg>
-          Новый чат
-        </div>
-
-        <div style={{ flex: 1, minHeight: 0, overflowY: "auto", marginTop: 4 }}>
-          {conversations.length === 0 ? (
-            <div style={{ fontSize: 12, color: "var(--color-text-faint)", padding: "9px 10px" }}>Нет чатов</div>
-          ) : conversations.map((c) => (
-            <div
-              key={c.id}
-              onClick={() => setView(c.id)}
-              className="press conv-row"
-              style={{
-                display: "flex", alignItems: "center", gap: 6,
-                fontSize: 12.5, padding: "9px 6px 9px 10px", borderRadius: 9, cursor: "pointer",
-                background: view === c.id ? "var(--v-accent-tint)" : "transparent",
-                color: view === c.id ? "var(--v-accent)" : "var(--color-text-soft)",
-                fontWeight: view === c.id ? 700 : 500,
-              }}
-            >
-              <span style={{ flex: 1, minWidth: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                {conversationLabel(c)}
-              </span>
-              <span
-                onClick={(e) => deleteChat(c.id, e)}
-                title="Удалить чат"
-                className="conv-delete press"
-                style={{ flexShrink: 0, width: 22, height: 22, borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--color-text-faint)" }}
-              >
-                <svg viewBox="0 0 24 24" width={13} height={13} fill="none" stroke="currentColor" strokeWidth={2}>
-                  <path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" />
-                </svg>
-              </span>
-            </div>
-          ))}
-        </div>
+        <div style={{ flex: 1 }} />
       </div>
 
-      <div style={{ flex: 1, minWidth: 0, minHeight: 0, display: "flex", flexDirection: "column", padding: view === "docs" ? "26px 24px" : "26px 24px", overflowY: view === "docs" ? "auto" : "visible" }}>
+      <div style={{ flex: 1, minWidth: 0, minHeight: 0, display: "flex", flexDirection: "column", padding: "26px 24px", overflowY: view === "overview" ? "visible" : "hidden" }}>
         {view === "overview" && (
           <OverviewContent
             digest={digest} isBoss={isBoss} quickActions={quickActions}
-            onOpenDocs={() => setView("docs")}
-            onQuickPrompt={startPromptChat}
+            onOpenWorkshop={() => setView("workshop")}
           />
         )}
-        {view === "docs" && <DocsPanel user={user} />}
-        {view !== "overview" && view !== "docs" && (
-          <ChatThread
-            conversationId={view} isBoss={isBoss} spravkaMode={false}
-            greeting={greeting}
-            initialPrompt={pendingPrompt?.id === view ? pendingPrompt.text : undefined}
-            onInitialPromptSent={() => setPendingPrompt(null)}
+        {view === "workshop" && (
+          <WorkshopPanel
+            isBoss={isBoss}
+            pendingApprovals={pendingApprovals}
+            initialClientId={bellJumpClientId || openWorkspaceClientId}
+            onInitialClientHandled={() => { setBellJumpClientId(null); onWorkspaceClientHandled?.(); }}
           />
         )}
       </div>
@@ -274,13 +219,12 @@ export function AssistantPanel({ user }: { user: CurrentUser }) {
 }
 
 function OverviewContent({
-  digest, isBoss, quickActions, onOpenDocs, onQuickPrompt,
+  digest, isBoss, quickActions, onOpenWorkshop,
 }: {
   digest: Digest | null;
   isBoss: boolean;
-  quickActions: { label: string; icon: React.ReactNode; panel?: "approvals" | "summary" | "discount"; prompt?: string }[];
-  onOpenDocs: () => void;
-  onQuickPrompt: (prompt: string) => void;
+  quickActions: { label: string; icon: React.ReactNode; panel?: "approvals" | "summary" | "discount" }[];
+  onOpenWorkshop: () => void;
 }) {
   // Quick actions switch what's shown right here in Обзор -- they used to
   // open a small floating popover (felt like an afterthought) or, worse,
@@ -292,13 +236,13 @@ function OverviewContent({
     <div style={{ overflowY: "auto", display: "flex", flexDirection: "column", gap: 18 }}>
       <div style={{ display: "flex", gap: 22 }}>
         <QuickAction
-          primary label="Справка" onClick={onOpenDocs}
-          icon={<><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><path d="M14 2v6h6" /><path d="M9 15h6M9 11h4" /></>}
+          primary label="Мастерская" onClick={onOpenWorkshop}
+          icon={<><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.1-3.1a4 4 0 0 1-5.3 5.3L6.4 20.6a2 2 0 0 1-2.8-2.8L12.7 8.7a4 4 0 0 1 5.3-5.3z" /></>}
         />
         {quickActions.map((q) => (
           <QuickAction
             key={q.label} label={q.label} icon={q.icon} active={tab === q.panel}
-            onClick={() => (q.panel ? setTab((t) => (t === q.panel ? "home" : q.panel!)) : onQuickPrompt(q.prompt!))}
+            onClick={() => setTab((t) => (t === q.panel ? "home" : q.panel!))}
           />
         ))}
       </div>
@@ -321,7 +265,7 @@ function OverviewContent({
                     <span>{r.units ? <>№{r.units.unit_number} · {r.units.buildings?.name}</> : "—"} — {r.client_name}</span>
                   </div>
                 ))}
-                <div onClick={onOpenDocs} style={{ fontSize: 12.5, fontWeight: 700, color: "var(--v-accent)", cursor: "pointer", marginTop: 4 }}>Открыть в Справки →</div>
+                <div onClick={onOpenWorkshop} style={{ fontSize: 12.5, fontWeight: 700, color: "var(--v-accent)", cursor: "pointer", marginTop: 4 }}>Открыть в Мастерской →</div>
               </div>
             )
           )}
@@ -365,7 +309,7 @@ function OverviewContent({
               {digest.pending > 0 ? `${digest.pending} ждут вашего решения. Всё остальное — под контролем.` : "Всё разобрано — очередь пуста."}
             </div>
             <div style={{ fontSize: 11.5, fontWeight: 700, color: "#fff", display: "inline-flex", background: "rgba(255,255,255,.16)", padding: "6px 13px", borderRadius: 99, marginTop: 14 }}>
-              {isBoss ? `${digest.pending} в очереди` : "Кнопка «Справка» выше →"}
+              {isBoss ? `${digest.pending} в очереди` : "Кнопка «Мастерская» выше →"}
             </div>
           </div>
         </div>

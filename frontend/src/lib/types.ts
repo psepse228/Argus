@@ -86,6 +86,7 @@ export type SpravkaComputedSummary = {
 export type SpravkaRequest = {
   id: string;
   unit_id: string;
+  client_id?: string | null;
   client_name: string;
   client_phone: string;
   requested_by: string;

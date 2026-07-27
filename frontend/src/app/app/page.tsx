@@ -38,6 +38,10 @@ export default function AppPage() {
   // Same idea, for global search jumping straight into a unit.
   const [pendingUnitId, setPendingUnitId] = useState<string | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
+  // Set when a client is pinned into Мастерская (from Клиенты's
+  // ClientInfoCard, or global search) -- switches to Ассистент and tells
+  // Мастерская which client to open straight into.
+  const [pendingWorkspaceClientId, setPendingWorkspaceClientId] = useState<string | null>(null);
 
   function openClientFromLead(clientId: string) {
     setPendingClientId(clientId);
@@ -46,6 +50,11 @@ export default function AppPage() {
 
   function openUnitFromSearch(unitId: string) {
     setPendingUnitId(unitId);
+  }
+
+  function openWorkspaceClient(clientId: string) {
+    setPendingWorkspaceClientId(clientId);
+    setSection("assistant");
   }
 
   useEffect(() => {
@@ -97,23 +106,29 @@ export default function AppPage() {
         )}
 
         <div key={section} className="section-enter" style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
-          {section === "assistant" && <AssistantPanel user={effectiveUser} />}
+          {section === "assistant" && (
+            <AssistantPanel
+              user={effectiveUser}
+              openWorkspaceClientId={pendingWorkspaceClientId}
+              onWorkspaceClientHandled={() => setPendingWorkspaceClientId(null)}
+            />
+          )}
           {section === "units" && (
             <UnitsPanel openUnitId={pendingUnitId} onOpenUnitHandled={() => setPendingUnitId(null)} onOpenClient={openClientFromLead} />
           )}
           {section === "leads" && <LeadsPanel onOpenClient={openClientFromLead} />}
           {section === "clients" && (
             <ClientsPanel
-              user={effectiveUser}
               openClientId={pendingClientId}
               onOpenClientHandled={() => setPendingClientId(null)}
+              onOpenWorkspace={openWorkspaceClient}
             />
           )}
           {section === "payments" && <PaymentsPanel />}
           {section === "analytics" && effectiveUser.role === "boss" && <AnalyticsPanel />}
         </div>
       </div>
-      {!isAssistant && <AssistantWidget user={effectiveUser} />}
+      <AssistantWidget user={effectiveUser} />
     </div>
   );
 }

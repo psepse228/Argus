@@ -1,3 +1,5 @@
+import { Client } from "./types";
+
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8010";
 
 async function request(path: string, options: RequestInit = {}) {
@@ -68,4 +70,8 @@ export const api = {
 
   payments: () => request("/api/payments"),
   markPaymentPaid: (id: string) => request(`/api/payments/${id}/mark-paid`, { method: "POST" }),
+
+  workspace: (): Promise<Client[]> => request("/api/workspace"),
+  pinToWorkspace: (clientId: string) => request(`/api/workspace/${clientId}`, { method: "POST" }),
+  unpinFromWorkspace: (clientId: string) => request(`/api/workspace/${clientId}`, { method: "DELETE" }),
 };

@@ -1,0 +1,260 @@
+"use client";
+import { useEffect, useState } from "react";
+import { api } from "@/lib/api";
+import { ClientDetail, PRIORITY_COLORS, PRIORITY_LABELS, Priority, STAGE_COLORS, STATUS_LABELS, PLAN_LABELS } from "@/lib/types";
+import { ChatThread } from "./ChatThread";
+import { DealTimeline } from "./DealTimeline";
+import { TelegramPreviewModal } from "./TelegramPreviewModal";
+
+/** Rolls the client's leads + справки into one "where things stand" badge --
+ * an approved deal or a pending справка takes priority over whatever stage
+ * the underlying lead is still sitting at, since those are more concrete
+ * signals of where the deal actually is. */
+function clientStage(detail: ClientDetail): { label: string; color: string } {
+  if (detail.spravka_requests.some((s) => s.status === "approved" || s.status === "auto_approved")) {
+    return { label: "Сделка одобрена", color: "var(--success)" };
+  }
+  if (detail.spravka_requests.some((s) => s.status === "pending")) {
+    return { label: "Справка на согласовании", color: "var(--warning)" };
+  }
+  const lead = detail.leads[0];
+  if (lead) return { label: STATUS_LABELS[lead.stage] || lead.stage, color: STAGE_COLORS[lead.stage] || "var(--color-text-faint)" };
+  return { label: "Новый клиент", color: "var(--color-text-faint)" };
+}
+
+/** The actual "работа с клиентом" surface -- profile, stage, apartments,
+ * Cortège+ monitoring, and the AI chat, all in one place. Lives inside
+ * Мастерская (see AssistantPanel.tsx); this used to be Клиенты's own detail
+ * view, but that view is now the lighter ClientInfoCard -- opening a client
+ * to actually work on them is a deliberate step into Мастерская instead. */
+export function ClientWorkspace({ clientId, isBoss }: { clientId: string; isBoss: boolean }) {
+  const [selected, setSelected] = useState<ClientDetail | null>(null);
+  const [conversationId, setConversationId] = useState<string | null>(null);
+  const [spravkaMode, setSpravkaMode] = useState(false);
+  const [savingFollowup, setSavingFollowup] = useState(false);
+  const [cortegePreviewOpen, setCortegePreviewOpen] = useState(false);
+  const [actionError, setActionError] = useState("");
+
+  useEffect(() => {
+    setSelected(null);
+    setConversationId(null);
+    setSpravkaMode(false);
+    (async () => {
+      const [detail, conv] = await Promise.all([api.clientDetail(clientId), api.clientConversation(clientId)]);
+      setSelected(detail);
+      setConversationId(conv.id);
+    })();
+  }, [clientId]);
+
+  async function saveFollowup(patch: { priority?: Priority | null; next_followup_at?: string | null; next_followup_note?: string | null }) {
+    if (!selected) return;
+    setSavingFollowup(true);
+    try {
+      await api.updateClientFollowup(selected.id, patch);
+      setSelected((cur) => cur && { ...cur, ...patch });
+    } finally {
+      setSavingFollowup(false);
+    }
+  }
+
+  async function decide(spravkaId: string, decision: "approve" | "reject") {
+    setActionError("");
+    try {
+      const updated = await (decision === "approve" ? api.approveSpravka(spravkaId) : api.rejectSpravka(spravkaId));
+      setSelected((cur) => cur && {
+        ...cur,
+        spravka_requests: cur.spravka_requests.map((s) => (s.id === spravkaId ? { ...s, ...updated } : s)),
+      });
+    } catch (e: any) {
+      setActionError(e.message);
+    }
+  }
+
+  if (!selected) {
+    return <div style={{ flex: 1, minHeight: 0, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--color-text-faint)", fontSize: 13 }}>Загрузка…</div>;
+  }
+
+  const stage = clientStage(selected);
+  const spravkaBuildingNames = new Set(selected.spravka_requests.map((s) => s.units?.buildings?.name).filter(Boolean));
+  const softBuildings = Array.from(
+    new Set(selected.leads.map((l) => l.buildings?.name).filter((n): n is string => !!n && !spravkaBuildingNames.has(n)))
+  );
+
+  return (
+    <div className="section-enter" style={{ flex: 1, minHeight: 0, display: "flex", gap: 16 }}>
+      <div style={{ width: 260, flexShrink: 0, display: "flex", flexDirection: "column", gap: 14, overflowY: "auto" }}>
+        <div className="glass-panel" style={{ padding: "18px 20px", display: "flex", flexDirection: "column", gap: 14 }}>
+          <div>
+            <div style={{ fontFamily: "var(--font-heading)", fontSize: 17, fontWeight: 700, color: "var(--color-text)" }}>
+              {selected.name || selected.phone}
+            </div>
+            <div style={{ fontSize: 12.5, color: "var(--color-text-faint)", marginTop: 3 }}>{selected.phone}</div>
+          </div>
+
+          <span style={{
+            display: "inline-flex", alignSelf: "flex-start", fontSize: 11, fontWeight: 700, padding: "4px 11px", borderRadius: 99,
+            color: stage.color, background: `color-mix(in srgb, ${stage.color} 16%, transparent)`,
+          }}>
+            {stage.label}
+          </span>
+
+          {selected.leads.length > 0 && (
+            <div style={{ fontSize: 11.5, color: "var(--color-text-faint)", paddingTop: 2, borderTop: "1px solid var(--color-hairline-soft)" }}>
+              {selected.leads.length} {selected.leads.length === 1 ? "лид" : "лида(ов)"} · {Array.from(new Set(selected.leads.map((l) => l.source).filter(Boolean))).join(", ") || "источник неизвестен"}
+            </div>
+          )}
+
+          <div style={{ paddingTop: 4, borderTop: "1px solid var(--color-hairline-soft)" }}>
+            <div style={{ fontSize: 10.5, textTransform: "uppercase", letterSpacing: ".05em", color: "var(--color-text-faint)", marginBottom: 8 }}>Приоритет</div>
+            <div style={{ display: "flex", gap: 6 }}>
+              {(["hot", "warm", "cold"] as Priority[]).map((p) => {
+                const active = selected.priority === p;
+                const c = PRIORITY_COLORS[p];
+                return (
+                  <div
+                    key={p}
+                    onClick={() => saveFollowup({ priority: active ? null : p })}
+                    className="press"
+                    style={{
+                      fontSize: 10.5, fontWeight: 700, padding: "4px 9px", borderRadius: 99, cursor: "pointer",
+                      color: active ? c.fg : "var(--color-text-faint)",
+                      background: active ? c.bg : "rgba(255,255,255,.04)",
+                      border: active ? `1px solid color-mix(in srgb, ${c.fg} 45%, transparent)` : "1px solid transparent",
+                      opacity: savingFollowup ? 0.6 : 1,
+                    }}
+                  >
+                    {PRIORITY_LABELS[p]}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          <div style={{ paddingTop: 4, borderTop: "1px solid var(--color-hairline-soft)" }}>
+            <div style={{ fontSize: 10.5, textTransform: "uppercase", letterSpacing: ".05em", color: "var(--color-text-faint)", marginBottom: 8 }}>Следующий контакт</div>
+            <input
+              type="date"
+              defaultValue={selected.next_followup_at || ""}
+              onBlur={(e) => saveFollowup({ next_followup_at: e.target.value || null })}
+              style={{ width: "100%", background: "rgba(255,255,255,.04)", border: "1px solid var(--color-hairline)", borderRadius: 8, color: "var(--color-text)", fontSize: 12, padding: "6px 8px", marginBottom: 6 }}
+            />
+            <textarea
+              placeholder="Заметка после звонка…"
+              defaultValue={selected.next_followup_note || ""}
+              onBlur={(e) => saveFollowup({ next_followup_note: e.target.value || null })}
+              rows={2}
+              style={{ width: "100%", resize: "vertical", background: "rgba(255,255,255,.04)", border: "1px solid var(--color-hairline)", borderRadius: 8, color: "var(--color-text)", fontSize: 12, padding: "6px 8px", fontFamily: "inherit" }}
+            />
+          </div>
+        </div>
+
+        <DealTimeline detail={selected} />
+      </div>
+
+      <div className="glass-panel" style={{ flex: 1, minWidth: 0, minHeight: 0, padding: "20px 22px", display: "flex", flexDirection: "column", gap: 16, overflowY: "auto" }}>
+        <div style={{ fontFamily: "var(--font-heading)", fontSize: 15, fontWeight: 700, color: "var(--color-text)" }}>
+          Работа с клиентом
+        </div>
+        {actionError && <div style={{ fontSize: 12, color: "var(--danger)" }}>{actionError}</div>}
+
+        <button
+          className="press"
+          onClick={() => setSpravkaMode((v) => !v)}
+          style={{
+            display: "flex", alignItems: "center", justifyContent: "center", gap: 8, alignSelf: "flex-start",
+            fontSize: 13, fontWeight: 700, cursor: "pointer", padding: "10px 18px", borderRadius: 12, border: "none",
+            color: spravkaMode ? "var(--v-text-on-accent)" : "var(--v-accent)",
+            background: spravkaMode ? "var(--v-accent)" : "var(--v-accent-tint)",
+          }}
+        >
+          <svg viewBox="0 0 24 24" width={14} height={14} fill="none" stroke="currentColor" strokeWidth={2.2}>
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><path d="M14 2v6h6" /><path d="M9 15h6M9 11h4" />
+          </svg>
+          {spravkaMode ? "Режим справки включён — говорите в чате" : "Сделать справку"}
+        </button>
+
+        <div>
+          <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: ".05em", color: "var(--color-text-faint)", marginBottom: 10 }}>Квартиры</div>
+          {selected.spravka_requests.length === 0 && softBuildings.length === 0 ? (
+            <div style={{ fontSize: 12.5, color: "var(--color-text-faint)" }}>Пока ничего конкретного не выбрано.</div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {selected.spravka_requests.map((s) => (
+                <div key={s.id} style={{ padding: "10px 12px", borderRadius: 10, background: "rgba(255,255,255,.03)", border: "1px solid var(--color-hairline-soft)" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
+                    <div>
+                      <div style={{ fontSize: 12.5, fontWeight: 600, color: "var(--color-text)" }}>
+                        {s.units ? <>№{s.units.unit_number} · {s.units.buildings?.name}</> : "—"}
+                      </div>
+                      <div style={{ fontSize: 11.5, color: "var(--color-text-faint)", marginTop: 2 }}>
+                        {PLAN_LABELS[s.plan_type] || s.plan_type} · {STATUS_LABELS[s.status] || s.status}
+                      </div>
+                    </div>
+                    {isBoss && s.status === "pending" && (
+                      <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                        <button onClick={() => decide(s.id, "approve")} className="press" style={{ fontSize: 10.5, fontWeight: 700, color: "var(--v-text-on-accent)", background: "var(--v-accent)", border: "none", borderRadius: 8, padding: "5px 10px", cursor: "pointer" }}>Одобрить</button>
+                        <button onClick={() => decide(s.id, "reject")} className="press" style={{ fontSize: 10.5, fontWeight: 700, color: "var(--color-text-soft)", background: "transparent", border: "1px solid var(--color-hairline)", borderRadius: 8, padding: "5px 10px", cursor: "pointer" }}>Отклонить</button>
+                      </div>
+                    )}
+                  </div>
+                  {s.generated_file_url && (
+                    <a href={api.spravkaDownloadUrl(s.id)} style={{ fontSize: 11.5, color: "var(--v-accent)", fontWeight: 700 }}>Скачать →</a>
+                  )}
+                </div>
+              ))}
+              {softBuildings.length > 0 && (
+                <div style={{ fontSize: 11.5, color: "var(--color-text-faint)" }}>
+                  Также интересовался: {softBuildings.join(", ")}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        <div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+            <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: ".05em", color: "var(--color-text-faint)" }}>Cortège+</div>
+            <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: ".04em", color: "#fff", background: "linear-gradient(150deg, #22d3ee, #6366f1)", borderRadius: 99, padding: "2px 7px" }}>СКОРО</span>
+          </div>
+          <div style={{ padding: "12px 14px", borderRadius: 10, background: "rgba(255,255,255,.03)", border: "1px dashed var(--color-hairline)" }}>
+            <div style={{ fontSize: 12, color: "var(--color-text-faint)", lineHeight: 1.5, marginBottom: 10 }}>
+              Платформа Cortège — бот сам отвечает клиенту в Telegram. Здесь, в Мастерской, вы сможете следить за перепиской в реальном времени, а AI-ассистент рядом читает её и продолжает советовать по этой сделке в чате. Пока интеграция не подключена — это превью того, как будет выглядеть.
+            </div>
+            <button
+              className="press"
+              onClick={() => setCortegePreviewOpen(true)}
+              style={{
+                display: "flex", alignItems: "center", gap: 7, fontSize: 11.5, fontWeight: 700, cursor: "pointer",
+                padding: "7px 12px", borderRadius: 9, border: "none", color: "#fff",
+                background: "linear-gradient(150deg, #2AABEE, #229ED9)",
+              }}
+            >
+              <svg viewBox="0 0 24 24" width={13} height={13} fill="#fff"><path d="M21.94 4.53 18.6 20.2c-.25 1.12-.9 1.4-1.83.87l-5.06-3.73-2.44 2.35c-.27.27-.5.5-1.02.5l.36-5.15L18.1 6.9c.4-.36-.09-.56-.63-.2L7.4 13.3l-5-1.57c-1.1-.34-1.12-1.1.23-1.63L20.6 3.5c.9-.34 1.7.2 1.34 1.03Z" /></svg>
+              Показать бета-превью
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div className="glass-panel" style={{ width: 340, flexShrink: 0, minHeight: 0, padding: "18px 20px", display: "flex", flexDirection: "column" }}>
+        <div style={{ fontFamily: "var(--font-heading)", fontSize: 13.5, fontWeight: 700, color: "var(--color-text)", marginBottom: 4 }}>
+          Чат · {selected.name || selected.phone}
+        </div>
+        <div style={{ flex: 1, minHeight: 0, paddingTop: 10 }}>
+          {conversationId ? (
+            <ChatThread
+              conversationId={conversationId} isBoss={isBoss} spravkaMode={spravkaMode}
+              onSpravkaCreated={() => setSpravkaMode(false)}
+              greeting={`Что нужно по клиенту ${selected.name || selected.phone}? Могу оформить справку, посоветовать план оплаты или подсказать следующий шаг по сделке.`}
+            />
+          ) : (
+            <div style={{ color: "var(--color-text-faint)", fontSize: 13 }}>Загрузка чата…</div>
+          )}
+        </div>
+      </div>
+      {cortegePreviewOpen && (
+        <TelegramPreviewModal clientName={selected.name || selected.phone} onClose={() => setCortegePreviewOpen(false)} />
+      )}
+    </div>
+  );
+}
