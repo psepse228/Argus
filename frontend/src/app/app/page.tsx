@@ -8,6 +8,7 @@ import { UnitsPanel } from "@/components/UnitsPanel";
 import { LeadsPanel } from "@/components/LeadsPanel";
 import { ClientsPanel } from "@/components/ClientsPanel";
 import { AnalyticsPanel } from "@/components/AnalyticsPanel";
+import { AssistantWidget } from "@/components/AssistantWidget";
 
 const TITLES: Record<Section, string> = {
   assistant: "Ассистент",
@@ -71,12 +72,15 @@ export default function AppPage() {
           </div>
         )}
 
-        {section === "assistant" && <AssistantPanel user={effectiveUser} />}
-        {section === "units" && <UnitsPanel />}
-        {section === "leads" && <LeadsPanel />}
-        {section === "clients" && <ClientsPanel user={effectiveUser} />}
-        {section === "analytics" && effectiveUser.role === "boss" && <AnalyticsPanel />}
+        <div key={section} className="section-enter" style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
+          {section === "assistant" && <AssistantPanel user={effectiveUser} />}
+          {section === "units" && <UnitsPanel />}
+          {section === "leads" && <LeadsPanel />}
+          {section === "clients" && <ClientsPanel user={effectiveUser} />}
+          {section === "analytics" && effectiveUser.role === "boss" && <AnalyticsPanel />}
+        </div>
       </div>
+      {!isAssistant && <AssistantWidget user={effectiveUser} />}
     </div>
   );
 }

@@ -51,13 +51,13 @@ function RailButton({
       <button
         onClick={onClick}
         title={label}
+        className={`rail-btn${active ? " is-active" : ""}`}
         style={{
           width: 46, height: 46, borderRadius: 14, border: "none", cursor: "pointer",
           display: "flex", alignItems: "center", justifyContent: "center",
           background: active ? "var(--v-accent)" : "rgba(255,255,255,.04)",
           color: active ? "var(--v-text-on-accent)" : "var(--color-text-soft)",
           boxShadow: active ? "0 12px 26px -9px color-mix(in srgb, var(--v-accent) 60%, transparent)" : "none",
-          transition: "background .15s ease, color .15s ease, box-shadow .15s ease",
         }}
       >
         {children}
@@ -192,6 +192,7 @@ export function Sidebar({
               ref={roleBtnRef}
               onClick={() => setRoleOpen((v) => !v)}
               title="Показать как…"
+              className="press"
               style={{
                 width: 32, height: 32, borderRadius: 10, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
                 border: previewRole === "sales_agent" ? "1px solid var(--v-accent)" : "1px solid var(--color-hairline-soft)",
@@ -236,6 +237,7 @@ export function Sidebar({
             ref={themeBtnRef}
             onClick={() => setThemeOpen((v) => !v)}
             title="Тема"
+            className="press"
             style={{ width: 32, height: 32, borderRadius: 10, border: "1px solid var(--color-hairline-soft)", background: "rgba(255,255,255,.03)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
           >
             <svg viewBox="0 0 24 24" width={15} height={15} fill="none" stroke="var(--color-text-soft)" strokeWidth={2}>

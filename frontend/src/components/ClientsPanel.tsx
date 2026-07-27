@@ -118,24 +118,77 @@ export function ClientsPanel({ user }: { user: CurrentUser }) {
       {clients.length === 0 && (
         <div style={{ color: "var(--color-text-faint)", fontSize: 13 }}>Пока нет клиентов — появятся из лидов и справок.</div>
       )}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(240px,1fr))", gap: 14 }}>
-        {clients.map((c) => (
-          <div
-            key={c.id}
-            onClick={() => openClient(c.id)}
-            className="glass-panel"
-            style={{ padding: "16px 17px", cursor: "pointer", display: "flex", flexDirection: "column", gap: 10 }}
-          >
-            <div style={{ fontFamily: "var(--font-heading)", fontSize: 15, fontWeight: 600, color: "var(--color-text)" }}>
-              {c.name || c.phone}
-            </div>
-            <div style={{ fontSize: 11.5, color: "var(--color-text-faint)" }}>{c.phone}</div>
-            <div style={{ display: "flex", gap: 8, paddingTop: 6, borderTop: "1px solid var(--color-hairline-soft)" }}>
-              <span style={{ fontSize: 11, fontWeight: 700, color: "var(--color-text-soft)" }}>{c.leads_count} лидов</span>
-              <span style={{ fontSize: 11, fontWeight: 700, color: "var(--v-accent)" }}>{c.spravka_count} справок</span>
-            </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(260px,1fr))", gap: 16 }}>
+        {clients.map((c) => <ClientCard key={c.id} client={c} onOpen={() => openClient(c.id)} />)}
+      </div>
+    </div>
+  );
+}
+
+function ClientCard({ client: c, onOpen }: { client: Client; onOpen: () => void }) {
+  const active = c.leads_count > 0 || c.spravka_count > 0;
+  const initial = (c.name || c.phone).trim()[0]?.toUpperCase() || "?";
+
+  function onMouseMove(e: React.MouseEvent<HTMLDivElement>) {
+    const r = e.currentTarget.getBoundingClientRect();
+    const rx = ((e.clientY - r.top) / r.height - 0.5) * -6;
+    const ry = ((e.clientX - r.left) / r.width - 0.5) * 6;
+    e.currentTarget.style.transform = `perspective(700px) rotateX(${rx}deg) rotateY(${ry}deg) translateY(-2px)`;
+  }
+  function onMouseLeave(e: React.MouseEvent<HTMLDivElement>) {
+    e.currentTarget.style.transform = "";
+  }
+
+  return (
+    <div
+      onClick={onOpen}
+      onMouseMove={onMouseMove}
+      onMouseLeave={onMouseLeave}
+      className="glass-panel"
+      style={{
+        padding: "18px 19px", cursor: "pointer", display: "flex", flexDirection: "column", gap: 12,
+        opacity: active ? 1 : 0.6, transition: "transform .12s ease, box-shadow .2s ease, opacity .2s ease",
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: 11 }}>
+        <div style={{
+          width: 38, height: 38, borderRadius: "50%", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center",
+          fontWeight: 800, fontSize: 14, color: "#fff",
+          background: active
+            ? "linear-gradient(150deg, var(--v-violet-strong, #7a5cff), var(--v-violet, #5b3fc4))"
+            : "rgba(255,255,255,.08)",
+        }}>
+          {initial}
+        </div>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontFamily: "var(--font-heading)", fontSize: 14.5, fontWeight: 700, color: "var(--color-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            {c.name || c.phone}
           </div>
-        ))}
+          <div style={{ fontSize: 11, color: "var(--color-text-faint)" }}>{c.phone}</div>
+        </div>
+      </div>
+
+      <div style={{ display: "flex", gap: 8 }}>
+        <span style={{ fontSize: 10.5, fontWeight: 700, color: "var(--color-text-soft)", background: "rgba(255,255,255,.05)", padding: "3px 9px", borderRadius: 99 }}>{c.leads_count} лидов</span>
+        {c.spravka_count > 0 && (
+          <span style={{ fontSize: 10.5, fontWeight: 700, color: "var(--v-accent)", background: "var(--v-accent-tint)", padding: "3px 9px", borderRadius: 99 }}>{c.spravka_count} справок</span>
+        )}
+      </div>
+
+      <div
+        data-quick-trigger
+        onClick={(e) => { e.stopPropagation(); onOpen(); }}
+        className="press"
+        style={{
+          display: "flex", alignItems: "center", justifyContent: "center", gap: 6, marginTop: 2,
+          fontSize: 11.5, fontWeight: 700, color: "var(--v-accent)", background: "var(--v-accent-tint)",
+          padding: "8px 0", borderRadius: 10,
+        }}
+      >
+        <svg viewBox="0 0 24 24" width={13} height={13} fill="none" stroke="currentColor" strokeWidth={2.2}>
+          <path d="M12 3l1.8 4.3L18 9l-4.2 1.7L12 15l-1.8-4.3L6 9l4.2-1.7L12 3Z" />
+        </svg>
+        Работать с AI
       </div>
     </div>
   );

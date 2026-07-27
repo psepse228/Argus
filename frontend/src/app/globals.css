@@ -101,3 +101,23 @@ input::placeholder, textarea::placeholder { color: var(--color-text-faint); }
 
 @keyframes argIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 @keyframes argDot { 0%, 60%, 100% { opacity: .25; } 30% { opacity: 1; } }
+
+/* First real motion pass -- every section switch, button press, and rail
+   selection now actually animates instead of snapping. Kept as small,
+   reusable primitives (not one-off inline transitions per component) so the
+   next screen that needs "feels alive" reaches for these instead of
+   reinventing timing/easing. */
+.section-enter { animation: argIn .28s cubic-bezier(.2,.7,.3,1) both; }
+
+.press { transition: transform .12s cubic-bezier(.2,.7,.3,1), box-shadow .15s ease, background .15s ease, color .15s ease, opacity .15s ease; }
+.press:active { transform: scale(.94); }
+
+.rail-btn { transition: transform .18s cubic-bezier(.34,1.56,.64,1), background .15s ease, color .15s ease, box-shadow .2s ease; }
+.rail-btn:hover { transform: translateY(-1px); }
+.rail-btn:active { transform: scale(.92); }
+.rail-btn.is-active { transform: scale(1.04); }
+
+@media (prefers-reduced-motion: reduce) {
+  .section-enter { animation: none; }
+  .press, .press:active, .rail-btn, .rail-btn:hover, .rail-btn:active, .rail-btn.is-active { transition: none; transform: none; }
+}

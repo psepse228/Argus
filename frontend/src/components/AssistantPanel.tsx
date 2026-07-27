@@ -33,7 +33,6 @@ function conversationLabel(c: Conversation): string {
 export function AssistantPanel({ user }: { user: CurrentUser }) {
   const isBoss = user.role === "boss";
   const [digest, setDigest] = useState<Digest | null>(null);
-  const [spravkaMode, setSpravkaMode] = useState(false);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [view, setView] = useState<View>("overview");
   const [pendingPrompt, setPendingPrompt] = useState<{ id: string; text: string } | null>(null);
@@ -42,8 +41,6 @@ export function AssistantPanel({ user }: { user: CurrentUser }) {
   const [bellPos, setBellPos] = useState<{ top: number; right: number } | null>(null);
   const bellBtnRef = useRef<HTMLDivElement>(null);
   const bellPopoverRef = useRef<HTMLDivElement>(null);
-  const [quickPanel, setQuickPanel] = useState<{ key: string; top: number; left: number } | null>(null);
-  const quickPanelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     api.conversations().then(setConversations).catch(() => {});
@@ -55,36 +52,12 @@ export function AssistantPanel({ user }: { user: CurrentUser }) {
     setView(created.id);
   }
 
-  async function startSpravkaChat() {
-    const created = await api.createConversation();
-    setConversations((cur) => [created, ...cur]);
-    setSpravkaMode(true);
-    setView(created.id);
-  }
-
   async function startPromptChat(prompt: string) {
     const created = await api.createConversation();
     setConversations((cur) => [created, ...cur]);
     setPendingPrompt({ id: created.id, text: prompt });
     setView(created.id);
   }
-
-  useEffect(() => {
-    if (!quickPanel) return;
-    function onDocClick(e: MouseEvent) {
-      const t = e.target as HTMLElement;
-      if (quickPanelRef.current?.contains(t)) return;
-      if (t.closest?.("[data-quick-trigger]")) return;
-      setQuickPanel(null);
-    }
-    function onEsc(e: KeyboardEvent) { if (e.key === "Escape") setQuickPanel(null); }
-    document.addEventListener("mousedown", onDocClick);
-    document.addEventListener("keydown", onEsc);
-    return () => {
-      document.removeEventListener("mousedown", onDocClick);
-      document.removeEventListener("keydown", onEsc);
-    };
-  }, [quickPanel]);
 
   function repositionBell() {
     const r = bellBtnRef.current?.getBoundingClientRect();
@@ -150,12 +123,6 @@ export function AssistantPanel({ user }: { user: CurrentUser }) {
         { label: "Юниты в Milano", prompt: "Подбери юниты в Milano", icon: <><path d="M3 21V9l9-5 9 5v12" /><path d="M9 21v-7h6v7" /></> },
         { label: "Письмо клиенту", prompt: "Составь письмо клиенту", icon: <><path d="M4 4h16v16H4z" /><path d="M4 4l8 8 8-8" /></> },
       ];
-
-  function openQuickPanel(key: string, e: React.MouseEvent<HTMLDivElement>) {
-    if (quickPanel?.key === key) { setQuickPanel(null); return; }
-    const r = e.currentTarget.getBoundingClientRect();
-    setQuickPanel({ key, top: r.bottom + 8, left: r.left + r.width / 2 });
-  }
 
   const greeting = isBoss
     ? "Доброе утро. Я слежу за юнитами, лидами и справками Italiano Vero. Спросите что угодно."
@@ -225,6 +192,7 @@ export function AssistantPanel({ user }: { user: CurrentUser }) {
 
         <div
           onClick={startNewChat}
+          className="press"
           style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12.5, fontWeight: 700, color: "var(--v-accent)", padding: "9px 10px", borderRadius: 9, cursor: "pointer" }}
         >
           <svg viewBox="0 0 24 24" width={14} height={14} fill="none" stroke="currentColor" strokeWidth={2.2}><path d="M12 5v14M5 12h14" /></svg>
@@ -238,6 +206,7 @@ export function AssistantPanel({ user }: { user: CurrentUser }) {
             <div
               key={c.id}
               onClick={() => setView(c.id)}
+              className="press"
               style={{
                 fontSize: 12.5, padding: "9px 10px", borderRadius: 9, cursor: "pointer",
                 background: view === c.id ? "var(--v-accent-tint)" : "transparent",
@@ -255,17 +224,16 @@ export function AssistantPanel({ user }: { user: CurrentUser }) {
       <div style={{ flex: 1, minWidth: 0, minHeight: 0, display: "flex", flexDirection: "column", padding: view === "docs" ? "26px 24px" : "26px 24px", overflowY: view === "docs" ? "auto" : "visible" }}>
         {view === "overview" && (
           <OverviewContent
-            digest={digest} isBoss={isBoss} quickActions={quickActions} quickPanel={quickPanel}
-            quickPanelRef={quickPanelRef} openQuickPanel={openQuickPanel} setQuickPanel={setQuickPanel}
-            onSpravka={startSpravkaChat} spravkaActive={spravkaMode}
+            digest={digest} isBoss={isBoss} quickActions={quickActions}
+            onOpenDocs={() => setView("docs")}
             onQuickPrompt={startPromptChat}
           />
         )}
         {view === "docs" && <DocsPanel user={user} />}
         {view !== "overview" && view !== "docs" && (
           <ChatThread
-            conversationId={view} isBoss={isBoss} spravkaMode={spravkaMode}
-            onSpravkaCreated={() => setSpravkaMode(false)} greeting={greeting}
+            conversationId={view} isBoss={isBoss} spravkaMode={false}
+            greeting={greeting}
             initialPrompt={pendingPrompt?.id === view ? pendingPrompt.text : undefined}
             onInitialPromptSent={() => setPendingPrompt(null)}
           />
@@ -276,80 +244,79 @@ export function AssistantPanel({ user }: { user: CurrentUser }) {
 }
 
 function OverviewContent({
-  digest, isBoss, quickActions, quickPanel, quickPanelRef, openQuickPanel, setQuickPanel,
-  onSpravka, spravkaActive, onQuickPrompt,
+  digest, isBoss, quickActions, onOpenDocs, onQuickPrompt,
 }: {
   digest: Digest | null;
   isBoss: boolean;
   quickActions: { label: string; icon: React.ReactNode; panel?: "approvals" | "summary" | "discount"; prompt?: string }[];
-  quickPanel: { key: string; top: number; left: number } | null;
-  quickPanelRef: React.RefObject<HTMLDivElement>;
-  openQuickPanel: (key: string, e: React.MouseEvent<HTMLDivElement>) => void;
-  setQuickPanel: (v: null) => void;
-  onSpravka: () => void;
-  spravkaActive: boolean;
+  onOpenDocs: () => void;
   onQuickPrompt: (prompt: string) => void;
 }) {
+  // Quick actions switch what's shown right here in Обзор -- they used to
+  // open a small floating popover (felt like an afterthought) or, worse,
+  // read as "redirects to chat" once Справка started spawning a thread.
+  // Now every one of them is a plain in-place view swap, никакого чата.
+  const [tab, setTab] = useState<"home" | "approvals" | "summary" | "discount">("home");
+
   return (
     <div style={{ overflowY: "auto", display: "flex", flexDirection: "column", gap: 18 }}>
       <div style={{ display: "flex", gap: 22 }}>
         <QuickAction
-          primary label={spravkaActive ? "Режим включён" : "Справка"} onClick={onSpravka}
+          primary label="Справка" onClick={onOpenDocs}
           icon={<><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><path d="M14 2v6h6" /><path d="M9 15h6M9 11h4" /></>}
         />
         {quickActions.map((q) => (
           <QuickAction
-            key={q.label} label={q.label} icon={q.icon}
-            onClick={(e) => (q.panel ? openQuickPanel(q.panel, e) : onQuickPrompt(q.prompt!))}
+            key={q.label} label={q.label} icon={q.icon} active={tab === q.panel}
+            onClick={() => (q.panel ? setTab((t) => (t === q.panel ? "home" : q.panel!)) : onQuickPrompt(q.prompt!))}
           />
         ))}
       </div>
 
-      {quickPanel && createPortal(
-        <div ref={quickPanelRef} className="glass-panel" style={{ position: "fixed", top: quickPanel.top, left: quickPanel.left, transform: "translateX(-50%)", width: 300, padding: "16px 18px", zIndex: 1000 }}>
-          {quickPanel.key === "approvals" && (
-            <>
-              <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: ".05em", color: "var(--color-text-faint)", marginBottom: 10 }}>Ждут одобрения</div>
-              {!digest || digest.pendingItems.length === 0 ? (
-                <div style={{ fontSize: 12.5, color: "var(--color-text-faint)" }}>Пусто — всё разобрано.</div>
-              ) : (
-                <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
-                  {digest.pendingItems.map((r) => (
-                    <div key={r.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 12.5, color: "var(--color-text-soft)" }}>
-                      <span>{r.units ? <>№{r.units.unit_number} · {r.units.buildings?.name}</> : "—"} — {r.client_name}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </>
-          )}
-          {quickPanel.key === "summary" && digest && (
-            <>
-              <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: ".05em", color: "var(--color-text-faint)", marginBottom: 10 }}>Сводка</div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 8, fontSize: 12.5, color: "var(--color-text-soft)" }}>
-                <div style={{ display: "flex", justifyContent: "space-between" }}><span>Лидов в работе</span><b style={{ color: "var(--color-text)" }}>{digest.leadsCount}</b></div>
-                <div style={{ display: "flex", justifyContent: "space-between" }}><span>Справок ждёт</span><b style={{ color: "var(--color-text)" }}>{digest.pending}</b></div>
-                <div style={{ display: "flex", justifyContent: "space-between" }}><span>Одобрено всего</span><b style={{ color: "var(--color-text)" }}>{digest.approvedTotal ?? "—"}</b></div>
-                {digest.buildingStats.map((b) => (
-                  <div key={b.name} style={{ display: "flex", justifyContent: "space-between", paddingTop: 6, borderTop: "1px solid var(--color-hairline-soft)" }}>
-                    <span>{b.name}</span><b style={{ color: "var(--color-text)" }}>{b.forSale > 0 ? `${b.forSale} · от $${b.price.toLocaleString()}/м²` : "нет в продаже"}</b>
+      {tab !== "home" && (
+        <div className="glass-panel" style={{ padding: "20px 22px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+            <div style={{ fontSize: 15, fontWeight: 800 }}>
+              {tab === "approvals" ? "Ждут одобрения" : tab === "summary" ? "Сводка" : "Средний одобренный дисконт"}
+            </div>
+            <div onClick={() => setTab("home")} style={{ fontSize: 12, fontWeight: 700, color: "var(--color-text-faint)", cursor: "pointer" }}>Закрыть ✕</div>
+          </div>
+          {tab === "approvals" && (
+            !digest || digest.pendingItems.length === 0 ? (
+              <div style={{ fontSize: 12.5, color: "var(--color-text-faint)" }}>Пусто — всё разобрано.</div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                {digest.pendingItems.map((r) => (
+                  <div key={r.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 13, color: "var(--color-text-soft)", paddingBottom: 10, borderBottom: "1px solid var(--color-hairline-soft)" }}>
+                    <span>{r.units ? <>№{r.units.unit_number} · {r.units.buildings?.name}</> : "—"} — {r.client_name}</span>
                   </div>
                 ))}
+                <div onClick={onOpenDocs} style={{ fontSize: 12.5, fontWeight: 700, color: "var(--v-accent)", cursor: "pointer", marginTop: 4 }}>Открыть в Справки →</div>
               </div>
-            </>
+            )
           )}
-          {quickPanel.key === "discount" && digest && (
+          {tab === "summary" && digest && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 10, fontSize: 13, color: "var(--color-text-soft)" }}>
+              <div style={{ display: "flex", justifyContent: "space-between" }}><span>Лидов в работе</span><b style={{ color: "var(--color-text)" }}>{digest.leadsCount}</b></div>
+              <div style={{ display: "flex", justifyContent: "space-between" }}><span>Справок ждёт</span><b style={{ color: "var(--color-text)" }}>{digest.pending}</b></div>
+              <div style={{ display: "flex", justifyContent: "space-between" }}><span>Одобрено всего</span><b style={{ color: "var(--color-text)" }}>{digest.approvedTotal ?? "—"}</b></div>
+              {digest.buildingStats.map((b) => (
+                <div key={b.name} style={{ display: "flex", justifyContent: "space-between", paddingTop: 8, borderTop: "1px solid var(--color-hairline-soft)" }}>
+                  <span>{b.name}</span><b style={{ color: "var(--color-text)" }}>{b.forSale > 0 ? `${b.forSale} · от $${b.price.toLocaleString()}/м²` : "нет в продаже"}</b>
+                </div>
+              ))}
+            </div>
+          )}
+          {tab === "discount" && digest && (
             <>
-              <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: ".05em", color: "var(--color-text-faint)", marginBottom: 12 }}>Средний одобренный дисконт</div>
-              <div style={{ fontSize: 34, fontWeight: 800, color: "var(--v-accent)", lineHeight: 1 }}>{digest.avgDiscount ?? 0}%</div>
-              <div style={{ fontSize: 12, color: "var(--color-text-faint)", marginTop: 10 }}>{digest.approvedTotal ?? 0} одобренных справок всего</div>
+              <div style={{ fontSize: 40, fontWeight: 800, color: "var(--v-accent)", lineHeight: 1 }}>{digest.avgDiscount ?? 0}%</div>
+              <div style={{ fontSize: 12.5, color: "var(--color-text-faint)", marginTop: 10 }}>{digest.approvedTotal ?? 0} одобренных справок всего</div>
             </>
           )}
-        </div>,
-        document.body
+        </div>
       )}
 
-      {digest && (
+      {tab === "home" && digest && (
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
           <div className="glass-panel" style={{ padding: "20px 22px" }}>
             <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 5 }}>Лиды</div>
@@ -401,6 +368,7 @@ function InboxRow({
   return (
     <div
       onClick={onClick}
+      className="press"
       style={{
         display: "flex", alignItems: "center", gap: 10, padding: "10px 10px", borderRadius: 10, cursor: "pointer", marginBottom: 3,
         background: active ? "var(--v-accent)" : "transparent",
@@ -422,23 +390,24 @@ function InboxRow({
 }
 
 function QuickAction({
-  label, onClick, icon, primary,
-}: { label: string; onClick: (e: React.MouseEvent<HTMLDivElement>) => void; icon: React.ReactNode; primary?: boolean }) {
+  label, onClick, icon, primary, active,
+}: { label: string; onClick: (e: React.MouseEvent<HTMLDivElement>) => void; icon: React.ReactNode; primary?: boolean; active?: boolean }) {
   const isFilled = Boolean(primary);
   return (
     <div data-quick-trigger style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 9, cursor: "pointer" }} onClick={onClick}>
       <div
+        className="press"
         style={{
           width: 52, height: 52, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center",
-          background: isFilled ? "var(--v-accent)" : "rgba(255,255,255,.05)",
-          border: isFilled ? "none" : "1px solid var(--color-hairline)",
-          color: isFilled ? "var(--v-text-on-accent)" : "var(--color-text-soft)",
+          background: isFilled ? "var(--v-accent)" : active ? "var(--v-accent-tint)" : "rgba(255,255,255,.05)",
+          border: isFilled ? "none" : `1px solid ${active ? "var(--v-accent)" : "var(--color-hairline)"}`,
+          color: isFilled ? "var(--v-text-on-accent)" : active ? "var(--v-accent)" : "var(--color-text-soft)",
           boxShadow: isFilled ? "0 14px 26px -10px color-mix(in srgb, var(--v-accent) 55%, transparent)" : "none",
         }}
       >
         <svg viewBox="0 0 24 24" width={20} height={20} fill="none" stroke="currentColor" strokeWidth={1.9}>{icon}</svg>
       </div>
-      <span style={{ fontSize: 11.5, fontWeight: 650, color: "var(--color-text-soft)", whiteSpace: "nowrap" }}>{label}</span>
+      <span style={{ fontSize: 11.5, fontWeight: 650, color: active ? "var(--v-accent)" : "var(--color-text-soft)", whiteSpace: "nowrap" }}>{label}</span>
     </div>
   );
 }
