@@ -23,10 +23,11 @@ type View = "overview" | "workshop";
 
 /** Ассистент's Обзор (digest) and Мастерская (the client-workspace tab that
  * replaced the old standalone Справки form/list) live in one inbox-style
- * shell: a left nav to pick which, and a right pane that fills with
- * whichever is selected. General freeform chat no longer lives here at all
- * -- that's the floating AssistantWidget now; anything client-specific
- * happens inside a client's own workspace in Мастерская. */
+ * shell -- switched between via a horizontal pill row up top (no docked
+ * left rail here either, to match the rest of the app since the HUD-spaces
+ * rework). General freeform chat no longer lives here at all -- that's the
+ * floating AssistantWidget now; anything client-specific happens inside a
+ * client's own workspace in Мастерская. */
 export function AssistantPanel({
   user, openWorkspaceClientId, onWorkspaceClientHandled, onPendingChange,
 }: {
@@ -42,6 +43,10 @@ export function AssistantPanel({
   const isBoss = user.role === "boss";
   const [digest, setDigest] = useState<Digest | null>(null);
   const [view, setView] = useState<View>("overview");
+  // Which inline panel is open within Обзор (approvals/summary/discount) --
+  // lifted up here (used to live inside OverviewContent) because the pills
+  // that drive it now live in the shared top row, not a child component.
+  const [tab, setTab] = useState<"home" | "approvals" | "summary" | "discount">("home");
 
   useEffect(() => {
     if (openWorkspaceClientId) setView("workshop");
@@ -124,91 +129,82 @@ export function AssistantPanel({
     .map((r) => ({ client_id: r.client_id!, client_name: r.client_name }));
 
   return (
-    <div className="glass-panel" style={{ flex: 1, minHeight: 0, display: "flex", padding: 0, overflow: "hidden" }}>
-      <div style={{ width: 272, flexShrink: 0, borderRight: "1px solid var(--color-hairline-soft)", display: "flex", flexDirection: "column", padding: "18px 12px" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "0 6px", marginBottom: 16 }}>
-          <div
-            title={`${user.email} · ${isBoss ? "Босс" : "Агент"}`}
-            style={{
-              width: 34, height: 34, borderRadius: "50%", flexShrink: 0,
-              background: "linear-gradient(150deg, var(--v-violet-strong, #7a5cff), var(--v-violet, #5b3fc4))",
-              display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 13, color: "#fff",
-            }}
-          >
-            {isBoss ? "Б" : "А"}
-          </div>
-          <div style={{ fontFamily: "var(--font-heading)", fontSize: 14.5, fontWeight: 800, color: "var(--color-text)", flex: 1 }}>
-            Ассистент
-          </div>
-          <div
-            ref={bellBtnRef}
-            role="button" tabIndex={0} aria-label="Уведомления"
-            onClick={() => setBellOpen((v) => !v)}
-            style={{
-              width: 32, height: 32, borderRadius: "50%", flexShrink: 0, position: "relative", cursor: "pointer",
-              background: "rgba(255,255,255,.05)", border: "1px solid var(--color-hairline)",
-              display: "flex", alignItems: "center", justifyContent: "center", color: "var(--color-text-soft)",
-            }}
-          >
-            <svg viewBox="0 0 24 24" width={15} height={15} fill="none" stroke="currentColor" strokeWidth={1.9}>
-              <path d="M6 8a6 6 0 0 1 12 0c0 5 2 6 2 6H4s2-1 2-6Z" /><path d="M10 21a2 2 0 0 0 4 0" />
-            </svg>
-            {digest && (digest.pending > 0 || digest.duePaymentsCount > 0) && (
-              <span style={{ position: "absolute", top: 5, right: 6, width: 6, height: 6, borderRadius: "50%", background: "var(--v-accent)", boxShadow: "0 0 0 2px var(--v-bg, #140a2c)" }} />
-            )}
-          </div>
-          {bellOpen && bellPos && createPortal(
-            <div ref={bellPopoverRef} className="glass-panel" style={{ position: "fixed", top: bellPos.top, right: bellPos.right, width: 280, padding: "14px 16px", zIndex: 1000 }}>
-              <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: ".05em", color: "var(--color-text-faint)", marginBottom: 10 }}>Ждут одобрения</div>
-              {!digest || digest.pendingItems.length === 0 ? (
-                <div style={{ fontSize: 12.5, color: "var(--color-text-faint)" }}>Пусто — всё разобрано.</div>
-              ) : (
-                <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
-                  {digest.pendingItems.slice(0, 6).map((r) => (
-                    <div
-                      key={r.id}
-                      onClick={() => {
-                        if (!r.client_id) return;
-                        setBellJumpClientId(r.client_id);
-                        setView("workshop");
-                        setBellOpen(false);
-                      }}
-                      className={r.client_id ? "press" : undefined}
-                      style={{ fontSize: 12.5, color: "var(--color-text-soft)", cursor: r.client_id ? "pointer" : "default" }}
-                    >
-                      {r.units ? <>№{r.units.unit_number} · {r.units.buildings?.name}</> : "—"} — {r.client_name}
-                    </div>
-                  ))}
-                </div>
-              )}
-              {digest && digest.duePaymentsCount > 0 && (
-                <>
-                  <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: ".05em", color: "var(--warning)", margin: "14px 0 8px" }}>
-                    Платежи скоро/просрочены
-                  </div>
-                  <div style={{ fontSize: 12.5, color: "var(--color-text-soft)" }}>{digest.duePaymentsCount} — см. Платежи</div>
-                </>
-              )}
-            </div>,
-            document.body
+    <div className="glass-panel" style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", padding: 0, overflow: "hidden" }}>
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, padding: "20px 24px 0", flexShrink: 0 }}>
+        <div style={{ display: "flex", gap: 20 }}>
+          <QuickAction
+            primary label="Обзор" active={view === "overview"} onClick={() => setView("overview")}
+            icon={<><path d="M3 3v18h18" /><path d="M7 15l4-5 3 3 5-7" /></>}
+          />
+          <QuickAction
+            primary label="Мастерская" active={view === "workshop"} badge={digest?.pending} onClick={() => setView("workshop")}
+            icon={<><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.1-3.1a4 4 0 0 1-5.3 5.3L6.4 20.6a2 2 0 0 1-2.8-2.8L12.7 8.7a4 4 0 0 1 5.3-5.3z" /></>}
+          />
+          {view === "overview" && quickActions.map((q) => (
+            <QuickAction
+              key={q.label} label={q.label} icon={q.icon} active={tab === q.panel}
+              onClick={() => setTab((t) => (t === q.panel ? "home" : q.panel!))}
+            />
+          ))}
+        </div>
+        <div
+          ref={bellBtnRef}
+          role="button" tabIndex={0} aria-label="Уведомления"
+          onClick={() => setBellOpen((v) => !v)}
+          style={{
+            width: 32, height: 32, borderRadius: "50%", flexShrink: 0, position: "relative", cursor: "pointer",
+            background: "rgba(255,255,255,.05)", border: "1px solid var(--color-hairline)",
+            display: "flex", alignItems: "center", justifyContent: "center", color: "var(--color-text-soft)",
+          }}
+        >
+          <svg viewBox="0 0 24 24" width={15} height={15} fill="none" stroke="currentColor" strokeWidth={1.9}>
+            <path d="M6 8a6 6 0 0 1 12 0c0 5 2 6 2 6H4s2-1 2-6Z" /><path d="M10 21a2 2 0 0 0 4 0" />
+          </svg>
+          {digest && (digest.pending > 0 || digest.duePaymentsCount > 0) && (
+            <span style={{ position: "absolute", top: 5, right: 6, width: 6, height: 6, borderRadius: "50%", background: "var(--v-accent)", boxShadow: "0 0 0 2px var(--v-bg, #140a2c)" }} />
           )}
         </div>
-
-        <InboxRow active={view === "overview"} onClick={() => setView("overview")} label="Обзор" icon={<><path d="M3 3v18h18" /><path d="M7 15l4-5 3 3 5-7" /></>} />
-        <InboxRow
-          active={view === "workshop"} onClick={() => setView("workshop")} label="Мастерская"
-          icon={<><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.1-3.1a4 4 0 0 1-5.3 5.3L6.4 20.6a2 2 0 0 1-2.8-2.8L12.7 8.7a4 4 0 0 1 5.3-5.3z" /></>}
-          badge={digest?.pending}
-        />
-
-        <div style={{ flex: 1 }} />
+        {bellOpen && bellPos && createPortal(
+          <div ref={bellPopoverRef} className="glass-panel" style={{ position: "fixed", top: bellPos.top, right: bellPos.right, width: 280, padding: "14px 16px", zIndex: 1000 }}>
+            <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: ".05em", color: "var(--color-text-faint)", marginBottom: 10 }}>Ждут одобрения</div>
+            {!digest || digest.pendingItems.length === 0 ? (
+              <div style={{ fontSize: 12.5, color: "var(--color-text-faint)" }}>Пусто — всё разобрано.</div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
+                {digest.pendingItems.slice(0, 6).map((r) => (
+                  <div
+                    key={r.id}
+                    onClick={() => {
+                      if (!r.client_id) return;
+                      setBellJumpClientId(r.client_id);
+                      setView("workshop");
+                      setBellOpen(false);
+                    }}
+                    className={r.client_id ? "press" : undefined}
+                    style={{ fontSize: 12.5, color: "var(--color-text-soft)", cursor: r.client_id ? "pointer" : "default" }}
+                  >
+                    {r.units ? <>№{r.units.unit_number} · {r.units.buildings?.name}</> : "—"} — {r.client_name}
+                  </div>
+                ))}
+              </div>
+            )}
+            {digest && digest.duePaymentsCount > 0 && (
+              <>
+                <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: ".05em", color: "var(--warning)", margin: "14px 0 8px" }}>
+                  Платежи скоро/просрочены
+                </div>
+                <div style={{ fontSize: 12.5, color: "var(--color-text-soft)" }}>{digest.duePaymentsCount} — см. Платежи</div>
+              </>
+            )}
+          </div>,
+          document.body
+        )}
       </div>
 
-      <div style={{ flex: 1, minWidth: 0, minHeight: 0, display: "flex", flexDirection: "column", padding: "26px 24px", overflowY: view === "overview" ? "visible" : "hidden" }}>
+      <div style={{ flex: 1, minWidth: 0, minHeight: 0, display: "flex", flexDirection: "column", padding: "20px 24px 26px", overflowY: view === "overview" ? "visible" : "hidden" }}>
         {view === "overview" && (
           <OverviewContent
-            digest={digest} isBoss={isBoss} quickActions={quickActions}
-            onOpenWorkshop={() => setView("workshop")}
+            digest={digest} isBoss={isBoss} tab={tab} onCloseTab={() => setTab("home")}
             onOpenClient={(id) => { setBellJumpClientId(id); setView("workshop"); }}
           />
         )}
@@ -226,42 +222,23 @@ export function AssistantPanel({
 }
 
 function OverviewContent({
-  digest, isBoss, quickActions, onOpenWorkshop, onOpenClient,
+  digest, isBoss, tab, onCloseTab, onOpenClient,
 }: {
   digest: Digest | null;
   isBoss: boolean;
-  quickActions: { label: string; icon: React.ReactNode; panel?: "approvals" | "summary" | "discount" }[];
-  onOpenWorkshop: () => void;
+  tab: "home" | "approvals" | "summary" | "discount";
+  onCloseTab: () => void;
   onOpenClient: (clientId: string) => void;
 }) {
-  // Quick actions switch what's shown right here in Обзор -- they used to
-  // open a small floating popover (felt like an afterthought) or, worse,
-  // read as "redirects to chat" once Справка started spawning a thread.
-  // Now every one of them is a plain in-place view swap, никакого чата.
-  const [tab, setTab] = useState<"home" | "approvals" | "summary" | "discount">("home");
-
   return (
     <div style={{ overflowY: "auto", display: "flex", flexDirection: "column", gap: 18 }}>
-      <div style={{ display: "flex", gap: 22 }}>
-        <QuickAction
-          primary label="Мастерская" onClick={onOpenWorkshop}
-          icon={<><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.1-3.1a4 4 0 0 1-5.3 5.3L6.4 20.6a2 2 0 0 1-2.8-2.8L12.7 8.7a4 4 0 0 1 5.3-5.3z" /></>}
-        />
-        {quickActions.map((q) => (
-          <QuickAction
-            key={q.label} label={q.label} icon={q.icon} active={tab === q.panel}
-            onClick={() => setTab((t) => (t === q.panel ? "home" : q.panel!))}
-          />
-        ))}
-      </div>
-
       {tab !== "home" && (
         <div className="glass-panel" style={{ padding: "20px 22px" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
             <div style={{ fontSize: 15, fontWeight: 800 }}>
               {tab === "approvals" ? "Ждут одобрения" : tab === "summary" ? "Сводка" : "Средний одобренный дисконт"}
             </div>
-            <div onClick={() => setTab("home")} style={{ fontSize: 12, fontWeight: 700, color: "var(--color-text-faint)", cursor: "pointer" }}>Закрыть ✕</div>
+            <div onClick={onCloseTab} style={{ fontSize: 12, fontWeight: 700, color: "var(--color-text-faint)", cursor: "pointer" }}>Закрыть ✕</div>
           </div>
           {tab === "approvals" && (
             <SpravkaApprovalTable onlyPending onOpenClient={onOpenClient} />
@@ -372,43 +349,21 @@ function CortegeTeaserCard() {
   );
 }
 
-function InboxRow({
-  active, onClick, label, icon, badge,
-}: { active: boolean; onClick: () => void; label: string; icon: React.ReactNode; badge?: number }) {
-  return (
-    <div
-      onClick={onClick}
-      className="press"
-      style={{
-        display: "flex", alignItems: "center", gap: 10, padding: "10px 10px", borderRadius: 10, cursor: "pointer", marginBottom: 3,
-        background: active ? "var(--v-accent)" : "transparent",
-        color: active ? "var(--v-text-on-accent)" : "var(--color-text-soft)",
-      }}
-    >
-      <svg viewBox="0 0 24 24" width={16} height={16} fill="none" stroke="currentColor" strokeWidth={1.9}>{icon}</svg>
-      <span style={{ fontSize: 13, fontWeight: 700, flex: 1 }}>{label}</span>
-      {!!badge && (
-        <span style={{
-          fontSize: 10.5, fontWeight: 700, minWidth: 18, height: 18, borderRadius: 99, display: "flex", alignItems: "center", justifyContent: "center",
-          background: active ? "rgba(255,255,255,.25)" : "var(--v-accent)", color: active ? "#fff" : "var(--v-text-on-accent)",
-        }}>
-          {badge}
-        </span>
-      )}
-    </div>
-  );
-}
-
 function QuickAction({
-  label, onClick, icon, primary, active,
-}: { label: string; onClick: (e: React.MouseEvent<HTMLDivElement>) => void; icon: React.ReactNode; primary?: boolean; active?: boolean }) {
-  const isFilled = Boolean(primary);
+  label, onClick, icon, primary, active, badge,
+}: {
+  label: string; onClick: (e: React.MouseEvent<HTMLDivElement>) => void; icon: React.ReactNode;
+  /** "primary" pills (Обзор/Мастерская — the section toggle, not the Обзор-
+   * only inline tabs) fill solid when active instead of just tinting. */
+  primary?: boolean; active?: boolean; badge?: number;
+}) {
+  const isFilled = primary ? Boolean(active) : false;
   return (
     <div data-quick-trigger style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 9, cursor: "pointer" }} onClick={onClick}>
       <div
         className="press"
         style={{
-          width: 52, height: 52, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center",
+          width: 52, height: 52, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", position: "relative",
           background: isFilled ? "var(--v-accent)" : active ? "var(--v-accent-tint)" : "rgba(255,255,255,.05)",
           border: isFilled ? "none" : `1px solid ${active ? "var(--v-accent)" : "var(--color-hairline)"}`,
           color: isFilled ? "var(--v-text-on-accent)" : active ? "var(--v-accent)" : "var(--color-text-soft)",
@@ -416,6 +371,15 @@ function QuickAction({
         }}
       >
         <svg viewBox="0 0 24 24" width={20} height={20} fill="none" stroke="currentColor" strokeWidth={1.9}>{icon}</svg>
+        {!!badge && (
+          <span style={{
+            position: "absolute", top: -3, right: -3, fontSize: 10, fontWeight: 700, minWidth: 17, height: 17, borderRadius: 99,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            background: "var(--danger)", color: "#fff", boxShadow: "0 0 0 2px var(--v-bg, #140a2c)",
+          }}>
+            {badge}
+          </span>
+        )}
       </div>
       <span style={{ fontSize: 11.5, fontWeight: 650, color: active ? "var(--v-accent)" : "var(--color-text-soft)", whiteSpace: "nowrap" }}>{label}</span>
     </div>
