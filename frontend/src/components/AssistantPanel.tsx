@@ -52,6 +52,13 @@ export function AssistantPanel({ user }: { user: CurrentUser }) {
     setView(created.id);
   }
 
+  async function deleteChat(id: string, e: React.MouseEvent) {
+    e.stopPropagation();
+    await api.deleteConversation(id).catch(() => {});
+    setConversations((cur) => cur.filter((c) => c.id !== id));
+    if (view === id) setView("overview");
+  }
+
   async function startPromptChat(prompt: string) {
     const created = await api.createConversation();
     setConversations((cur) => [created, ...cur]);
@@ -206,16 +213,28 @@ export function AssistantPanel({ user }: { user: CurrentUser }) {
             <div
               key={c.id}
               onClick={() => setView(c.id)}
-              className="press"
+              className="press conv-row"
               style={{
-                fontSize: 12.5, padding: "9px 10px", borderRadius: 9, cursor: "pointer",
+                display: "flex", alignItems: "center", gap: 6,
+                fontSize: 12.5, padding: "9px 6px 9px 10px", borderRadius: 9, cursor: "pointer",
                 background: view === c.id ? "var(--v-accent-tint)" : "transparent",
                 color: view === c.id ? "var(--v-accent)" : "var(--color-text-soft)",
                 fontWeight: view === c.id ? 700 : 500,
-                whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
               }}
             >
-              {conversationLabel(c)}
+              <span style={{ flex: 1, minWidth: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                {conversationLabel(c)}
+              </span>
+              <span
+                onClick={(e) => deleteChat(c.id, e)}
+                title="Удалить чат"
+                className="conv-delete press"
+                style={{ flexShrink: 0, width: 22, height: 22, borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--color-text-faint)" }}
+              >
+                <svg viewBox="0 0 24 24" width={13} height={13} fill="none" stroke="currentColor" strokeWidth={2}>
+                  <path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" />
+                </svg>
+              </span>
             </div>
           ))}
         </div>
