@@ -34,6 +34,7 @@ export const api = {
     unit_id: string; client_name: string; client_phone: string;
     plan_type: string; down_payment_pct?: number;
     balloon_months?: number; balloon_monthly_payment_usd?: number;
+    requested_price_per_m2_usd?: number;
   }) => request("/api/spravka-requests", { method: "POST", body: JSON.stringify(body) }),
   approveSpravka: (id: string) => request(`/api/spravka-requests/${id}/approve`, { method: "POST" }),
   rejectSpravka: (id: string) => request(`/api/spravka-requests/${id}/reject`, { method: "POST" }),

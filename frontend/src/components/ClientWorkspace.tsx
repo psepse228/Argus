@@ -52,6 +52,9 @@ export function ClientWorkspace({ clientId, isBoss }: { clientId: string; isBoss
   const [useBalloon, setUseBalloon] = useState(false);
   const [balloonMonths, setBalloonMonths] = useState(9);
   const [balloonMonthlyUsd, setBalloonMonthlyUsd] = useState(0);
+  // Empty string, not 0 -- distinguishes "rep didn't touch this" from "rep
+  // typed zero," so the fixed payment_plan_rates lookup stays the default.
+  const [requestedPrice, setRequestedPrice] = useState("");
   const [formBusy, setFormBusy] = useState(false);
   const [formError, setFormError] = useState("");
 
@@ -60,6 +63,7 @@ export function ClientWorkspace({ clientId, isBoss }: { clientId: string; isBoss
     setConversationId(null);
     setSpravkaMode(false);
     setFormOpen(false);
+    setRequestedPrice("");
     (async () => {
       const [detail, conv] = await Promise.all([api.clientDetail(clientId), api.clientConversation(clientId)]);
       setSelected(detail);
@@ -88,15 +92,18 @@ export function ClientWorkspace({ clientId, isBoss }: { clientId: string; isBoss
     setFormBusy(true);
     try {
       const wantsBalloon = planType !== "cash" && useBalloon;
+      const requestedPriceNum = requestedPrice.trim() ? Number(requestedPrice) : undefined;
       await api.createSpravka({
         unit_id: unitId, client_name: selected.name || selected.phone, client_phone: selected.phone,
         plan_type: planType, down_payment_pct: planType === "cash" ? undefined : downPct,
         balloon_months: wantsBalloon ? balloonMonths : undefined,
         balloon_monthly_payment_usd: wantsBalloon ? balloonMonthlyUsd : undefined,
+        requested_price_per_m2_usd: requestedPriceNum,
       });
       setFormOpen(false);
       setUnitId("");
       setUseBalloon(false);
+      setRequestedPrice("");
       const detail = await api.clientDetail(clientId);
       setSelected(detail);
     } catch (e: any) {
@@ -287,6 +294,18 @@ export function ClientWorkspace({ clientId, isBoss }: { clientId: string; isBoss
                 Реальная цена по этому плану: ${currentRate.price_per_m2_usd}/м²
               </div>
             )}
+            <div>
+              <label style={{ display: "block", fontSize: 11, color: "var(--color-text-faint)", marginBottom: 6 }}>
+                Запросить другую цену ($/м²) — необязательно, только если хотите отступить от стандартной ставки
+              </label>
+              <input
+                type="number"
+                placeholder={currentRate ? `По умолчанию: $${currentRate.price_per_m2_usd}` : "$/м²"}
+                value={requestedPrice}
+                onChange={(e) => setRequestedPrice(e.target.value)}
+                style={{ ...inputStyle, width: 200 }}
+              />
+            </div>
             {formError && <div style={{ fontSize: 12, color: "var(--danger)" }}>{formError}</div>}
             <button
               onClick={submitForm}
@@ -332,6 +351,11 @@ export function ClientWorkspace({ clientId, isBoss }: { clientId: string; isBoss
                       <div style={{ fontSize: 11.5, color: "var(--color-text-faint)", marginTop: 2 }}>
                         {PLAN_LABELS[s.plan_type] || s.plan_type} · {STATUS_LABELS[s.status] || s.status}
                       </div>
+                      {s.requested_price_per_m2_usd != null && (
+                        <div style={{ fontSize: 11, color: "var(--warning)", marginTop: 2, fontWeight: 600 }}>
+                          Запрошена цена: ${s.requested_price_per_m2_usd}/м²
+                        </div>
+                      )}
                     </div>
                     {isBoss && s.status === "pending" && (
                       <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>

@@ -3,6 +3,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { api, CurrentUser } from "@/lib/api";
 import { SpravkaRequest, Payment } from "@/lib/types";
+import { SpravkaApprovalTable } from "./SpravkaApprovalTable";
 import { TodayQueue } from "./TodayQueue";
 import { WorkshopPanel } from "./WorkshopPanel";
 
@@ -203,6 +204,7 @@ export function AssistantPanel({
           <OverviewContent
             digest={digest} isBoss={isBoss} quickActions={quickActions}
             onOpenWorkshop={() => setView("workshop")}
+            onOpenClient={(id) => { setBellJumpClientId(id); setView("workshop"); }}
           />
         )}
         {view === "workshop" && (
@@ -219,12 +221,13 @@ export function AssistantPanel({
 }
 
 function OverviewContent({
-  digest, isBoss, quickActions, onOpenWorkshop,
+  digest, isBoss, quickActions, onOpenWorkshop, onOpenClient,
 }: {
   digest: Digest | null;
   isBoss: boolean;
   quickActions: { label: string; icon: React.ReactNode; panel?: "approvals" | "summary" | "discount" }[];
   onOpenWorkshop: () => void;
+  onOpenClient: (clientId: string) => void;
 }) {
   // Quick actions switch what's shown right here in Обзор -- they used to
   // open a small floating popover (felt like an afterthought) or, worse,
@@ -256,18 +259,7 @@ function OverviewContent({
             <div onClick={() => setTab("home")} style={{ fontSize: 12, fontWeight: 700, color: "var(--color-text-faint)", cursor: "pointer" }}>Закрыть ✕</div>
           </div>
           {tab === "approvals" && (
-            !digest || digest.pendingItems.length === 0 ? (
-              <div style={{ fontSize: 12.5, color: "var(--color-text-faint)" }}>Пусто — всё разобрано.</div>
-            ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                {digest.pendingItems.map((r) => (
-                  <div key={r.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 13, color: "var(--color-text-soft)", paddingBottom: 10, borderBottom: "1px solid var(--color-hairline-soft)" }}>
-                    <span>{r.units ? <>№{r.units.unit_number} · {r.units.buildings?.name}</> : "—"} — {r.client_name}</span>
-                  </div>
-                ))}
-                <div onClick={onOpenWorkshop} style={{ fontSize: 12.5, fontWeight: 700, color: "var(--v-accent)", cursor: "pointer", marginTop: 4 }}>Открыть в Мастерской →</div>
-              </div>
-            )
+            <SpravkaApprovalTable onlyPending onOpenClient={onOpenClient} />
           )}
           {tab === "summary" && digest && (
             <div style={{ display: "flex", flexDirection: "column", gap: 10, fontSize: 13, color: "var(--color-text-soft)" }}>

@@ -37,6 +37,9 @@ class SpravkaRequestCreate(BaseModel):
     # due. Set both together, or neither for straight linear amortization.
     balloon_months: int | None = None
     balloon_monthly_payment_usd: float | None = None
+    # A rep-typed override (e.g. a special deal) -- when set, prices the
+    # Справка instead of the fixed payment_plan_rates lookup.
+    requested_price_per_m2_usd: float | None = None
 
 
 @router.post("")
@@ -47,6 +50,7 @@ def create_spravka_request(body: SpravkaRequestCreate, user=Depends(get_current_
             client, user.tenant_id, body.unit_id, body.client_name, body.client_phone,
             body.plan_type, user.email, body.down_payment_pct,
             body.balloon_months, body.balloon_monthly_payment_usd,
+            body.requested_price_per_m2_usd,
         )
     except SpravkaCreationError as e:
         raise HTTPException(status_code=400, detail=str(e))

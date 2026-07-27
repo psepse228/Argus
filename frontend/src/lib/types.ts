@@ -97,6 +97,7 @@ export type SpravkaRequest = {
   approved_at: string | null;
   generated_file_url: string | null;
   real_price_per_m2_usd?: number;
+  requested_price_per_m2_usd?: number | null;
   created_at: string;
   units?: { unit_number: string; floor: number; area_m2: number; buildings?: { name: string } };
   computed_summary?: SpravkaComputedSummary;

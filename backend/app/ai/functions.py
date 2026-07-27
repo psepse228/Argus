@@ -119,6 +119,7 @@ def create_spravka_request(
     tenant_id: str, requester_email: str, unit_number: str, client_name: str, client_phone: str,
     plan_type: str, down_payment_pct: float | None = None, building: str | None = None,
     balloon_months: int | None = None, balloon_monthly_payment_usd: float | None = None,
+    requested_price_per_m2_usd: float | None = None,
 ) -> dict:
     """Chat-driven Справка creation — a rep describes the deal in plain
     language instead of filling a form; this resolves the unit by number
@@ -132,6 +133,7 @@ def create_spravka_request(
         result = create_spravka(
             client, tenant_id, unit["id"], client_name, client_phone, plan_type,
             requester_email, down_payment_pct, balloon_months, balloon_monthly_payment_usd,
+            requested_price_per_m2_usd,
         )
     except SpravkaCreationError as e:
         return {"error": str(e)}
@@ -230,6 +232,7 @@ FUNCTION_SCHEMAS = [
                     "down_payment_pct": {"type": "number", "description": "Required unless plan_type is 'cash'"},
                     "balloon_months": {"type": "integer", "description": "Optional: months of a smaller payment before a lump-sum remainder (set together with balloon_monthly_payment_usd)"},
                     "balloon_monthly_payment_usd": {"type": "number"},
+                    "requested_price_per_m2_usd": {"type": "number", "description": "Optional: a specific price/m2 the rep wants to request (a special deal) instead of the standard rate for this plan. Only set this if the user explicitly asks for a custom price."},
                 },
                 "required": ["unit_number", "client_name", "client_phone", "plan_type"],
             },

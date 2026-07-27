@@ -130,11 +130,17 @@ def create_spravka(
     client, tenant_id: str, unit_id: str, client_name: str, client_phone: str,
     plan_type: str, requested_by: str, down_payment_pct: float | None = None,
     balloon_months: int | None = None, balloon_monthly_payment_usd: float | None = None,
+    requested_price_per_m2_usd: float | None = None,
 ) -> dict:
     """The single entry point for creating a Справка, regardless of whether
     the caller came from the REST form or the AI assistant. Validates,
     resolves the real payment-plan rate, generates the file, and persists
-    everything — raises SpravkaCreationError on any real validation failure."""
+    everything — raises SpravkaCreationError on any real validation failure.
+
+    requested_price_per_m2_usd is a rep-typed override (e.g. a special deal)
+    -- when set, it's what actually prices the Справка instead of the fixed
+    payment_plan_rates lookup. The lookup still runs so the boss can see both
+    numbers side by side during review (see computed_summary/real_price_per_m2_usd)."""
     if plan_type not in PLAN_TYPES:
         raise SpravkaCreationError(f"plan_type must be one of {PLAN_TYPES}")
     if plan_type != "cash" and down_payment_pct is None:
@@ -156,13 +162,15 @@ def create_spravka(
         "installment_months": _installment_months_from_plan(plan_type),
         "balloon_months": balloon_months,
         "balloon_monthly_payment_usd": balloon_monthly_payment_usd,
+        "requested_price_per_m2_usd": requested_price_per_m2_usd,
         "status": "pending",  # generated immediately; "pending" now means "awaiting boss review", not "awaiting approval to generate"
     }
     inserted = client.table("spravka_requests").insert(row).execute().data[0]
 
+    effective_price = requested_price_per_m2_usd if requested_price_per_m2_usd is not None else float(rate["price_per_m2_usd"])
     exchange_rate = _get_exchange_rate(client, tenant_id, unit["building_id"])
     file_path, summary = _generate_and_store(
-        inserted, unit, building["name"], float(rate["price_per_m2_usd"]),
+        inserted, unit, building["name"], effective_price,
         exchange_rate, requested_by,
     )
     client.table("spravka_requests").update({
@@ -170,5 +178,5 @@ def create_spravka(
     }).eq("id", inserted["id"]).execute()
     inserted["generated_file_url"] = file_path
     inserted["computed_summary"] = summary
-    inserted["real_price_per_m2_usd"] = float(rate["price_per_m2_usd"])
+    inserted["real_price_per_m2_usd"] = effective_price
     return inserted
