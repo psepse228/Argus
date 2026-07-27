@@ -11,6 +11,7 @@ from dataclasses import asdict
 
 from app.excel_gen.models import SpravkaInput
 from app.excel_gen.writer import build_spravka
+from app.services.client_service import get_or_create_client
 from app.storage import upload_spravka
 
 PLAN_TYPES = ["cash", "installment_6", "installment_12", "installment_24"]
@@ -129,9 +130,10 @@ def create_spravka(
     unit = _get_unit_by_id(client, unit_id, tenant_id)
     building = client.table("buildings").select("name").eq("id", unit["building_id"]).execute().data[0]
     rate = _get_plan_rate(client, tenant_id, unit["building_id"], plan_type)
+    client_id = get_or_create_client(client, tenant_id, client_phone, client_name)
 
     row = {
-        "tenant_id": tenant_id, "unit_id": unit_id,
+        "tenant_id": tenant_id, "unit_id": unit_id, "client_id": client_id,
         "client_name": client_name, "client_phone": client_phone,
         "requested_by": requested_by, "plan_type": plan_type,
         "down_payment_pct": down_payment_pct,

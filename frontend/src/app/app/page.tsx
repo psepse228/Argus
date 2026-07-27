@@ -6,6 +6,7 @@ import { Sidebar, Section } from "@/components/Sidebar";
 import { AssistantPanel } from "@/components/AssistantPanel";
 import { UnitsPanel } from "@/components/UnitsPanel";
 import { LeadsPanel } from "@/components/LeadsPanel";
+import { ClientsPanel } from "@/components/ClientsPanel";
 import { DocsPanel } from "@/components/DocsPanel";
 import { AnalyticsPanel } from "@/components/AnalyticsPanel";
 
@@ -13,6 +14,7 @@ const TITLES: Record<Section, string> = {
   assistant: "Ассистент",
   units: "Юниты",
   leads: "Лиды",
+  clients: "Клиенты",
   docs: "Справки",
   analytics: "Аналитика",
 };
@@ -63,6 +65,7 @@ export default function AppPage() {
         {section === "assistant" && <AssistantPanel user={user} />}
         {section === "units" && <UnitsPanel />}
         {section === "leads" && <LeadsPanel />}
+        {section === "clients" && <ClientsPanel user={user} />}
         {section === "docs" && <DocsPanel user={user} />}
         {section === "analytics" && user.role === "boss" && <AnalyticsPanel />}
       </div>

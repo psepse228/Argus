@@ -6,7 +6,7 @@ load_dotenv()  # unlike Next.js, plain uvicorn does not auto-load .env — must 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.routers import auth_google, units, leads, spravka, assistant, pricing, analytics
+from app.routers import auth_google, units, leads, spravka, assistant, pricing, analytics, clients, conversations
 
 app = FastAPI(title="Argus — Italiano Vero sales ops")
 
@@ -27,6 +27,8 @@ app.include_router(spravka.router)
 app.include_router(assistant.router)
 app.include_router(pricing.router)
 app.include_router(analytics.router)
+app.include_router(clients.router)
+app.include_router(conversations.router)
 
 
 @app.get("/health")

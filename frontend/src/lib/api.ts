@@ -32,12 +32,22 @@ export const api = {
   rejectSpravka: (id: string) => request(`/api/spravka-requests/${id}/reject`, { method: "POST" }),
   paymentPlanRates: (buildingId?: string) =>
     request(`/api/payment-plan-rates${buildingId ? `?building_id=${buildingId}` : ""}`),
-  bossChat: (message: string, history?: any[], mode?: string) =>
-    request("/api/assistant/boss/chat", { method: "POST", body: JSON.stringify({ message, history, mode }) }),
-  agentChat: (message: string, history?: any[], mode?: string) =>
-    request("/api/assistant/agent/chat", { method: "POST", body: JSON.stringify({ message, history, mode }) }),
+  bossChat: (message: string, conversationId: string, mode?: string) =>
+    request("/api/assistant/boss/chat", { method: "POST", body: JSON.stringify({ message, conversation_id: conversationId, mode }) }),
+  agentChat: (message: string, conversationId: string, mode?: string) =>
+    request("/api/assistant/agent/chat", { method: "POST", body: JSON.stringify({ message, conversation_id: conversationId, mode }) }),
   analyticsSummary: () => request("/api/analytics/summary"),
   spravkaDownloadUrl: (requestId: string) => `${API_BASE}/api/spravka-requests/${requestId}/download`,
   spravkaPreview: (requestId: string) => request(`/api/spravka-requests/${requestId}/preview`),
   loginUrl: () => `${API_BASE}/api/auth/google/start`,
+
+  conversations: () => request("/api/conversations"),
+  createConversation: (title?: string) =>
+    request("/api/conversations", { method: "POST", body: JSON.stringify({ title }) }),
+  deleteConversation: (id: string) => request(`/api/conversations/${id}`, { method: "DELETE" }),
+  conversationMessages: (id: string) => request(`/api/conversations/${id}/messages`),
+  clientConversation: (clientId: string) => request(`/api/conversations/client/${clientId}`, { method: "POST" }),
+
+  clients: () => request("/api/clients"),
+  clientDetail: (id: string) => request(`/api/clients/${id}`),
 };

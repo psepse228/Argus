@@ -53,6 +53,38 @@ export type SpravkaRequest = {
   computed_summary?: SpravkaComputedSummary;
 };
 
+export type Client = {
+  id: string;
+  name: string | null;
+  phone: string;
+  created_at: string;
+  leads_count: number;
+  spravka_count: number;
+};
+
+export type ClientDetail = Client & {
+  leads: (Lead & { buildings?: { name: string } })[];
+  spravka_requests: SpravkaRequest[];
+};
+
+export type Conversation = {
+  id: string;
+  user_email: string;
+  client_id: string | null;
+  title: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type Message = {
+  id: string;
+  conversation_id: string;
+  role: "user" | "assistant";
+  content: string;
+  events: any[] | null;
+  created_at: string;
+};
+
 export type PlanRate = {
   id: string;
   building_id: string;

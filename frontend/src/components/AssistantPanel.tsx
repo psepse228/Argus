@@ -2,18 +2,8 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { api, CurrentUser } from "@/lib/api";
-import { SpravkaRequest, STATUS_LABELS } from "@/lib/types";
-import { ExcelPreviewModal } from "./ExcelPreviewModal";
-
-type SpravkaCreatedEvent = {
-  type: "spravka_created";
-  request_id: string;
-  unit_number: string;
-  building?: string;
-  real_price_per_m2_usd: number;
-  summary?: { effective_total_usd: number; payment_label: string };
-};
-type ChatMsg = { role: "user" | "bot"; text: string; events?: SpravkaCreatedEvent[] };
+import { SpravkaRequest, STATUS_LABELS, Conversation } from "@/lib/types";
+import { ChatThread } from "./ChatThread";
 
 type Digest = {
   pending: number;
@@ -25,28 +15,62 @@ type Digest = {
   buildingStats: { name: string; forSale: number; price: number }[];
 };
 
+function conversationLabel(c: Conversation): string {
+  if (c.title) return c.title;
+  const d = new Date(c.created_at);
+  return `Чат — ${d.toLocaleDateString("ru-RU", { day: "numeric", month: "short" })}, ${d.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })}`;
+}
+
 export function AssistantPanel({ user }: { user: CurrentUser }) {
   const isBoss = user.role === "boss";
-  const [messages, setMessages] = useState<ChatMsg[]>([
-    {
-      role: "bot",
-      text: isBoss
-        ? "Доброе утро. Я слежу за юнитами, лидами и справками Italiano Vero. Спросите что угодно."
-        : "Привет! Помогу подобрать юниты, оформить справку, согласовать условия и разобрать лидов.",
-    },
-  ]);
-  const [input, setInput] = useState("");
-  const [typing, setTyping] = useState(false);
   const [digest, setDigest] = useState<Digest | null>(null);
   const [spravkaMode, setSpravkaMode] = useState(false);
-  const [previewId, setPreviewId] = useState<string | null>(null);
   const [bellOpen, setBellOpen] = useState(false);
   const [bellPos, setBellPos] = useState<{ top: number; right: number } | null>(null);
   const bellBtnRef = useRef<HTMLDivElement>(null);
   const bellPopoverRef = useRef<HTMLDivElement>(null);
   const [quickPanel, setQuickPanel] = useState<{ key: string; top: number; left: number } | null>(null);
   const quickPanelRef = useRef<HTMLDivElement>(null);
-  const scrollRef = useRef<HTMLDivElement>(null);
+
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [activeConvId, setActiveConvId] = useState<string | null>(null);
+  const [convOpen, setConvOpen] = useState(false);
+  const [convPos, setConvPos] = useState<{ top: number; right: number } | null>(null);
+  const convBtnRef = useRef<HTMLDivElement>(null);
+  const convPopoverRef = useRef<HTMLDivElement>(null);
+
+  // Chats used to live only in React state (gone on refresh, only one
+  // thread ever). Now persisted -- load the user's existing threads and
+  // pick up the most recent one, or start a fresh one if they have none.
+  useEffect(() => {
+    (async () => {
+      try {
+        const list: Conversation[] = await api.conversations();
+        setConversations(list);
+        if (list.length) {
+          setActiveConvId(list[0].id);
+        } else {
+          const created = await api.createConversation();
+          setConversations([created]);
+          setActiveConvId(created.id);
+        }
+      } catch {
+        /* chat still renders once a conversation exists; surfaced via ChatThread's own error handling */
+      }
+    })();
+  }, []);
+
+  async function startNewChat() {
+    const created = await api.createConversation();
+    setConversations((cur) => [created, ...cur]);
+    setActiveConvId(created.id);
+    setConvOpen(false);
+  }
+
+  function switchChat(id: string) {
+    setActiveConvId(id);
+    setConvOpen(false);
+  }
 
   useEffect(() => {
     if (!quickPanel) return;
@@ -69,11 +93,7 @@ export function AssistantPanel({ user }: { user: CurrentUser }) {
     const r = bellBtnRef.current?.getBoundingClientRect();
     if (r) setBellPos({ top: r.bottom + 8, right: window.innerWidth - r.right });
   }
-
-  useLayoutEffect(() => {
-    if (bellOpen) repositionBell();
-  }, [bellOpen]);
-
+  useLayoutEffect(() => { if (bellOpen) repositionBell(); }, [bellOpen]);
   useEffect(() => {
     if (!bellOpen) return;
     function onDocClick(e: MouseEvent) {
@@ -91,9 +111,27 @@ export function AssistantPanel({ user }: { user: CurrentUser }) {
     };
   }, [bellOpen]);
 
+  function repositionConv() {
+    const r = convBtnRef.current?.getBoundingClientRect();
+    if (r) setConvPos({ top: r.bottom + 8, right: window.innerWidth - r.right });
+  }
+  useLayoutEffect(() => { if (convOpen) repositionConv(); }, [convOpen]);
   useEffect(() => {
-    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
-  }, [messages, typing]);
+    if (!convOpen) return;
+    function onDocClick(e: MouseEvent) {
+      const t = e.target as Node;
+      if (convBtnRef.current?.contains(t)) return;
+      if (convPopoverRef.current?.contains(t)) return;
+      setConvOpen(false);
+    }
+    function onEsc(e: KeyboardEvent) { if (e.key === "Escape") setConvOpen(false); }
+    document.addEventListener("mousedown", onDocClick);
+    document.addEventListener("keydown", onEsc);
+    return () => {
+      document.removeEventListener("mousedown", onDocClick);
+      document.removeEventListener("keydown", onEsc);
+    };
+  }, [convOpen]);
 
   // "What happened while you were away" — real data, not filler. Boss sees
   // the tenant-wide pending queue + approved/discount stats already used in
@@ -109,8 +147,6 @@ export function AssistantPanel({ user }: { user: CurrentUser }) {
         const recent = [...requests]
           .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
           .slice(0, 4);
-        // real per-building snapshot (count for_sale + lowest real price/m2) --
-        // no fabricated trend line, since there's no price-history table to back one
         const buildingStats = buildings.slice(0, 3).map((b: any) => {
           const inBuilding = units.filter((u: any) => u.building_id === b.id && u.status === "for_sale");
           const price = inBuilding.length ? Math.min(...inBuilding.map((u: any) => u.price_per_m2_usd)) : 0;
@@ -132,11 +168,6 @@ export function AssistantPanel({ user }: { user: CurrentUser }) {
     })();
   }, [isBoss]);
 
-  // Boss's three secondary actions are pure data the app already has fetched
-  // (pendingItems / buildingStats / avgDiscount) -- they open a real HUD
-  // panel of that data directly, no LLM round-trip needed. The agent's two
-  // stay chat prompts since they're genuinely generative asks (matching
-  // units by loose criteria, drafting a letter) that need the assistant.
   const quickActions = isBoss
     ? [
         { label: "Одобрения", panel: "approvals" as const, icon: <path d="M9 12l2 2 4-4M12 3l1.8 4.3L18 9l-4.2 1.7L12 15l-1.8-4.3L6 9l4.2-1.7L12 3Z" /> },
@@ -154,52 +185,14 @@ export function AssistantPanel({ user }: { user: CurrentUser }) {
     setQuickPanel({ key, top: r.bottom + 8, left: r.left + r.width / 2 });
   }
 
-  async function send(text?: string) {
-    const v = (text ?? input).trim();
-    if (!v) return;
-    setInput("");
-    const nextMessages: ChatMsg[] = [...messages, { role: "user", text: v }];
-    setMessages(nextMessages);
-    setTyping(true);
-    try {
-      const history = nextMessages.map((m) => ({ role: m.role === "bot" ? "assistant" : "user", content: m.text }));
-      const call = isBoss ? api.bossChat : api.agentChat;
-      const { reply, events } = await call(v, history.slice(0, -1), spravkaMode ? "spravka" : undefined);
-      const created: SpravkaCreatedEvent[] = (events || []).filter((e: any) => e.type === "spravka_created");
-      setMessages((cur) => [...cur, { role: "bot", text: reply, events: created.length ? created : undefined }]);
-      // task the button was for is done -- drop back to normal chat rather
-      // than staying narrowed to spravka-only topics for the rest of the session
-      if (created.length) setSpravkaMode(false);
-    } catch (e: any) {
-      setMessages((cur) => [...cur, { role: "bot", text: `Ошибка: ${e.message}` }]);
-    } finally {
-      setTyping(false);
-    }
-  }
-
-  function toggleSpravkaMode() {
-    setSpravkaMode((cur) => {
-      const next = !cur;
-      if (next) {
-        setMessages((m) => [...m, {
-          role: "bot",
-          text: "Режим оформления справки включён. Назовите юнит, имя и телефон клиента, план оплаты — оформлю сразу.",
-        }]);
-      }
-      return next;
-    });
-  }
+  const greeting = isBoss
+    ? "Доброе утро. Я слежу за юнитами, лидами и справками Italiano Vero. Спросите что угодно."
+    : "Привет! Помогу подобрать юниты, оформить справку, согласовать условия и разобрать лидов.";
 
   return (
     <div className="glass-panel" style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", padding: 0, overflow: "hidden" }}>
-      <div ref={scrollRef} style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "26px 24px 8px" }}>
+      <div style={{ overflowY: "auto", flexShrink: 0, maxHeight: "56%", padding: "26px 24px 14px" }}>
         <div style={{ maxWidth: 720, margin: "0 auto", display: "flex", flexDirection: "column", gap: 18 }}>
-          {/* Own identity, deliberately distinct from the compact utility
-              header every data page gets -- this is the platform's primary
-              surface, not one more section under generic chrome. Avatar +
-              greeting + bell, quick-action circles, and a card row are the
-              actual structure the owner referenced (a real fintech app),
-              not a re-colored version of the old text-header + list card. */}
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 13 }}>
               <div
@@ -223,30 +216,76 @@ export function AssistantPanel({ user }: { user: CurrentUser }) {
                 </div>
               </div>
             </div>
-            <div
-              ref={bellBtnRef}
-              role="button" tabIndex={0} aria-label="Уведомления"
-              onClick={() => setBellOpen((v) => !v)}
-              style={{
-                width: 42, height: 42, borderRadius: "50%", flexShrink: 0, position: "relative", cursor: "pointer",
-                background: "rgba(255,255,255,.05)", border: "1px solid var(--color-hairline)",
-                display: "flex", alignItems: "center", justifyContent: "center", color: "var(--color-text-soft)",
-              }}
-            >
-              <svg viewBox="0 0 24 24" width={18} height={18} fill="none" stroke="currentColor" strokeWidth={1.9}>
-                <path d="M6 8a6 6 0 0 1 12 0c0 5 2 6 2 6H4s2-1 2-6Z" /><path d="M10 21a2 2 0 0 0 4 0" />
-              </svg>
-              {digest && digest.pending > 0 && (
-                <span style={{
-                  position: "absolute", top: 7, right: 8, width: 7, height: 7, borderRadius: "50%",
-                  background: "var(--v-accent)", boxShadow: "0 0 0 2.5px var(--v-bg, #140a2c)",
-                }} />
-              )}
+            <div style={{ display: "flex", gap: 8 }}>
+              <div
+                ref={convBtnRef}
+                role="button" tabIndex={0} aria-label="Чаты"
+                onClick={() => setConvOpen((v) => !v)}
+                style={{
+                  width: 42, height: 42, borderRadius: "50%", flexShrink: 0, cursor: "pointer",
+                  background: "rgba(255,255,255,.05)", border: "1px solid var(--color-hairline)",
+                  display: "flex", alignItems: "center", justifyContent: "center", color: "var(--color-text-soft)",
+                }}
+              >
+                <svg viewBox="0 0 24 24" width={18} height={18} fill="none" stroke="currentColor" strokeWidth={1.9}>
+                  <path d="M4 4h16v12H8l-4 4V4Z" />
+                </svg>
+              </div>
+              <div
+                ref={bellBtnRef}
+                role="button" tabIndex={0} aria-label="Уведомления"
+                onClick={() => setBellOpen((v) => !v)}
+                style={{
+                  width: 42, height: 42, borderRadius: "50%", flexShrink: 0, position: "relative", cursor: "pointer",
+                  background: "rgba(255,255,255,.05)", border: "1px solid var(--color-hairline)",
+                  display: "flex", alignItems: "center", justifyContent: "center", color: "var(--color-text-soft)",
+                }}
+              >
+                <svg viewBox="0 0 24 24" width={18} height={18} fill="none" stroke="currentColor" strokeWidth={1.9}>
+                  <path d="M6 8a6 6 0 0 1 12 0c0 5 2 6 2 6H4s2-1 2-6Z" /><path d="M10 21a2 2 0 0 0 4 0" />
+                </svg>
+                {digest && digest.pending > 0 && (
+                  <span style={{
+                    position: "absolute", top: 7, right: 8, width: 7, height: 7, borderRadius: "50%",
+                    background: "var(--v-accent)", boxShadow: "0 0 0 2.5px var(--v-bg, #140a2c)",
+                  }} />
+                )}
+              </div>
             </div>
-            {/* Portaled -- this header sits inside the panel's own
-                .glass-panel (overflow: hidden), so a plain absolutely
-                positioned popover here would get clipped the same way the
-                lead-card dropdowns were. */}
+            {convOpen && convPos && createPortal(
+              <div
+                ref={convPopoverRef}
+                className="glass-panel"
+                style={{ position: "fixed", top: convPos.top, right: convPos.right, width: 260, padding: "10px", zIndex: 1000 }}
+              >
+                <div
+                  onClick={startNewChat}
+                  style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12.5, fontWeight: 700, color: "var(--v-accent)", padding: "9px 10px", borderRadius: 9, cursor: "pointer" }}
+                >
+                  <svg viewBox="0 0 24 24" width={14} height={14} fill="none" stroke="currentColor" strokeWidth={2.2}><path d="M12 5v14M5 12h14" /></svg>
+                  Новый чат
+                </div>
+                <div style={{ height: 1, background: "var(--color-hairline-soft)", margin: "6px 0" }} />
+                {conversations.length === 0 ? (
+                  <div style={{ fontSize: 12, color: "var(--color-text-faint)", padding: "6px 10px" }}>Нет чатов</div>
+                ) : conversations.map((c) => (
+                  <div
+                    key={c.id}
+                    onClick={() => switchChat(c.id)}
+                    style={{
+                      fontSize: 12.5, padding: "9px 10px", borderRadius: 9, cursor: "pointer",
+                      background: c.id === activeConvId ? "var(--v-accent-tint)" : "transparent",
+                      color: c.id === activeConvId ? "var(--v-accent)" : "var(--color-text-soft)",
+                      fontWeight: c.id === activeConvId ? 700 : 500,
+                      whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+                    }}
+                  >
+                    {conversationLabel(c)}
+                  </div>
+                ))}
+              </div>,
+              document.body
+            )}
             {bellOpen && bellPos && createPortal(
               <div
                 ref={bellPopoverRef}
@@ -275,13 +314,13 @@ export function AssistantPanel({ user }: { user: CurrentUser }) {
           <div style={{ display: "flex", gap: 22 }}>
             <QuickAction
               primary active={spravkaMode} label={spravkaMode ? "Режим включён" : "Справка"}
-              onClick={toggleSpravkaMode}
+              onClick={() => setSpravkaMode((v) => !v)}
               icon={<><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><path d="M14 2v6h6" /><path d="M9 15h6M9 11h4" /></>}
             />
             {quickActions.map((q) => (
               <QuickAction
                 key={q.label} label={q.label} icon={q.icon}
-                onClick={(e) => ("panel" in q ? openQuickPanel(q.panel, e) : send(q.prompt))}
+                onClick={(e) => ("panel" in q ? openQuickPanel(q.panel, e) : undefined)}
               />
             ))}
           </div>
@@ -302,13 +341,8 @@ export function AssistantPanel({ user }: { user: CurrentUser }) {
                   ) : (
                     <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
                       {digest.pendingItems.map((r) => (
-                        <div
-                          key={r.id}
-                          onClick={() => { if (r.generated_file_url) { setPreviewId(r.id); setQuickPanel(null); } }}
-                          style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 12.5, color: "var(--color-text-soft)", cursor: r.generated_file_url ? "pointer" : "default" }}
-                        >
+                        <div key={r.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 12.5, color: "var(--color-text-soft)" }}>
                           <span>{r.units ? <>№{r.units.unit_number} · {r.units.buildings?.name}</> : "—"} — {r.client_name}</span>
-                          {r.generated_file_url && <span style={{ color: "var(--v-accent)", fontWeight: 700, flexShrink: 0, marginLeft: 8 }}>Просмотр →</span>}
                         </div>
                       ))}
                     </div>
@@ -371,14 +405,8 @@ export function AssistantPanel({ user }: { user: CurrentUser }) {
                     ? `${digest.pending} ждут вашего решения. Всё остальное — под контролем.`
                     : "Всё разобрано — очередь пуста."}
                 </div>
-                <div
-                  onClick={() => send(isBoss ? "Что ждёт одобрения?" : "Начать работу над справкой")}
-                  style={{
-                    display: "inline-flex", fontSize: 11.5, fontWeight: 700, color: "#fff", cursor: "pointer",
-                    background: "rgba(255,255,255,.16)", padding: "6px 13px", borderRadius: 99, marginTop: 14,
-                  }}
-                >
-                  {isBoss ? "Открыть очередь →" : "Оформить →"}
+                <div style={{ fontSize: 11.5, fontWeight: 700, color: "#fff", display: "inline-flex", background: "rgba(255,255,255,.16)", padding: "6px 13px", borderRadius: 99, marginTop: 14 }}>
+                  {isBoss ? `${digest.pending} в очереди` : "Кнопка «Справка» выше →"}
                 </div>
               </div>
             </div>
@@ -403,134 +431,20 @@ export function AssistantPanel({ user }: { user: CurrentUser }) {
               ))}
             </div>
           )}
-
-          {digest && digest.recent.length > 0 && (
-            <div className="glass-panel" style={{ padding: "16px 18px" }}>
-              <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: ".05em", color: "var(--color-text-faint)", marginBottom: 10 }}>
-                Последние справки
-              </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                {digest.recent.map((r) => (
-                  <div key={r.id} style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5, color: "var(--color-text-soft)" }}>
-                    <span>
-                      {r.units ? <>№{r.units.unit_number} · {r.units.buildings?.name}</> : "—"} — {r.client_name}
-                    </span>
-                    <span style={{ color: "var(--color-text-faint)" }}>{STATUS_LABELS[r.status] || r.status}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-          {messages.map((m, i) => (
-            <div key={i} style={{ display: "flex", gap: 11, alignItems: "flex-start", flexDirection: m.role === "bot" ? "row" : "row-reverse" }}>
-              {m.role === "bot" && (
-                <span style={{ width: 30, height: 30, borderRadius: 9, background: "var(--v-accent)", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", marginTop: 1 }}>
-                  <svg viewBox="0 0 24 24" width={16} height={16} fill="none" stroke="var(--v-text-on-accent)" strokeWidth={2.2}>
-                    <circle cx="12" cy="12" r="3.4" />
-                    <path d="M2 12s3.5-6.5 10-6.5S22 12 22 12s-3.5 6.5-10 6.5S2 12 2 12Z" />
-                  </svg>
-                </span>
-              )}
-              <div style={{ maxWidth: "76%", display: "flex", flexDirection: "column", gap: 10 }}>
-                <div
-                  style={{
-                    background: m.role === "bot" ? "rgba(255,255,255,.05)" : "var(--v-accent)",
-                    color: m.role === "bot" ? "var(--color-text)" : "var(--v-text-on-accent)",
-                    border: m.role === "bot" ? "1px solid var(--color-hairline-soft)" : "none",
-                    borderRadius: m.role === "bot" ? "4px 15px 15px 15px" : "15px 15px 4px 15px",
-                    padding: "12px 15px", fontSize: 13.5, lineHeight: 1.55,
-                    fontWeight: m.role === "bot" ? 400 : 500,
-                    whiteSpace: "pre-wrap",
-                  }}
-                >
-                  {m.text}
-                </div>
-                {m.events?.map((ev) => (
-                  <SpravkaCard key={ev.request_id} event={ev} onPreview={() => setPreviewId(ev.request_id)} />
-                ))}
-              </div>
-            </div>
-          ))}
-          {typing && (
-            <div style={{ display: "flex", gap: 11, alignItems: "center" }}>
-              <span style={{ width: 30, height: 30, borderRadius: 9, background: "var(--v-accent)", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <svg viewBox="0 0 24 24" width={16} height={16} fill="none" stroke="var(--v-text-on-accent)" strokeWidth={2.2}>
-                  <circle cx="12" cy="12" r="3.4" />
-                  <path d="M2 12s3.5-6.5 10-6.5S22 12 22 12s-3.5 6.5-10 6.5S2 12 2 12Z" />
-                </svg>
-              </span>
-              <div style={{ display: "flex", gap: 4, padding: "12px 15px", background: "rgba(255,255,255,.05)", border: "1px solid var(--color-hairline-soft)", borderRadius: "4px 15px 15px 15px" }}>
-                {[0, 0.2, 0.4].map((d) => (
-                  <span key={d} style={{ width: 6, height: 6, borderRadius: 99, background: "var(--color-text-soft)", animation: `argDot 1.2s infinite ${d}s` }} />
-                ))}
-              </div>
-            </div>
-          )}
         </div>
       </div>
 
-      <div style={{ padding: "12px 24px 18px" }}>
-        <div style={{ maxWidth: 720, margin: "0 auto" }}>
-          <div style={{
-            display: "flex", gap: 10, alignItems: "center", background: "rgba(255,255,255,.04)", borderRadius: 15,
-            padding: "6px 6px 6px 16px", border: `1px solid ${spravkaMode ? "var(--v-accent)" : "var(--color-hairline)"}`,
-          }}>
-            <input
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && send()}
-              placeholder={spravkaMode ? "Юнит, имя и телефон клиента, план оплаты…" : "Спросите про юниты, условия сделки или дайте задачу…"}
-              style={{ flex: 1, background: "transparent", border: "none", outline: "none", color: "var(--color-text)", fontSize: 13.5, padding: "9px 0" }}
+      <div style={{ flex: 1, minHeight: 0, padding: "0 24px 18px", display: "flex", flexDirection: "column", borderTop: "1px solid var(--color-hairline-soft)" }}>
+        <div style={{ maxWidth: 720, margin: "0 auto", width: "100%", flex: 1, minHeight: 0, display: "flex", flexDirection: "column", paddingTop: 16 }}>
+          {activeConvId ? (
+            <ChatThread
+              conversationId={activeConvId} isBoss={isBoss} spravkaMode={spravkaMode}
+              onSpravkaCreated={() => setSpravkaMode(false)} greeting={greeting}
             />
-            <button
-              onClick={() => send()}
-              style={{ width: 40, height: 40, borderRadius: 12, background: "var(--v-accent)", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}
-            >
-              <svg viewBox="0 0 24 24" width={17} height={17} fill="none" stroke="var(--v-text-on-accent)" strokeWidth={2.2}>
-                <path d="M22 2 11 13" /><path d="M22 2 15 22l-4-9-9-4Z" />
-              </svg>
-            </button>
-          </div>
+          ) : (
+            <div style={{ color: "var(--color-text-faint)", fontSize: 13 }}>Загрузка чата…</div>
+          )}
         </div>
-      </div>
-      {previewId && <ExcelPreviewModal requestId={previewId} onClose={() => setPreviewId(null)} />}
-    </div>
-  );
-}
-
-function SpravkaCard({ event, onPreview }: { event: SpravkaCreatedEvent; onPreview: () => void }) {
-  return (
-    <div className="glass-panel" style={{ padding: "14px 16px", maxWidth: 340 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-        <span style={{ width: 26, height: 26, borderRadius: 8, background: "var(--v-accent-tint)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-          <svg viewBox="0 0 24 24" width={14} height={14} fill="none" stroke="var(--v-accent)" strokeWidth={2.2}>
-            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><path d="M14 2v6h6" />
-          </svg>
-        </span>
-        <div>
-          <div style={{ fontSize: 12.5, fontWeight: 700, color: "var(--color-text)" }}>
-            №{event.unit_number}{event.building ? ` · ${event.building}` : ""}
-          </div>
-          <div style={{ fontSize: 11, color: "var(--color-text-faint)" }}>Справка создана — ждёт проверки</div>
-        </div>
-      </div>
-      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5, color: "var(--color-text-soft)", marginBottom: 12 }}>
-        <span>${event.real_price_per_m2_usd}/м²</span>
-        {event.summary && <span>{event.summary.payment_label.trim()}</span>}
-      </div>
-      <div style={{ display: "flex", gap: 8 }}>
-        <button
-          onClick={onPreview}
-          style={{ flex: 1, padding: "8px 0", borderRadius: 99, background: "var(--v-accent-tint)", color: "var(--v-accent)", fontSize: 11.5, fontWeight: 700, border: "none", cursor: "pointer" }}
-        >
-          Просмотр
-        </button>
-        <a
-          href={api.spravkaDownloadUrl(event.request_id)}
-          style={{ flex: 1, textAlign: "center", padding: "8px 0", borderRadius: 99, background: "rgba(255,255,255,.05)", border: "1px solid var(--color-hairline)", color: "var(--color-text-soft)", fontSize: 11.5, fontWeight: 700 }}
-        >
-          Скачать
-        </a>
       </div>
     </div>
   );

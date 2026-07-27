@@ -4,7 +4,7 @@ import { createPortal } from "react-dom";
 import { CurrentUser } from "@/lib/api";
 import { ThemeSwitcher } from "./ThemeSwitcher";
 
-export type Section = "assistant" | "units" | "leads" | "docs" | "analytics";
+export type Section = "assistant" | "units" | "leads" | "clients" | "docs" | "analytics";
 
 // Ассистент is deliberately not in this list -- it's the primary surface,
 // rendered as its own dedicated rail button above a divider, not one of N
@@ -15,6 +15,13 @@ const TOOLS: { key: Section; label: string; icon: JSX.Element; bossOnly?: boolea
     key: "units", label: "Юниты", icon: (
       <svg viewBox="0 0 24 24" width={19} height={19} fill="none" stroke="currentColor" strokeWidth={1.8}>
         <path d="M3 21V8l9-5 9 5v13" /><path d="M9 21v-7h6v7" />
+      </svg>
+    ),
+  },
+  {
+    key: "clients", label: "Клиенты", icon: (
+      <svg viewBox="0 0 24 24" width={19} height={19} fill="none" stroke="currentColor" strokeWidth={1.8}>
+        <circle cx="12" cy="8" r="3.4" /><path d="M4.5 21c0-4.1 3.4-7 7.5-7s7.5 2.9 7.5 7" />
       </svg>
     ),
   },
