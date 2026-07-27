@@ -14,6 +14,34 @@ export type Unit = {
 
 export type Building = { id: string; name: string; project_name: string; status: string };
 
+export type Payment = {
+  id: string;
+  spravka_request_id: string;
+  installment_number: number;
+  label: string;
+  due_date: string;
+  amount_usd: number;
+  status: "pending" | "paid" | "overdue";
+  paid_at: string | null;
+  spravka_requests?: {
+    client_name: string;
+    requested_by: string;
+    units?: { unit_number: string; buildings?: { name: string } };
+  };
+};
+
+export const PAYMENT_STATUS_LABELS: Record<string, string> = {
+  pending: "Ожидается",
+  paid: "Оплачено",
+  overdue: "Просрочено",
+};
+
+export const PAYMENT_STATUS_COLORS: Record<string, { bg: string; fg: string }> = {
+  pending: { bg: "rgba(255,255,255,.06)", fg: "var(--color-text-soft)" },
+  paid: { bg: "var(--success-tint)", fg: "var(--success)" },
+  overdue: { bg: "var(--danger-tint)", fg: "var(--danger)" },
+};
+
 export type Lead = {
   id: string;
   phone: string;
@@ -21,6 +49,7 @@ export type Lead = {
   buy_intent: string | null;
   stage: string;
   assigned_manager: string | null;
+  is_stale?: boolean;
   created_at: string;
 };
 

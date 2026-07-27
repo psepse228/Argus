@@ -20,6 +20,7 @@ from app.db import get_service_client
 from app.deps import get_current_user, require_boss
 from app.excel_gen.preview import workbook_bytes_to_preview
 from app.services.spravka_service import PLAN_TYPES, SpravkaCreationError, create_spravka
+from app.services.payment_schedule_service import generate_schedule
 from app.storage import download_spravka as storage_download
 
 router = APIRouter(prefix="/api/spravka-requests")
@@ -119,6 +120,13 @@ def approve_spravka_request(request_id: str, user=Depends(require_boss)):
     }).eq("id", request_id).eq("tenant_id", user.tenant_id).execute().data
     if not updated:
         raise HTTPException(status_code=404, detail="Request not found")
+    # Approval is the point the deal becomes real, not just a quote --
+    # generate the trackable installment schedule now, reusing the exact
+    # numbers already computed at creation time.
+    try:
+        generate_schedule(client, user.tenant_id, updated[0])
+    except Exception:
+        pass  # best-effort -- approval itself must not fail if this does
     return updated[0]
 
 

@@ -377,6 +377,43 @@ function OverviewContent({
           ))}
         </div>
       )}
+
+      {isBoss && tab === "home" && <CortegeTeaserCard />}
+    </div>
+  );
+}
+
+/** Cross-sell placeholder, not a real integration yet -- Argus and Cortège
+ * are separate Solura products today. This just plants the idea in front of
+ * the one person (the boss) who'd actually buy it, once it's real. */
+function CortegeTeaserCard() {
+  return (
+    <div
+      className="glass-panel"
+      style={{
+        padding: "18px 20px", display: "flex", alignItems: "center", gap: 16,
+        border: "1px solid color-mix(in srgb, #22d3ee 30%, transparent)",
+      }}
+    >
+      <div
+        style={{
+          width: 42, height: 42, borderRadius: 12, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center",
+          background: "linear-gradient(150deg, #22d3ee, #6366f1)",
+        }}
+      >
+        <svg viewBox="0 0 24 24" width={22} height={22} fill="none" stroke="#fff" strokeWidth={1.9}>
+          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+        </svg>
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 13.5, fontWeight: 800, color: "var(--color-text)" }}>Cortège для Italiano Vero</div>
+        <div style={{ fontSize: 12, color: "var(--color-text-faint)", marginTop: 2, lineHeight: 1.5 }}>
+          AI, который сам отвечает клиентам в Instagram и Telegram — те же лиды, без ожидания менеджера.
+        </div>
+      </div>
+      <span style={{ fontSize: 10.5, fontWeight: 800, color: "#22d3ee", background: "rgba(34,211,238,.12)", padding: "5px 12px", borderRadius: 99, flexShrink: 0, whiteSpace: "nowrap" }}>
+        Скоро
+      </span>
     </div>
   );
 }

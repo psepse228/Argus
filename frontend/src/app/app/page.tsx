@@ -7,6 +7,7 @@ import { AssistantPanel } from "@/components/AssistantPanel";
 import { UnitsPanel } from "@/components/UnitsPanel";
 import { LeadsPanel } from "@/components/LeadsPanel";
 import { ClientsPanel } from "@/components/ClientsPanel";
+import { PaymentsPanel } from "@/components/PaymentsPanel";
 import { AnalyticsPanel } from "@/components/AnalyticsPanel";
 import { AssistantWidget } from "@/components/AssistantWidget";
 
@@ -15,6 +16,7 @@ const TITLES: Record<Section, string> = {
   units: "Юниты",
   leads: "Лиды",
   clients: "Клиенты",
+  payments: "Платежи",
   analytics: "Аналитика",
 };
 
@@ -77,6 +79,7 @@ export default function AppPage() {
           {section === "units" && <UnitsPanel />}
           {section === "leads" && <LeadsPanel />}
           {section === "clients" && <ClientsPanel user={effectiveUser} />}
+          {section === "payments" && <PaymentsPanel />}
           {section === "analytics" && effectiveUser.role === "boss" && <AnalyticsPanel />}
         </div>
       </div>

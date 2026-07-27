@@ -4,6 +4,9 @@ import { api } from "@/lib/api";
 import { Lead } from "@/lib/types";
 import { Dropdown } from "./Dropdown";
 
+// Mirrors backend/app/routers/leads.py::STALE_DAYS -- only used for the tooltip copy.
+const STALE_DAYS = 3;
+
 const STAGES = [
   { key: "unsorted", label: "Неразобранное" },
   { key: "matching", label: "Подбор" },
@@ -49,9 +52,26 @@ export function LeadsPanel() {
                 <span style={{ fontSize: 11, fontWeight: 700, color: "var(--color-text-faint)", background: "rgba(255,255,255,.05)", borderRadius: 99, padding: "1px 8px" }}>{inStage.length}</span>
               </div>
               {inStage.map((l) => (
-                <div key={l.id} className="glass-panel" style={{ padding: "12px 13px", borderRadius: 14, display: "flex", flexDirection: "column", gap: 8 }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: "var(--color-text)" }}>{l.phone}</div>
+                <div
+                  key={l.id}
+                  className="glass-panel"
+                  style={{
+                    padding: "12px 13px", borderRadius: 14, display: "flex", flexDirection: "column", gap: 8,
+                    border: l.is_stale ? "1px solid color-mix(in srgb, var(--warning) 45%, transparent)" : undefined,
+                  }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: "var(--color-text)" }}>{l.phone}</div>
+                    {l.is_stale && (
+                      <span title={`Без движения ${STALE_DAYS}+ дней`} style={{ fontSize: 9.5, fontWeight: 700, color: "var(--warning)", background: "var(--warning-tint)", borderRadius: 99, padding: "2px 7px", whiteSpace: "nowrap" }}>
+                        Простаивает
+                      </span>
+                    )}
+                  </div>
                   <div style={{ fontSize: 11, color: "var(--color-text-faint)" }}>{l.buy_intent || l.source || "—"}</div>
+                  {l.assigned_manager && (
+                    <div style={{ fontSize: 10.5, color: "var(--v-accent)", fontWeight: 600 }}>{l.assigned_manager}</div>
+                  )}
                   <Dropdown
                     value={l.stage}
                     onChange={(v) => move(l.id, v)}

@@ -50,4 +50,7 @@ export const api = {
 
   clients: () => request("/api/clients"),
   clientDetail: (id: string) => request(`/api/clients/${id}`),
+
+  payments: () => request("/api/payments"),
+  markPaymentPaid: (id: string) => request(`/api/payments/${id}/mark-paid`, { method: "POST" }),
 };
