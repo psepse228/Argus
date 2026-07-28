@@ -1,4 +1,4 @@
-import { Client } from "./types";
+import { Client, TelegramConversation, TelegramMessage } from "./types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8010";
 
@@ -75,4 +75,18 @@ export const api = {
   workspace: (): Promise<Client[]> => request("/api/workspace"),
   pinToWorkspace: (clientId: string) => request(`/api/workspace/${clientId}`, { method: "POST" }),
   unpinFromWorkspace: (clientId: string) => request(`/api/workspace/${clientId}`, { method: "DELETE" }),
+
+  telegramByClient: (clientId: string): Promise<{ conversation: TelegramConversation | null; messages: TelegramMessage[] }> =>
+    request(`/api/telegram-business/conversations/by-client/${clientId}`),
+  telegramSendReply: (conversationId: string, text: string) =>
+    request(`/api/telegram-business/conversations/${conversationId}/send`, { method: "POST", body: JSON.stringify({ text }) }),
+  telegramUnmatched: (): Promise<TelegramConversation[]> =>
+    request("/api/telegram-business/conversations/unmatched"),
+  telegramRecentMatched: (): Promise<(TelegramConversation & { clients: { name: string | null; phone: string } | null })[]> =>
+    request("/api/telegram-business/conversations/recent-matched"),
+  telegramLinkConversation: (
+    conversationId: string,
+    body: { client_id?: string; new_client_name?: string; new_client_phone?: string }
+  ): Promise<TelegramConversation> =>
+    request(`/api/telegram-business/conversations/${conversationId}/link`, { method: "PATCH", body: JSON.stringify(body) }),
 };

@@ -221,3 +221,29 @@ export const STATUS_LABELS: Record<string, string> = {
   meeting_scheduled: "Встреча назначена",
   meeting_held: "Встреча проведена",
 };
+
+export type TelegramConversation = {
+  id: string;
+  tenant_id: string;
+  connection_id: string;
+  client_id: string | null;
+  telegram_chat_id: number;
+  telegram_first_name: string | null;
+  telegram_username: string | null;
+  summary: string | null;
+  next_step_suggestion: string | null;
+  draft_reply: string | null;
+  draft_generated_at: string | null;
+  last_message_at: string;
+  created_at: string;
+};
+
+export type TelegramMessage = {
+  id: string;
+  conversation_id: string;
+  direction: "inbound" | "outbound";
+  content: string;
+  telegram_message_id: number | null;
+  sent_by: string | null;
+  created_at: string;
+};
