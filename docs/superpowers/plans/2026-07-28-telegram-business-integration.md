@@ -591,12 +591,18 @@ def _history_for_evaluation(client, conversation_id: str) -> list[dict]:
 
 
 @router.post("/webhook/telegram-business")
-async def telegram_business_webhook(request: Request):
+def telegram_business_webhook(update: dict, request: Request):
+    # Plain `def`, not `async def` -- this handler makes several blocking
+    # Supabase calls below, so it must stay on FastAPI's threadpool path
+    # (see concepts/fastapi-async-blocking-io in the wiki). Taking `update:
+    # dict` as a body parameter (instead of manually `await request.json()`)
+    # is what makes that possible: FastAPI parses the JSON body for us
+    # synchronously, and `request` is only used here for its headers, which
+    # don't require awaiting either.
     secret = request.headers.get("x-telegram-bot-api-secret-token")
     if not verify_webhook_signature(secret):
         raise HTTPException(status_code=401, detail="Invalid webhook secret")
 
-    update = await request.json()
     client = get_service_client()
 
     connection_event = update.get("business_connection")
