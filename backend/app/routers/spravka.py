@@ -131,6 +131,18 @@ def approve_spravka_request(request_id: str, user=Depends(require_boss)):
         generate_schedule(client, user.tenant_id, updated[0])
     except Exception:
         pass  # best-effort -- approval itself must not fail if this does
+    # Move the unit out of "for_sale" now that the boss has actually signed
+    # off -- this is the one automated status change that's fine (unlike a
+    # rep's own справка submission, which never touches unit status), since
+    # it's the boss's own explicit decision, not a silent system action.
+    # Only touches units still marked for_sale so it can't regress a unit
+    # that's already further along (e.g. deal_in_progress from another flow).
+    try:
+        client.table("units").update({"status": "reserved"}).eq(
+            "id", updated[0]["unit_id"]
+        ).eq("tenant_id", user.tenant_id).eq("status", "for_sale").execute()
+    except Exception:
+        pass  # best-effort -- approval itself must not fail if this does
     return updated[0]
 
 

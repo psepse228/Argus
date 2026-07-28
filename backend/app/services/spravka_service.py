@@ -35,13 +35,24 @@ def _get_unit_by_id(client, unit_id: str, tenant_id: str) -> dict:
     return res.data[0]
 
 
+def _bare_unit_number(unit_number: str) -> str:
+    """Units are stored as "Atlas-104" (building-prefixed, see the Horizon
+    Bay fake-data seed), but a rep in chat says "104" -- the AI is explicitly
+    told to pass it that bare way (see functions.py's tool schema). An exact
+    DB match against the stored value never matched a bare number, so every
+    chat-driven lookup by number silently failed as "not found" regardless of
+    the unit's actual status. Comparing just the part after the last hyphen
+    handles both "104" and "Atlas-104" the same way."""
+    return unit_number.rsplit("-", 1)[-1].strip()
+
+
 def get_unit_by_number(client, tenant_id: str, unit_number: str, building: str | None = None) -> dict:
     """Resolves a unit the way a rep would refer to it in chat — by its
     number (and optionally building, to disambiguate the same number
     appearing in more than one building)."""
-    q = client.table("units").select("*, buildings(name)").eq("tenant_id", tenant_id).eq("unit_number", str(unit_number))
-    res = q.execute()
-    rows = res.data
+    res = client.table("units").select("*, buildings(name)").eq("tenant_id", tenant_id).execute()
+    needle = _bare_unit_number(str(unit_number))
+    rows = [r for r in res.data if _bare_unit_number(r["unit_number"]) == needle]
     if building:
         rows = [r for r in rows if r.get("buildings", {}).get("name", "").lower() == building.lower()]
     if not rows:
@@ -96,7 +107,12 @@ def _generate_and_store(req_row: dict, unit: dict, unit_building_name: str,
     numeric preview without ever needing to parse the .xlsx file."""
     anchor_price = float(unit["price_per_m2_usd"])
     area = float(unit["area_m2"])
-    discount_total_usd = max(0.0, (anchor_price - real_price_per_m2) * area)
+    # Not clamped to >= 0: a payment-plan rate can legitimately price *above*
+    # the cash anchor (financing costs more per m² than paying upfront) --
+    # clamping a would-be-negative surcharge to 0 used to silently re-price
+    # the whole Справка at the cheaper anchor rate instead. See calc.py's
+    # matching `!= 0` check, which is what actually applies this either way.
+    discount_total_usd = (anchor_price - real_price_per_m2) * area
 
     plan_type = req_row["plan_type"]
     installment_months = _installment_months_from_plan(plan_type)

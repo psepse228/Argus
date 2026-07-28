@@ -45,8 +45,12 @@ def compute(inp: SpravkaInput) -> SpravkaResult:
 
     # "effective" columns (J-M in the real sheet) = post-promo if a promo
     # applies, otherwise identical to the no-promo columns — matches every
-    # sample file, where promo=0 and effective == no-promo.
-    if total_promo_usd > 0:
+    # sample file, where promo=0 and effective == no-promo. promo can be
+    # negative (a payment-plan surcharge, e.g. installment priced *above*
+    # the cash anchor) -- subtracting a negative correctly adds it back, so
+    # this must trigger on != 0, not > 0, or a surcharge silently vanishes
+    # and the client gets billed the cheaper anchor price.
+    if total_promo_usd != 0:
         effective_total_usd = total_no_promo_usd - total_promo_usd
     else:
         effective_total_usd = total_no_promo_usd

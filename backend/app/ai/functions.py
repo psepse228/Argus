@@ -10,15 +10,24 @@ blocking Supabase calls — see concepts/fastapi-async-blocking-io.
 """
 from app.db import get_service_client
 from app.services.spravka_service import (
-    SpravkaCreationError, create_spravka, get_unit_by_number,
+    SpravkaCreationError, _bare_unit_number, create_spravka, get_unit_by_number,
 )
 
 
 def get_units(tenant_id: str, building: str | None = None, room_type: str | None = None,
-              max_price_usd: float | None = None, status: str | None = "for_sale") -> list[dict]:
+              max_price_usd: float | None = None, status: str | None = "for_sale",
+              unit_number: str | None = None) -> list[dict]:
     client = get_service_client()
     q = client.table("units").select("*, buildings(name)").eq("tenant_id", tenant_id)
-    if status:
+    # The "for_sale" default is right for a general availability browse, but
+    # it used to also apply when a rep asked about one specific unit by
+    # number -- a reserved/sold unit would then come back as zero rows, and
+    # the model had no way to tell "doesn't exist" apart from "exists but
+    # isn't for sale," so it told the rep the unit wasn't found. A unit_number
+    # lookup is a targeted "does this exist and what's its status" question,
+    # not a browse, so it skips the default and sees every status unless the
+    # caller also passes one explicitly.
+    if status and not (unit_number and status == "for_sale"):
         q = q.eq("status", status)
     # room_type filtered in Python, not via .eq() — GPT calls this with
     # whatever casing/language variant the user used ("студия" vs "Студия"
@@ -33,6 +42,9 @@ def get_units(tenant_id: str, building: str | None = None, room_type: str | None
         rows = [r for r in rows if needle in (r.get("room_type") or "").lower().replace("-", "").replace(" ", "")]
     if building:
         rows = [r for r in rows if r.get("buildings", {}).get("name", "").lower() == building.lower()]
+    if unit_number:
+        needle_num = _bare_unit_number(str(unit_number))
+        rows = [r for r in rows if _bare_unit_number(str(r.get("unit_number") or "")) == needle_num]
     if max_price_usd is not None:
         rows = [r for r in rows if float(r["area_m2"]) * float(r["price_per_m2_usd"]) <= max_price_usd]
     # trim to the fields that actually matter for an assistant answer
@@ -161,7 +173,7 @@ FUNCTION_SCHEMAS = [
         "type": "function",
         "function": {
             "name": "get_units",
-            "description": "Search real unit inventory (price, area, floor, status) — always use this instead of guessing a price or availability.",
+            "description": "Search real unit inventory (price, area, floor, status) — always use this instead of guessing a price or availability. If the rep names a specific unit number, always pass unit_number — it returns that unit regardless of status (for_sale, reserved, etc.) instead of silently omitting it, so you can tell the rep it's taken rather than saying it doesn't exist.",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -169,6 +181,7 @@ FUNCTION_SCHEMAS = [
                     "room_type": {"type": "string"},
                     "max_price_usd": {"type": "number"},
                     "status": {"type": "string", "enum": ["for_sale", "reserved", "paid_reservation", "deal_in_progress", "deal_completed", "marketing_reserve"]},
+                    "unit_number": {"type": "string", "description": "Look up one exact unit by number (e.g. '104') — bypasses the for_sale default so a reserved/sold unit still comes back."},
                 },
             },
         },
