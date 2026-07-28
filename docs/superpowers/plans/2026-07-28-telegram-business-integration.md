@@ -66,7 +66,13 @@ create table public.telegram_business_connections (
   is_enabled boolean not null default true,
   connected_at timestamptz not null default now(),
   disconnected_at timestamptz,
-  unique (tenant_id, business_connection_id)
+  -- Global uniqueness, not just per-tenant -- the webhook resolves a
+  -- connection by business_connection_id alone (no tenant context exists
+  -- at that point), so this ID must be unambiguous across every tenant,
+  -- not just within one, or a message could get filed under the wrong
+  -- tenant if two connections ever shared an id (e.g. an operator mistake
+  -- during this pilot's manual setup).
+  unique (business_connection_id)
 );
 
 create table public.telegram_conversations (
@@ -614,8 +620,12 @@ def telegram_business_webhook(update: dict, request: Request):
         return {"ok": True}
 
     message = update.get("business_message") or update.get("edited_business_message")
-    if not message or "text" not in message:
-        return {"ok": True}  # non-text or unrecognized update -- nothing to relay/evaluate
+    # A shared-contact message has NO "text" field at all (it's a distinct
+    # Telegram content type) -- gating on "text" alone would silently
+    # discard every contact-share and make the phone-matching feature below
+    # unreachable. Accept the update if it has either.
+    if not message or ("text" not in message and "contact" not in message):
+        return {"ok": True}  # unrecognized update shape -- nothing to relay/evaluate
 
     connection = _get_connection(client, message["business_connection_id"])
     if not connection:
@@ -629,23 +639,26 @@ def telegram_business_webhook(update: dict, request: Request):
             client.table("telegram_conversations").update({"client_id": client_id}).eq("id", conversation["id"]).execute()
             conversation["client_id"] = client_id
 
-    client.table("telegram_messages").insert({
-        "conversation_id": conversation["id"], "direction": "inbound",
-        "content": message["text"], "telegram_message_id": message["message_id"],
-    }).execute()
-    client.table("telegram_conversations").update({
-        "last_message_at": datetime.now(timezone.utc).isoformat(),
-    }).eq("id", conversation["id"]).execute()
-
-    try:
-        history = _history_for_evaluation(client, conversation["id"])
-        evaluation = evaluate_conversation(history)
+    # A contact-share carries no text to save as a message or evaluate --
+    # matching (above) is the only thing it's here to do.
+    if "text" in message:
+        client.table("telegram_messages").insert({
+            "conversation_id": conversation["id"], "direction": "inbound",
+            "content": message["text"], "telegram_message_id": message["message_id"],
+        }).execute()
         client.table("telegram_conversations").update({
-            "summary": evaluation["summary"], "next_step_suggestion": evaluation["next_step"],
-            "draft_reply": evaluation["draft_reply"], "draft_generated_at": datetime.now(timezone.utc).isoformat(),
+            "last_message_at": datetime.now(timezone.utc).isoformat(),
         }).eq("id", conversation["id"]).execute()
-    except Exception:
-        pass  # best-effort -- the message still saved; a manager can always reply manually
+
+        try:
+            history = _history_for_evaluation(client, conversation["id"])
+            evaluation = evaluate_conversation(history)
+            client.table("telegram_conversations").update({
+                "summary": evaluation["summary"], "next_step_suggestion": evaluation["next_step"],
+                "draft_reply": evaluation["draft_reply"], "draft_generated_at": datetime.now(timezone.utc).isoformat(),
+            }).eq("id", conversation["id"]).execute()
+        except Exception:
+            pass  # best-effort -- the message still saved; a manager can always reply manually
 
     return {"ok": True}
 
@@ -689,11 +702,43 @@ class LinkBody(BaseModel):
 @api_router.patch("/conversations/{conversation_id}/link")
 def link_conversation(conversation_id: str, body: LinkBody, user=Depends(get_current_user)):
     client = get_service_client()
+
+    # Check the conversation itself belongs to this tenant BEFORE touching
+    # anything else -- both so a bad conversation_id 404s cleanly, and so a
+    # get_or_create_client call below never runs (and inserts a client row)
+    # for a request that was going to fail anyway.
+    conv = (
+        client.table("telegram_conversations").select("id")
+        .eq("id", conversation_id).eq("tenant_id", user.tenant_id).execute().data
+    )
+    if not conv:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+
     if body.client_id:
+        # This app has no RLS (service-role client bypasses it entirely) --
+        # this tenant check is the ONLY thing standing between a request and
+        # linking a conversation to a client that belongs to a different
+        # tenant, so it's not optional. Every other place a client_id FK
+        # gets set in this codebase derives it internally (get_or_create_client)
+        # rather than trusting a raw id from the request body; this is the
+        # first endpoint that accepts one directly, so it needs its own check.
+        owned = (
+            client.table("clients").select("id")
+            .eq("id", body.client_id).eq("tenant_id", user.tenant_id).execute().data
+        )
+        if not owned:
+            raise HTTPException(status_code=404, detail="Client not found")
         client_id = body.client_id
     elif body.new_client_phone:
         from app.services.client_service import get_or_create_client
-        client_id = get_or_create_client(client, user.tenant_id, body.new_client_phone, body.new_client_name)
+        from app.telegram.matching import normalize_phone
+        # Normalized the same way the webhook's own auto-match does --
+        # otherwise a manager typing the number in a different format than
+        # however Telegram delivered it creates a second, duplicate client
+        # instead of matching the one the webhook may have already made.
+        client_id = get_or_create_client(
+            client, user.tenant_id, normalize_phone(body.new_client_phone), body.new_client_name
+        )
     else:
         raise HTTPException(status_code=400, detail="client_id or new_client_phone required")
 
@@ -701,8 +746,6 @@ def link_conversation(conversation_id: str, body: LinkBody, user=Depends(get_cur
         client.table("telegram_conversations").update({"client_id": client_id})
         .eq("id", conversation_id).eq("tenant_id", user.tenant_id).execute().data
     )
-    if not updated:
-        raise HTTPException(status_code=404, detail="Conversation not found")
     return updated[0]
 
 
