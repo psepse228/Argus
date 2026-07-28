@@ -72,7 +72,10 @@ create table public.telegram_business_connections (
 create table public.telegram_conversations (
   id uuid primary key default gen_random_uuid(),
   tenant_id uuid not null references public.tenants(id) on delete cascade,
-  business_connection_id uuid not null references public.telegram_business_connections(id) on delete cascade,
+  -- Named connection_id, not business_connection_id, so it can't be
+  -- confused with telegram_business_connections.business_connection_id
+  -- (that one's the raw Telegram-issued string; this is our own uuid FK).
+  connection_id uuid not null references public.telegram_business_connections(id) on delete cascade,
   client_id uuid references public.clients(id) on delete set null,
   telegram_chat_id bigint not null,
   telegram_first_name text,
@@ -83,9 +86,12 @@ create table public.telegram_conversations (
   draft_generated_at timestamptz,
   last_message_at timestamptz not null default now(),
   created_at timestamptz not null default now(),
-  unique (business_connection_id, telegram_chat_id)
+  unique (connection_id, telegram_chat_id)
 );
 create index on public.telegram_conversations (tenant_id, client_id);
+-- Supports the Мастерская discovery card's "most recent activity" ordering
+-- (see Task 9) -- without this, that query has nothing but a full scan.
+create index on public.telegram_conversations (tenant_id, last_message_at desc);
 
 create table public.telegram_messages (
   id uuid primary key default gen_random_uuid(),
@@ -542,7 +548,7 @@ from pydantic import BaseModel
 
 from app.db import get_service_client
 from app.deps import get_current_user
-from app.telegram.bot_client import send_message, verify_webhook_signature
+from app.telegram.bot_client import TelegramSendError, send_message, verify_webhook_signature
 from app.telegram.matching import find_client_by_phone
 from app.ai.telegram_evaluator import evaluate_conversation
 
@@ -561,14 +567,14 @@ def _get_connection(client, business_connection_id: str) -> dict | None:
 def _get_or_create_conversation(client, connection: dict, chat: dict) -> dict:
     existing = (
         client.table("telegram_conversations").select("*")
-        .eq("business_connection_id", connection["id"]).eq("telegram_chat_id", chat["id"])
+        .eq("connection_id", connection["id"]).eq("telegram_chat_id", chat["id"])
         .execute().data
     )
     if existing:
         return existing[0]
     inserted = client.table("telegram_conversations").insert({
         "tenant_id": connection["tenant_id"],
-        "business_connection_id": connection["id"],
+        "connection_id": connection["id"],
         "telegram_chat_id": chat["id"],
         "telegram_first_name": chat.get("first_name"),
         "telegram_username": chat.get("username"),
@@ -654,7 +660,10 @@ def send_reply(conversation_id: str, body: SendBody, user=Depends(get_current_us
     conversation = conv[0]
     business_connection_id = conversation["telegram_business_connections"]["business_connection_id"]
 
-    send_message(business_connection_id, conversation["telegram_chat_id"], body.text)
+    try:
+        send_message(business_connection_id, conversation["telegram_chat_id"], body.text)
+    except TelegramSendError:
+        raise HTTPException(status_code=503, detail="Не удалось отправить сообщение в Telegram — попробуйте ещё раз")
     client.table("telegram_messages").insert({
         "conversation_id": conversation_id, "direction": "outbound",
         "content": body.text, "sent_by": user.email,
@@ -794,7 +803,7 @@ Append to `frontend/src/lib/types.ts`:
 export type TelegramConversation = {
   id: string;
   tenant_id: string;
-  business_connection_id: string;
+  connection_id: string;
   client_id: string | null;
   telegram_chat_id: number;
   telegram_first_name: string | null;
