@@ -12,7 +12,13 @@ create table public.telegram_business_connections (
   is_enabled boolean not null default true,
   connected_at timestamptz not null default now(),
   disconnected_at timestamptz,
-  unique (tenant_id, business_connection_id)
+  -- Global uniqueness, not just per-tenant -- the webhook resolves a
+  -- connection by business_connection_id alone (no tenant context exists
+  -- at that point), so this ID must be unambiguous across every tenant,
+  -- not just within one, or a message could get filed under the wrong
+  -- tenant if two connections ever shared an id (e.g. an operator mistake
+  -- during this pilot's manual setup).
+  unique (business_connection_id)
 );
 
 create table public.telegram_conversations (
