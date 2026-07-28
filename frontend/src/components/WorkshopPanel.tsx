@@ -12,7 +12,7 @@ import { SpravkaApprovalTable } from "./SpravkaApprovalTable";
  * apartments, справка mode, Cortège+, and an AI chat that reads this
  * client's whole history and keeps advising on the deal as it moves. */
 export function WorkshopPanel({
-  isBoss, pendingApprovals, initialClientId, onInitialClientHandled,
+  isBoss, pendingApprovals, initialClientId, onInitialClientHandled, onDecided,
 }: {
   isBoss: boolean;
   /** Clients with a pending справка -- surfaced even if nobody pinned them
@@ -21,6 +21,9 @@ export function WorkshopPanel({
   pendingApprovals: { client_id: string; client_name: string }[];
   initialClientId?: string | null;
   onInitialClientHandled?: () => void;
+  /** Bubbled up to Ассистент's digest refresh after an approve/reject in
+   * "Все справки" -- otherwise the pending badge stays stale until reload. */
+  onDecided?: () => void;
 }) {
   const [pinned, setPinned] = useState<Client[] | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -65,6 +68,7 @@ export function WorkshopPanel({
       <AllSpravkaTable
         onBack={() => setShowAllRequests(false)}
         onOpenClient={(id) => { setShowAllRequests(false); setSelectedId(id); }}
+        onDecided={onDecided}
       />
     );
   }
@@ -86,7 +90,7 @@ export function WorkshopPanel({
             Убрать из Мастерской
           </button>
         </div>
-        <ClientWorkspace clientId={selectedId} isBoss={isBoss} />
+        <ClientWorkspace clientId={selectedId} isBoss={isBoss} onDecided={onDecided} />
       </div>
     );
   }
@@ -189,7 +193,9 @@ export function WorkshopPanel({
  * being the tab's default content. Approving/rejecting one client's справка
  * one at a time inside ClientWorkspace is fine for working a deal; this is
  * for scanning the whole queue at once. */
-function AllSpravkaTable({ onBack, onOpenClient }: { onBack: () => void; onOpenClient: (clientId: string) => void }) {
+function AllSpravkaTable({
+  onBack, onOpenClient, onDecided,
+}: { onBack: () => void; onOpenClient: (clientId: string) => void; onDecided?: () => void }) {
   return (
     <div style={{ flex: 1, minHeight: 0, overflowY: "auto", display: "flex", flexDirection: "column", gap: 16 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
@@ -199,7 +205,7 @@ function AllSpravkaTable({ onBack, onOpenClient }: { onBack: () => void; onOpenC
         <h1 style={{ fontFamily: "var(--font-heading)", fontSize: 19, fontWeight: 700, margin: 0, color: "var(--color-text)" }}>Все справки</h1>
       </div>
       <div className="glass-panel" style={{ padding: "6px 22px 10px" }}>
-        <SpravkaApprovalTable onOpenClient={onOpenClient} />
+        <SpravkaApprovalTable onOpenClient={onOpenClient} onDecided={onDecided} />
       </div>
     </div>
   );

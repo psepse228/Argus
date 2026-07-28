@@ -212,4 +212,12 @@ export const STATUS_LABELS: Record<string, string> = {
   approved: "Одобрено",
   auto_approved: "Одобрено (авто)",
   rejected: "Отклонено",
+  // Lead-stage labels (matches LeadsPanel's Kanban columns) -- shared here
+  // too since ClientWorkspace/ClientInfoCard render a lead's stage via this
+  // same map; without these four, "unsorted" etc. leaked through in English
+  // wherever the map's `|| stage` fallback kicked in.
+  unsorted: "Неразобранное",
+  matching: "Подбор",
+  meeting_scheduled: "Встреча назначена",
+  meeting_held: "Встреча проведена",
 };

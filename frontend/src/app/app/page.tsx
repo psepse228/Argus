@@ -37,7 +37,15 @@ export default function AppPage() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [pendingWorkspaceClientId, setPendingWorkspaceClientId] = useState<string | null>(null);
   const [assistantPending, setAssistantPending] = useState(0);
-  const wheelLockRef = useRef(false);
+  // Adjacent moves (arrow keys / swipe) animate; this locks out re-triggers
+  // faster than the animation itself, since unlocked rapid-fire (key-repeat,
+  // a fast trackpad swipe) used to queue several index changes inside one
+  // transition and show overlapping/ghosted frames instead of settling.
+  const stepLockRef = useRef(false);
+  // Distant dot-clicks cut straight there instead of visibly sliding past
+  // every space in between -- toggled off just long enough for the index
+  // change to paint with no transition, then back on for the next move.
+  const [transitionEnabled, setTransitionEnabled] = useState(true);
 
   useEffect(() => {
     api.me().then((u) => {
@@ -57,12 +65,29 @@ export default function AppPage() {
   }, [visibleSpaces.length]);
 
   function step(delta: number) {
+    if (stepLockRef.current) return;
+    stepLockRef.current = true;
     setActiveIndex((cur) => Math.min(visibleSpaces.length - 1, Math.max(0, cur + delta)));
+    setTimeout(() => { stepLockRef.current = false; }, 550);
+  }
+
+  // Direct jumps (SpaceIndicator dot clicks): adjacent moves still slide like
+  // a step; anything further snaps instantly instead of visibly sliding past
+  // every space in between (which read as slow and is where the transition
+  // could get caught mid-flight, see stepLockRef above).
+  function jumpTo(target: number) {
+    if (target === activeIndex) return;
+    if (Math.abs(target - activeIndex) <= 1) { setActiveIndex(target); return; }
+    setTransitionEnabled(false);
+    requestAnimationFrame(() => {
+      setActiveIndex(target);
+      requestAnimationFrame(() => setTransitionEnabled(true));
+    });
   }
 
   function goToSection(section: Section) {
     const idx = visibleSpaces.findIndex((s) => s.key === section);
-    if (idx >= 0) setActiveIndex(idx);
+    if (idx >= 0) jumpTo(idx);
   }
 
   useEffect(() => {
@@ -75,10 +100,7 @@ export default function AppPage() {
     }
     function onWheel(e: WheelEvent) {
       if (Math.abs(e.deltaX) <= Math.abs(e.deltaY) || Math.abs(e.deltaX) < 30) return;
-      if (wheelLockRef.current) return;
-      wheelLockRef.current = true;
       step(e.deltaX > 0 ? 1 : -1);
-      setTimeout(() => { wheelLockRef.current = false; }, 550);
     }
     window.addEventListener("keydown", onKeyDown);
     window.addEventListener("wheel", onWheel, { passive: true });
@@ -114,7 +136,12 @@ export default function AppPage() {
   const isAssistant = activeKey === "assistant";
 
   return (
-    <div style={{ position: "relative", height: "100vh", minHeight: 720, overflow: "hidden" }}>
+    // overflow: "clip", not "hidden" -- "hidden" still lets a descendant's
+    // native .scrollIntoView() (e.g. an input scrolling into view) set this
+    // element's scrollLeft, which fights the translateX below and briefly
+    // shows two spaces overlapping. "clip" isn't a scroll container at all,
+    // so nothing but our own transform can move this.
+    <div style={{ position: "relative", height: "100vh", minHeight: 720, overflow: "clip" }}>
       <HudToolbar
         user={effectiveUser}
         previewRole={canPreviewRole ? (previewRole || "boss") : undefined}
@@ -126,7 +153,7 @@ export default function AppPage() {
         onOpenUnit={openUnitFromSearch} onOpenClient={openClientFromLead}
       />
       <SpaceIndicator
-        user={effectiveUser} activeIndex={activeIndex} onJump={setActiveIndex}
+        user={effectiveUser} activeIndex={activeIndex} onJump={jumpTo}
         badges={{ assistant: assistantPending }}
       />
 
@@ -134,7 +161,7 @@ export default function AppPage() {
         style={{
           display: "flex", height: "100%", width: `${visibleSpaces.length * 100}%`,
           transform: `translateX(-${(100 / visibleSpaces.length) * activeIndex}%)`,
-          transition: "transform .5s cubic-bezier(.2,.7,.3,1)",
+          transition: transitionEnabled ? "transform .5s cubic-bezier(.2,.7,.3,1)" : "none",
         }}
       >
         {visibleSpaces.map((s) => (

@@ -30,7 +30,16 @@ function clientStage(detail: ClientDetail): { label: string; color: string } {
  * Мастерская (see AssistantPanel.tsx); this used to be Клиенты's own detail
  * view, but that view is now the lighter ClientInfoCard -- opening a client
  * to actually work on them is a deliberate step into Мастерская instead. */
-export function ClientWorkspace({ clientId, isBoss }: { clientId: string; isBoss: boolean }) {
+export function ClientWorkspace({
+  clientId, isBoss, onDecided,
+}: {
+  clientId: string;
+  isBoss: boolean;
+  /** Bubbled up to Ассистент's digest refresh after this workspace's own
+   * inline approve/reject -- otherwise the Мастерская pill's pending badge
+   * stays stale until a full reload, same fix as SpravkaApprovalTable's. */
+  onDecided?: () => void;
+}) {
   const [selected, setSelected] = useState<ClientDetail | null>(null);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [spravkaMode, setSpravkaMode] = useState(false);
@@ -132,6 +141,7 @@ export function ClientWorkspace({ clientId, isBoss }: { clientId: string; isBoss
         ...cur,
         spravka_requests: cur.spravka_requests.map((s) => (s.id === spravkaId ? { ...s, ...updated } : s)),
       });
+      onDecided?.();
     } catch (e: any) {
       setActionError(e.message);
     }

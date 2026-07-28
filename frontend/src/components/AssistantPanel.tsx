@@ -79,39 +79,41 @@ export function AssistantPanel({
     };
   }, [bellOpen]);
 
-  // "What happened while you were away" — real data, not filler.
-  useEffect(() => {
-    (async () => {
-      try {
-        const [requests, leads, buildings, units, payments]: [SpravkaRequest[], any[], any[], any[], Payment[]] = await Promise.all([
-          api.spravkaRequests(), api.leads(), api.buildings(), api.units(), api.payments().catch(() => []),
-        ]);
-        const pending = requests.filter((r) => r.status === "pending");
-        const recent = [...requests]
-          .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-          .slice(0, 4);
-        const buildingStats = buildings.slice(0, 3).map((b: any) => {
-          const inBuilding = units.filter((u: any) => u.building_id === b.id && u.status === "for_sale");
-          const price = inBuilding.length ? Math.min(...inBuilding.map((u: any) => u.price_per_m2_usd)) : 0;
-          return { name: b.name, forSale: inBuilding.length, price };
+  // "What happened while you were away" — real data, not filler. Also
+  // re-run on demand (see onDigestRefresh below) after an approve/reject
+  // actually changes the pending count -- otherwise the Мастерская pill's
+  // badge and the SpaceIndicator's badge both stay stale until a reload.
+  async function refreshDigest() {
+    try {
+      const [requests, leads, buildings, units, payments]: [SpravkaRequest[], any[], any[], any[], Payment[]] = await Promise.all([
+        api.spravkaRequests(), api.leads(), api.buildings(), api.units(), api.payments().catch(() => []),
+      ]);
+      const pending = requests.filter((r) => r.status === "pending");
+      const recent = [...requests]
+        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+        .slice(0, 4);
+      const buildingStats = buildings.slice(0, 3).map((b: any) => {
+        const inBuilding = units.filter((u: any) => u.building_id === b.id && u.status === "for_sale");
+        const price = inBuilding.length ? Math.min(...inBuilding.map((u: any) => u.price_per_m2_usd)) : 0;
+        return { name: b.name, forSale: inBuilding.length, price };
+      });
+      const duePaymentsCount = payments.filter((p) => p.status === "overdue" || p.due_soon).length;
+      onPendingChange?.(pending.length);
+      if (isBoss) {
+        const summary = await api.analyticsSummary();
+        setDigest({
+          pending: pending.length, pendingItems: pending, recent, leadsCount: leads.length, buildingStats, totalUnits: units.length, duePaymentsCount,
+          approvedTotal: summary.spravka_requests_approved,
+          avgDiscount: summary.average_approved_discount_pct,
         });
-        const duePaymentsCount = payments.filter((p) => p.status === "overdue" || p.due_soon).length;
-        onPendingChange?.(pending.length);
-        if (isBoss) {
-          const summary = await api.analyticsSummary();
-          setDigest({
-            pending: pending.length, pendingItems: pending, recent, leadsCount: leads.length, buildingStats, totalUnits: units.length, duePaymentsCount,
-            approvedTotal: summary.spravka_requests_approved,
-            avgDiscount: summary.average_approved_discount_pct,
-          });
-        } else {
-          setDigest({ pending: pending.length, pendingItems: pending, recent, leadsCount: leads.length, buildingStats, totalUnits: units.length, duePaymentsCount });
-        }
-      } catch {
-        /* best-effort — inbox still works without the digest */
+      } else {
+        setDigest({ pending: pending.length, pendingItems: pending, recent, leadsCount: leads.length, buildingStats, totalUnits: units.length, duePaymentsCount });
       }
-    })();
-  }, [isBoss]);
+    } catch {
+      /* best-effort — inbox still works without the digest */
+    }
+  }
+  useEffect(() => { refreshDigest(); }, [isBoss]);
 
   const quickActions = isBoss
     ? [
@@ -206,6 +208,7 @@ export function AssistantPanel({
           <OverviewContent
             digest={digest} isBoss={isBoss} tab={tab} onCloseTab={() => setTab("home")}
             onOpenClient={(id) => { setBellJumpClientId(id); setView("workshop"); }}
+            onDecided={refreshDigest}
           />
         )}
         {view === "workshop" && (
@@ -214,6 +217,7 @@ export function AssistantPanel({
             pendingApprovals={pendingApprovals}
             initialClientId={bellJumpClientId || openWorkspaceClientId}
             onInitialClientHandled={() => { setBellJumpClientId(null); onWorkspaceClientHandled?.(); }}
+            onDecided={refreshDigest}
           />
         )}
       </div>
@@ -222,13 +226,14 @@ export function AssistantPanel({
 }
 
 function OverviewContent({
-  digest, isBoss, tab, onCloseTab, onOpenClient,
+  digest, isBoss, tab, onCloseTab, onOpenClient, onDecided,
 }: {
   digest: Digest | null;
   isBoss: boolean;
   tab: "home" | "approvals" | "summary" | "discount";
   onCloseTab: () => void;
   onOpenClient: (clientId: string) => void;
+  onDecided: () => void;
 }) {
   return (
     <div style={{ overflowY: "auto", display: "flex", flexDirection: "column", gap: 18 }}>
@@ -241,7 +246,7 @@ function OverviewContent({
             <div onClick={onCloseTab} style={{ fontSize: 12, fontWeight: 700, color: "var(--color-text-faint)", cursor: "pointer" }}>Закрыть ✕</div>
           </div>
           {tab === "approvals" && (
-            <SpravkaApprovalTable onlyPending onOpenClient={onOpenClient} />
+            <SpravkaApprovalTable onlyPending onOpenClient={onOpenClient} onDecided={onDecided} />
           )}
           {tab === "summary" && digest && (
             <div style={{ display: "flex", flexDirection: "column", gap: 10, fontSize: 13, color: "var(--color-text-soft)" }}>

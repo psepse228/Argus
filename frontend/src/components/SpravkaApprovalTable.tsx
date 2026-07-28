@@ -14,10 +14,14 @@ const primaryBtnStyle: React.CSSProperties = { padding: "6px 12px", borderRadius
  * quick-tab (onlyPending) and Мастерская's "Все справки" (every status) --
  * one implementation instead of two copies drifting apart. */
 export function SpravkaApprovalTable({
-  onlyPending, onOpenClient,
+  onlyPending, onOpenClient, onDecided,
 }: {
   onlyPending?: boolean;
   onOpenClient?: (clientId: string) => void;
+  /** Called after a successful approve/reject -- lets an ancestor (Обзор's
+   * digest, the Мастерская pill's badge) refresh its own pending-count
+   * instead of staying stale until the next full reload. */
+  onDecided?: () => void;
 }) {
   const [requests, setRequests] = useState<SpravkaRequest[] | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -35,6 +39,7 @@ export function SpravkaApprovalTable({
     try {
       await (decision === "approve" ? api.approveSpravka(id) : api.rejectSpravka(id));
       await refresh();
+      onDecided?.();
     } catch (e: any) {
       setActionError(e.message);
     }
