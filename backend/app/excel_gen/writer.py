@@ -140,7 +140,7 @@ def _write_full_payment(ws, inp, res, title):
     _setup_sheet(ws, S.COL_WIDTHS, S.ROW_HEIGHTS, S.ZOOM)
     _write_title_row(ws, title, n_cols)
 
-    headers = _base_columns() + [None] * 10
+    headers = _base_columns() + [None] * 11
     headers[13] = "Оплата"          # column N
     headers[23] = "Срок рассрочки"  # column X
     for col, label in enumerate(headers, start=1):

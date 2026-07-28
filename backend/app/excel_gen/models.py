@@ -6,7 +6,7 @@ from typing import Optional
 
 @dataclass
 class SpravkaInput:
-    building: str          # "Atlas", "Vega", ...
+    building: str          # "Milano", "Roma", ...
     client_name: str
     client_phone: str
     unit_number: int        # № (apartment/unit number)
