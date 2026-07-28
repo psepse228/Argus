@@ -26,7 +26,7 @@ export function AssistantWidget({ user }: { user: CurrentUser }) {
   }, [open, conversationId]);
 
   const greeting = user.role === "boss"
-    ? "Доброе утро. Я слежу за юнитами, лидами и справками Horizon Bay. Спросите что угодно."
+    ? "Доброе утро. Я слежу за юнитами, лидами и справками Italiano Vero. Спросите что угодно."
     : "Привет! Помогу подобрать юниты, оформить справку, согласовать условия и разобрать лидов.";
 
   return (

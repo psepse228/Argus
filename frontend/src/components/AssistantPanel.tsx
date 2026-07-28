@@ -342,7 +342,7 @@ function CortegeTeaserCard() {
         </svg>
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 13.5, fontWeight: 800, color: "var(--color-text)" }}>Cortège для Horizon Bay</div>
+        <div style={{ fontSize: 13.5, fontWeight: 800, color: "var(--color-text)" }}>Cortège для Italiano Vero</div>
         <div style={{ fontSize: 12, color: "var(--color-text-faint)", marginTop: 2, lineHeight: 1.5 }}>
           AI, который сам отвечает клиентам в Instagram и Telegram — те же лиды, без ожидания менеджера.
         </div>

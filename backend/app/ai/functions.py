@@ -159,12 +159,14 @@ def create_spravka_request(
 
 def get_company_info() -> dict:
     """Static company blurb for the sales-agent info-package assistant --
-    demo project details (see migration 0017), not a real developer."""
+    the real developer/project (see migration 0018, which restored these
+    names over the fictional "Horizon Bay" demo labels; unit/lead/pricing
+    data underneath is still the fake demo set from migration 0017)."""
     return {
-        "project_name": "Horizon Bay",
-        "developer": "Meridian Group",
-        "buildings": ["Atlas (nearly complete)", "Vega (under construction)", "Orion", "Lyra", "Nova"],
-        "description": "Современный жилой комплекс, 5 корпусов, Ташкент.",
+        "project_name": "Italiano Vero",
+        "developer": "Ulkan Development",
+        "buildings": ["Milano (nearly complete)", "Roma (under construction)", "Neapol", "Venice", "Florencia"],
+        "description": "Современный жилой комплекс «Italiano Vero», 5 корпусов, Ташкент.",
     }
 
 
@@ -206,7 +208,7 @@ FUNCTION_SCHEMAS = [
         "type": "function",
         "function": {
             "name": "get_company_info",
-            "description": "Real Horizon Bay project/company details for building an info package to send a client.",
+            "description": "Real Italiano Vero project/company details for building an info package to send a client.",
             "parameters": {"type": "object", "properties": {}},
         },
     },

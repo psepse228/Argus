@@ -1,7 +1,7 @@
 import "./globals.css";
 import { ThemeProvider } from "@/lib/theme";
 
-export const metadata = { title: "Argus — Horizon Bay" };
+export const metadata = { title: "Argus — Italiano Vero" };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (

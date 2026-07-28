@@ -11,9 +11,9 @@ type FakeMsg = { from: "them" | "us"; text: string; time: string };
 export function TelegramPreviewModal({ clientName, onClose }: { clientName: string; onClose: () => void }) {
   const firstName = clientName.split(" ")[0] || clientName;
   const messages: FakeMsg[] = [
-    { from: "them", text: `Здравствуйте! Подскажите, актуальна ли квартира в Atlas, которую я смотрел?`, time: "10:02" },
+    { from: "them", text: `Здравствуйте! Подскажите, актуальна ли квартира в Milano, которую я смотрел?`, time: "10:02" },
     { from: "us", text: `Добрый день, ${firstName}! Да, юнит ещё в продаже. Могу прислать актуальную справку с ценой и рассрочкой.`, time: "10:03" },
-    { from: "us", text: `📄 Справка №1284 — Atlas, рассрочка 12 мес`, time: "10:03" },
+    { from: "us", text: `📄 Справка №1284 — Milano, рассрочка 12 мес`, time: "10:03" },
     { from: "them", text: "Отлично, спасибо! А можно чуть меньше первый взнос?", time: "10:05" },
     { from: "us", text: "Посмотрю варианты и вернусь с ответом сегодня до вечера.", time: "10:06" },
   ];
