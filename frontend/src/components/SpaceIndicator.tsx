@@ -87,10 +87,10 @@ export function SpaceIndicator({
           const badge = badges?.[s.key];
           const isActive = i === activeIndex;
           return (
-            <div key={s.key} style={{ position: "relative" }}>
+            <div key={s.key} className="space-indicator-item" style={{ position: "relative" }}>
               <button
                 onClick={() => onJump(i)}
-                title={s.label}
+                aria-label={s.label}
                 className="press"
                 style={{
                   width: 44, height: 44, borderRadius: 12, border: "none", cursor: "pointer", position: "relative", zIndex: 1,
@@ -101,6 +101,7 @@ export function SpaceIndicator({
               >
                 {s.icon}
               </button>
+              <span className="space-indicator-tooltip" aria-hidden="true">{s.label}</span>
               {!!badge && (
                 <span style={{
                   position: "absolute", top: -3, right: -3, fontSize: 9.5, fontWeight: 700, zIndex: 2,
