@@ -212,9 +212,27 @@ def link_conversation(conversation_id: str, body: LinkBody, user=Depends(get_cur
         # otherwise a manager typing the number in a different format than
         # however Telegram delivered it creates a second, duplicate client
         # instead of matching the one the webhook may have already made.
-        client_id = get_or_create_client(
-            client, user.tenant_id, normalize_phone(body.new_client_phone), body.new_client_name
+        normalized_phone = normalize_phone(body.new_client_phone)
+        digits = normalized_phone.lstrip("+")
+        if not (9 <= len(digits) <= 15):
+            raise HTTPException(status_code=400, detail="Некорректный номер телефона")
+        # get_or_create_client silently returns the EXISTING client on a
+        # phone collision (and only backfills the name if that row had none)
+        # -- fine for the webhook's own best-effort auto-match, but this is
+        # an explicit "create a new client" action from a person, so a
+        # collision needs to surface rather than silently attach this
+        # conversation to a stranger's existing card with a 200 OK.
+        existing = (
+            client.table("clients").select("id, name")
+            .eq("tenant_id", user.tenant_id).eq("phone", normalized_phone).execute().data
         )
+        if existing:
+            existing_label = existing[0]["name"] or normalized_phone
+            raise HTTPException(
+                status_code=409,
+                detail=f"Клиент с номером {normalized_phone} уже существует ({existing_label}) — привяжите к нему вместо создания нового",
+            )
+        client_id = get_or_create_client(client, user.tenant_id, normalized_phone, body.new_client_name)
     else:
         raise HTTPException(status_code=400, detail="client_id or new_client_phone required")
 

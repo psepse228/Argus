@@ -249,22 +249,43 @@ function OverviewContent({
             <SpravkaApprovalTable onlyPending onOpenClient={onOpenClient} onDecided={onDecided} />
           )}
           {tab === "summary" && digest && (
-            <div style={{ display: "flex", flexDirection: "column", gap: 10, fontSize: 13, color: "var(--color-text-soft)" }}>
-              <div style={{ display: "flex", justifyContent: "space-between" }}><span>Лидов в работе</span><b style={{ color: "var(--color-text)" }}>{digest.leadsCount}</b></div>
-              <div style={{ display: "flex", justifyContent: "space-between" }}><span>Справок ждёт</span><b style={{ color: "var(--color-text)" }}>{digest.pending}</b></div>
-              <div style={{ display: "flex", justifyContent: "space-between" }}><span>Одобрено всего</span><b style={{ color: "var(--color-text)" }}>{digest.approvedTotal ?? "—"}</b></div>
-              {digest.buildingStats.map((b) => (
-                <div key={b.name} style={{ display: "flex", justifyContent: "space-between", paddingTop: 8, borderTop: "1px solid var(--color-hairline-soft)" }}>
-                  <span>{b.name}</span><b style={{ color: "var(--color-text)" }}>{b.forSale > 0 ? `${b.forSale} · от $${b.price.toLocaleString()}/м²` : "нет в продаже"}</b>
+            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
+                <div className="glass-panel" style={{ padding: "14px 15px" }}>
+                  <div style={{ fontFamily: "var(--font-heading)", fontSize: 24, fontWeight: 800, color: "var(--v-accent)", lineHeight: 1 }}>{digest.leadsCount}</div>
+                  <div style={{ fontSize: 11, color: "var(--color-text-faint)", marginTop: 5 }}>Лидов в работе</div>
                 </div>
-              ))}
+                <div className="glass-panel" style={{ padding: "14px 15px" }}>
+                  <div style={{ fontFamily: "var(--font-heading)", fontSize: 24, fontWeight: 800, color: "var(--warning)", lineHeight: 1 }}>{digest.pending}</div>
+                  <div style={{ fontSize: 11, color: "var(--color-text-faint)", marginTop: 5 }}>Справок ждёт</div>
+                </div>
+                <div className="glass-panel" style={{ padding: "14px 15px" }}>
+                  <div style={{ fontFamily: "var(--font-heading)", fontSize: 24, fontWeight: 800, color: "var(--success)", lineHeight: 1 }}>{digest.approvedTotal ?? "—"}</div>
+                  <div style={{ fontSize: 11, color: "var(--color-text-faint)", marginTop: 5 }}>Одобрено всего</div>
+                </div>
+              </div>
+              {digest.buildingStats.length > 0 && (
+                <div style={{ display: "flex", flexDirection: "column", gap: 10, fontSize: 13, color: "var(--color-text-soft)" }}>
+                  {digest.buildingStats.map((b) => (
+                    <div key={b.name} style={{ display: "flex", justifyContent: "space-between", paddingTop: 8, borderTop: "1px solid var(--color-hairline-soft)" }}>
+                      <span>{b.name}</span><b style={{ color: "var(--color-text)" }}>{b.forSale > 0 ? `${b.forSale} · от $${b.price.toLocaleString()}/м²` : "нет в продаже"}</b>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
           {tab === "discount" && digest && (
-            <>
-              <div style={{ fontSize: 40, fontWeight: 800, color: "var(--v-accent)", lineHeight: 1 }}>{digest.avgDiscount ?? 0}%</div>
-              <div style={{ fontSize: 12.5, color: "var(--color-text-faint)", marginTop: 10 }}>{digest.approvedTotal ?? 0} одобренных справок всего</div>
-            </>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+              <div className="glass-panel" style={{ padding: "17px 18px" }}>
+                <div style={{ fontFamily: "var(--font-heading)", fontSize: 34, fontWeight: 800, color: "var(--v-accent)", lineHeight: 1 }}>{digest.avgDiscount ?? 0}%</div>
+                <div style={{ fontSize: 12, color: "var(--color-text-faint)", marginTop: 6 }}>Средний одобренный дисконт</div>
+              </div>
+              <div className="glass-panel" style={{ padding: "17px 18px" }}>
+                <div style={{ fontFamily: "var(--font-heading)", fontSize: 34, fontWeight: 800, color: "var(--color-text)", lineHeight: 1 }}>{digest.approvedTotal ?? 0}</div>
+                <div style={{ fontSize: 12, color: "var(--color-text-faint)", marginTop: 6 }}>Одобренных справок всего</div>
+              </div>
+            </div>
           )}
         </div>
       )}
@@ -294,7 +315,7 @@ function OverviewContent({
         </div>
       )}
 
-      {digest && digest.buildingStats.some((b) => b.forSale > 0) && (
+      {tab === "home" && digest && digest.buildingStats.some((b) => b.forSale > 0) && (
         <div className="glass-panel" style={{ padding: "18px 20px" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
             <div style={{ fontSize: 14, fontWeight: 800 }}>Юниты — быстрый обзор</div>

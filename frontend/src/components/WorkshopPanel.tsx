@@ -7,6 +7,21 @@ import { ClientWorkspace } from "./ClientWorkspace";
 import { Skeleton } from "./Skeleton";
 import { SpravkaApprovalTable } from "./SpravkaApprovalTable";
 
+/** The api client throws `Error("{status} {path}: {rawJsonBody}")` -- pull
+ * FastAPI's `detail` back out of that so a validation/collision message
+ * from the backend (e.g. "phone already belongs to X") reaches the user
+ * instead of a raw "409 /api/...: {...}" string. */
+function extractErrorDetail(err: unknown): string {
+  const msg = err instanceof Error ? err.message : String(err);
+  const jsonStart = msg.indexOf("{");
+  if (jsonStart === -1) return msg;
+  try {
+    const parsed = JSON.parse(msg.slice(jsonStart));
+    if (typeof parsed.detail === "string") return parsed.detail;
+  } catch {}
+  return msg;
+}
+
 /** Мастерская: the set of clients a rep has chosen to actively work on --
  * replaces the old standalone Справки tab. Add a client here (search or a
  * hand-off from Клиенты/Лиды) and you get the full workspace: stage,
@@ -47,6 +62,7 @@ export function WorkshopPanel({
   const [creatingNew, setCreatingNew] = useState(false);
   const [newClientName, setNewClientName] = useState("");
   const [newClientPhone, setNewClientPhone] = useState("");
+  const [linkError, setLinkError] = useState("");
 
   useEffect(() => { api.workspace().then(setPinned).catch(() => setPinned([])); }, []);
   useEffect(() => { api.telegramUnmatched().then(setUnmatchedTelegram).catch(() => setUnmatchedTelegram([])); }, []);
@@ -74,23 +90,33 @@ export function WorkshopPanel({
 
   async function linkTelegramToClient(client: Client) {
     if (!linkingConvId) return;
-    await api.telegramLinkConversation(linkingConvId, { client_id: client.id });
-    setUnmatchedTelegram((cur) => (cur || []).filter((c) => c.id !== linkingConvId));
-    setLinkingConvId(null);
-    setLinkQuery("");
-    pin(client);
+    setLinkError("");
+    try {
+      await api.telegramLinkConversation(linkingConvId, { client_id: client.id });
+      setUnmatchedTelegram((cur) => (cur || []).filter((c) => c.id !== linkingConvId));
+      setLinkingConvId(null);
+      setLinkQuery("");
+      pin(client);
+    } catch (e) {
+      setLinkError(extractErrorDetail(e));
+    }
   }
 
   async function linkTelegramToNewClient(name: string, phone: string) {
     if (!linkingConvId) return;
-    const updated = await api.telegramLinkConversation(linkingConvId, { new_client_name: name, new_client_phone: phone });
-    setUnmatchedTelegram((cur) => (cur || []).filter((c) => c.id !== linkingConvId));
-    setLinkingConvId(null);
-    setLinkQuery("");
-    setCreatingNew(false);
-    setNewClientName("");
-    setNewClientPhone("");
-    if (updated.client_id) await openRecentTelegramClient(updated.client_id);
+    setLinkError("");
+    try {
+      const updated = await api.telegramLinkConversation(linkingConvId, { new_client_name: name, new_client_phone: phone });
+      setUnmatchedTelegram((cur) => (cur || []).filter((c) => c.id !== linkingConvId));
+      setLinkingConvId(null);
+      setLinkQuery("");
+      setCreatingNew(false);
+      setNewClientName("");
+      setNewClientPhone("");
+      if (updated.client_id) await openRecentTelegramClient(updated.client_id);
+    } catch (e) {
+      setLinkError(extractErrorDetail(e));
+    }
   }
 
   async function openRecentTelegramClient(clientId: string) {
@@ -112,6 +138,7 @@ export function WorkshopPanel({
     setCreatingNew(false);
     setNewClientName("");
     setNewClientPhone("");
+    setLinkError("");
   }, [selectedId]);
 
   // Rendered as a centered modal (backdrop + portal), not an anchored
@@ -273,7 +300,7 @@ export function WorkshopPanel({
             {unmatchedTelegram.map((c) => (
               <div
                 key={c.id}
-                onClick={() => setLinkingConvId(linkingConvId === c.id ? null : c.id)}
+                onClick={() => { setLinkingConvId(linkingConvId === c.id ? null : c.id); setLinkError(""); }}
                 className="glass-panel press"
                 style={{ padding: "13px 15px", cursor: "pointer", boxShadow: "0 0 0 1px color-mix(in srgb, #2AABEE 40%, transparent)" }}
               >
@@ -312,6 +339,11 @@ export function WorkshopPanel({
               <div style={{ fontSize: 11.5, color: "var(--color-text-faint)", marginBottom: 12 }}>
                 Привяжите Telegram-чат к существующему клиенту или создайте нового.
               </div>
+              {linkError && (
+                <div style={{ fontSize: 12, color: "var(--danger)", background: "var(--danger-tint)", borderRadius: 8, padding: "8px 10px", marginBottom: 10 }}>
+                  {linkError}
+                </div>
+              )}
 
               {!creatingNew ? (
                 <>
@@ -386,7 +418,7 @@ export function WorkshopPanel({
                       Создать и привязать
                     </button>
                     <button
-                      onClick={() => setCreatingNew(false)}
+                      onClick={() => { setCreatingNew(false); setLinkError(""); }}
                       style={{ padding: "9px 13px", borderRadius: 8, fontSize: 13, fontWeight: 600, color: "var(--color-text-soft)", background: "rgba(255,255,255,.04)", border: "1px solid var(--color-hairline)", cursor: "pointer" }}
                     >
                       Назад

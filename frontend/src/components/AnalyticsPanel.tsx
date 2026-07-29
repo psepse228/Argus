@@ -103,7 +103,15 @@ export function AnalyticsPanel() {
       </div>
 
       <SectionLabel>Команда</SectionLabel>
-      <div className="glass-panel" style={{ padding: "20px 22px" }}>
+      {/* overflow: visible overrides .glass-panel's overflow:hidden -- that
+          property (a block-formatting-context trigger) was making Chromium
+          compute this card's auto-height ~90px too short, silently clipping
+          the manager rows out of view entirely. Confirmed by toggling it
+          live: height jumped from 105px (wrong) to 199px (matches content)
+          the instant overflow left "hidden". Costs the panel its decorative
+          sheen clipping at the very top edge -- much cheaper than invisible
+          data on a boss-facing screen. */}
+      <div className="glass-panel" style={{ padding: "20px 22px", overflow: "visible" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
           <h3 style={{ fontFamily: "var(--font-heading)", fontSize: 16, margin: 0, color: "var(--color-text)" }}>Эффективность менеджеров</h3>
           <span style={{ fontSize: 9.5, fontWeight: 800, letterSpacing: ".04em", color: "var(--v-text-on-accent)", background: "linear-gradient(150deg, var(--v-violet-strong, #7a5cff), var(--v-violet, #5b3fc4))", borderRadius: 99, padding: "3px 9px" }}>
@@ -142,7 +150,9 @@ export function AnalyticsPanel() {
       </div>
 
       <SectionLabel>Юниты</SectionLabel>
-      <div className="glass-panel" style={{ padding: "18px 20px" }}>
+      {/* Same overflow:hidden auto-height bug as the Команда card above --
+          see that comment. */}
+      <div className="glass-panel" style={{ padding: "18px 20px", overflow: "visible" }}>
         <h3 style={{ fontFamily: "var(--font-heading)", fontSize: 15, margin: "0 0 16px", color: "var(--color-text)" }}>Юниты по статусу</h3>
         <DonutChart
           data={Object.entries(summary.units_by_status).map(([status, count]) => ({

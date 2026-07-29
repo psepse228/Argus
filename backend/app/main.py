@@ -1,12 +1,16 @@
+import logging
 import os
 
 from dotenv import load_dotenv
 load_dotenv()  # unlike Next.js, plain uvicorn does not auto-load .env — must be explicit
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from app.routers import auth_google, units, leads, spravka, assistant, pricing, analytics, clients, conversations, payments, workspace, telegram_business
+
+logger = logging.getLogger(__name__)
 
 app = FastAPI(title="Argus — sales ops")
 
@@ -18,6 +22,20 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    # Starlette's default unhandled-exception path returns a bare 500 that
+    # bypasses CORSMiddleware entirely (that middleware only ever sees
+    # responses that complete normally through it) -- the browser then
+    # reports a confusing "CORS policy" error instead of the real failure.
+    # Registering a handler here means FastAPI's ExceptionMiddleware catches
+    # it and hands CORSMiddleware a normal response to attach headers to,
+    # same as any other route. See app/db.py for the specific transient
+    # error (stale pooled Supabase connection) this was written for.
+    logger.exception("Unhandled exception")
+    return JSONResponse(status_code=500, content={"detail": "Внутренняя ошибка сервера — попробуйте ещё раз"})
 
 app.include_router(auth_google.router)
 app.include_router(auth_google.me_router)
