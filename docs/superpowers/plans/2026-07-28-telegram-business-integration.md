@@ -1421,7 +1421,6 @@ Find the existing `unpinnedApprovals` render block (starts with `{unpinnedApprov
         </div>
       )}
 
-```tsx
       {unmatchedTelegram && unmatchedTelegram.length > 0 && (
         <div>
           <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: ".05em", color: "#2AABEE", marginBottom: 10 }}>
