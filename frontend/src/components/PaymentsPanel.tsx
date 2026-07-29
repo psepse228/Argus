@@ -84,7 +84,7 @@ export function PaymentsPanel() {
     const unit = req?.units;
     const c = PAYMENT_STATUS_COLORS[p.status];
     return (
-      <div className="glass-panel stagger-item" style={{ ["--i" as any]: index, padding: "13px 16px", borderRadius: 14, display: "flex", alignItems: "center", gap: 14 }}>
+      <div className="glass-panel stagger-item" style={{ ["--i" as any]: index, padding: "13px 16px 13px 13px", borderRadius: 14, display: "flex", alignItems: "center", gap: 14, borderLeft: `3px solid ${c.fg}` }}>
         <div style={{ minWidth: 0, flex: 1 }}>
           <div style={{ fontSize: 13.5, fontWeight: 700, color: "var(--color-text)" }}>
             {req?.client_name || "—"}
@@ -153,6 +153,31 @@ export function PaymentsPanel() {
           ))}
         </div>
       )}
+      {rows.length > 0 && (() => {
+        const groups: { label: string; count: number; color: string }[] = [
+          { label: "Просрочено", count: overdue.length, color: "var(--danger)" },
+          { label: "Скоро", count: dueSoon.length, color: "var(--warning)" },
+          { label: "Ожидается", count: pending.length, color: "var(--color-text-faint)" },
+          { label: "Оплачено", count: paid.length, color: "var(--success)" },
+        ].filter((g) => g.count > 0);
+        return (
+          <div className="glass-panel" style={{ padding: "14px 18px" }}>
+            <div style={{ display: "flex", height: 10, borderRadius: 99, overflow: "hidden", gap: 2 }}>
+              {groups.map((g) => (
+                <div key={g.label} style={{ flex: g.count, background: g.color, minWidth: 3 }} title={`${g.label}: ${g.count}`} />
+              ))}
+            </div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "6px 16px", marginTop: 10 }}>
+              {groups.map((g) => (
+                <span key={g.label} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11.5, color: "var(--color-text-soft)" }}>
+                  <span style={{ width: 8, height: 8, borderRadius: 3, background: g.color, flexShrink: 0 }} />
+                  {g.label} · {g.count}
+                </span>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
       {rows.length > 0 && (
         <p style={{ color: "var(--color-text-faint)", fontSize: 11.5, margin: 0 }}>
           Автонапоминаний в Telegram/WhatsApp пока нет — «Позвонить» открывает звонок клиенту напрямую.
