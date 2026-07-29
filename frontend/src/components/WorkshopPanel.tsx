@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { api } from "@/lib/api";
 import { Client, TelegramConversation } from "@/lib/types";
@@ -40,9 +40,6 @@ export function WorkshopPanel({
   // already has, just a second entry point into it.
   const [linkingConvId, setLinkingConvId] = useState<string | null>(null);
   const [linkQuery, setLinkQuery] = useState("");
-  const [linkPos, setLinkPos] = useState<{ top: number; left: number; width: number } | null>(null);
-  const linkTriggerRef = useRef<HTMLDivElement | null>(null);
-  const linkPopoverRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => { api.workspace().then(setPinned).catch(() => setPinned([])); }, []);
   useEffect(() => { api.telegramUnmatched().then(setUnmatchedTelegram).catch(() => setUnmatchedTelegram([])); }, []);
@@ -104,45 +101,18 @@ export function WorkshopPanel({
     setLinkQuery("");
   }, [selectedId]);
 
-  // Portaled to document.body, positioned off the trigger card's real rect --
-  // same reasoning as Dropdown.tsx: every .glass-panel sets overflow:hidden
-  // for the sheen highlight, so a plain position:absolute popover nested in
-  // this (scrollable) panel gets clipped/overlaps neighboring cards instead
-  // of floating cleanly above them.
-  function reposition() {
-    const r = linkTriggerRef.current?.getBoundingClientRect();
-    if (r) setLinkPos({ top: r.bottom + 6, left: r.left, width: Math.max(r.width, 240) });
-  }
-
-  useLayoutEffect(() => {
-    if (linkingConvId) reposition();
-    else setLinkPos(null);
-  }, [linkingConvId]);
-
-  // Click-outside/Escape dismiss for the link picker, matching the same
-  // convention as Dropdown.tsx/HudToolbar.tsx.
+  // Rendered as a centered modal (backdrop + portal), not an anchored
+  // popover -- an anchored box next to the trigger card sat right in the
+  // middle of the "В работе" grid and read as overlapping/broken clutter.
+  // A modal is unambiguous about what's interactive, and side-steps the
+  // .glass-panel overflow:hidden clipping issue Dropdown.tsx documents.
   useEffect(() => {
     if (!linkingConvId) return;
-    function onDocClick(e: MouseEvent) {
-      const t = e.target as Node;
-      if (linkTriggerRef.current?.contains(t)) return;
-      if (linkPopoverRef.current?.contains(t)) return;
-      setLinkingConvId(null);
-    }
     function onEsc(e: KeyboardEvent) {
       if (e.key === "Escape") setLinkingConvId(null);
     }
-    function onScrollOrResize() { reposition(); }
-    document.addEventListener("mousedown", onDocClick);
     document.addEventListener("keydown", onEsc);
-    window.addEventListener("scroll", onScrollOrResize, true);
-    window.addEventListener("resize", onScrollOrResize);
-    return () => {
-      document.removeEventListener("mousedown", onDocClick);
-      document.removeEventListener("keydown", onEsc);
-      window.removeEventListener("scroll", onScrollOrResize, true);
-      window.removeEventListener("resize", onScrollOrResize);
-    };
+    return () => document.removeEventListener("keydown", onEsc);
   }, [linkingConvId]);
 
   const q = query.trim().toLowerCase();
@@ -290,7 +260,6 @@ export function WorkshopPanel({
             {unmatchedTelegram.map((c) => (
               <div
                 key={c.id}
-                ref={linkingConvId === c.id ? linkTriggerRef : undefined}
                 onClick={() => setLinkingConvId(linkingConvId === c.id ? null : c.id)}
                 className="glass-panel press"
                 style={{ padding: "13px 15px", cursor: "pointer", boxShadow: "0 0 0 1px color-mix(in srgb, #2AABEE 40%, transparent)" }}
@@ -305,46 +274,66 @@ export function WorkshopPanel({
         </div>
       )}
 
-      {linkingConvId && linkPos && (() => {
+      {linkingConvId && (() => {
         const c = unmatchedTelegram?.find((x) => x.id === linkingConvId);
         if (!c) return null;
         return createPortal(
           <div
-            ref={linkPopoverRef}
-            className="glass-panel"
+            onClick={() => setLinkingConvId(null)}
             style={{
-              position: "fixed", top: linkPos.top, left: linkPos.left, width: linkPos.width, zIndex: 1000,
-              padding: 10, background: "var(--v-bg-soft)", boxShadow: "0 24px 48px -20px rgba(0,0,0,0.6)",
+              position: "fixed", inset: 0, zIndex: 1000, background: "rgba(0,0,0,.55)",
+              display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "80px 20px",
             }}
           >
-            <input
-              autoFocus
-              value={linkQuery}
-              onChange={(e) => setLinkQuery(e.target.value)}
-              placeholder="Имя или телефон существующего клиента…"
-              style={{ width: "100%", padding: "8px 10px", borderRadius: 8, background: "rgba(255,255,255,.04)", border: "1px solid var(--color-hairline)", color: "var(--color-text)", fontSize: 12.5, marginBottom: 8 }}
-            />
-            {linkQuery.trim() && (allClients || [])
-              .filter((cl) => (cl.name || "").toLowerCase().includes(linkQuery.trim().toLowerCase()) || cl.phone.includes(linkQuery.trim()))
-              .slice(0, 5)
-              .map((cl) => (
-                <div
-                  key={cl.id} onClick={() => linkTelegramToClient(cl)} className="press"
-                  style={{ padding: "7px 9px", borderRadius: 7, cursor: "pointer", fontSize: 12.5, display: "flex", justifyContent: "space-between", gap: 8 }}
-                >
-                  <span style={{ fontWeight: 600, color: "var(--color-text)" }}>{cl.name || cl.phone}</span>
-                  <span style={{ color: "var(--color-text-faint)", fontSize: 11 }}>{cl.phone}</span>
-                </div>
-              ))}
-            {linkQueryLooksLikePhone && (
-              <div
-                onClick={() => linkTelegramToNewClient(c.telegram_first_name || "", linkQuery.trim())}
-                className="press"
-                style={{ padding: "7px 9px", borderRadius: 7, cursor: "pointer", fontSize: 12.5, color: "var(--v-accent)", fontWeight: 700 }}
-              >
-                + Создать нового клиента с этим номером
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="glass-panel"
+              style={{
+                width: "100%", maxWidth: 420, padding: 18,
+                background: "var(--v-bg-soft)", boxShadow: "0 24px 48px -20px rgba(0,0,0,0.6)",
+              }}
+            >
+              <div style={{ fontSize: 13, fontWeight: 700, color: "var(--color-text)", marginBottom: 2 }}>
+                Кто это? — {c.telegram_first_name || c.telegram_username || "Без имени"}
               </div>
-            )}
+              <div style={{ fontSize: 11.5, color: "var(--color-text-faint)", marginBottom: 12 }}>
+                Привяжите Telegram-чат к существующему клиенту или создайте нового.
+              </div>
+              <input
+                autoFocus
+                value={linkQuery}
+                onChange={(e) => setLinkQuery(e.target.value)}
+                placeholder="Имя или телефон существующего клиента…"
+                style={{ width: "100%", padding: "9px 12px", borderRadius: 9, background: "rgba(255,255,255,.04)", border: "1px solid var(--color-hairline)", color: "var(--color-text)", fontSize: 13, marginBottom: 10 }}
+              />
+              {linkQuery.trim() && (allClients || [])
+                .filter((cl) => (cl.name || "").toLowerCase().includes(linkQuery.trim().toLowerCase()) || cl.phone.includes(linkQuery.trim()))
+                .slice(0, 5)
+                .map((cl) => (
+                  <div
+                    key={cl.id} onClick={() => linkTelegramToClient(cl)} className="press"
+                    style={{ padding: "9px 11px", borderRadius: 8, cursor: "pointer", fontSize: 13, display: "flex", justifyContent: "space-between", gap: 8 }}
+                  >
+                    <span style={{ fontWeight: 600, color: "var(--color-text)" }}>{cl.name || cl.phone}</span>
+                    <span style={{ color: "var(--color-text-faint)", fontSize: 11.5 }}>{cl.phone}</span>
+                  </div>
+                ))}
+              {linkQueryLooksLikePhone && (
+                <div
+                  onClick={() => linkTelegramToNewClient(c.telegram_first_name || "", linkQuery.trim())}
+                  className="press"
+                  style={{ padding: "9px 11px", borderRadius: 8, cursor: "pointer", fontSize: 13, color: "var(--v-accent)", fontWeight: 700 }}
+                >
+                  + Создать нового клиента с этим номером
+                </div>
+              )}
+              <button
+                onClick={() => setLinkingConvId(null)}
+                style={{ marginTop: 10, fontSize: 12, fontWeight: 600, color: "var(--color-text-soft)", background: "transparent", border: "none", cursor: "pointer", padding: 0 }}
+              >
+                Отмена
+              </button>
+            </div>
           </div>,
           document.body
         );
