@@ -1,5 +1,6 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { api } from "@/lib/api";
 import { Client, TelegramConversation } from "@/lib/types";
 import { ClientWorkspace } from "./ClientWorkspace";
@@ -39,7 +40,9 @@ export function WorkshopPanel({
   // already has, just a second entry point into it.
   const [linkingConvId, setLinkingConvId] = useState<string | null>(null);
   const [linkQuery, setLinkQuery] = useState("");
-  const unmatchedGridRef = useRef<HTMLDivElement>(null);
+  const [linkPos, setLinkPos] = useState<{ top: number; left: number; width: number } | null>(null);
+  const linkTriggerRef = useRef<HTMLDivElement | null>(null);
+  const linkPopoverRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => { api.workspace().then(setPinned).catch(() => setPinned([])); }, []);
   useEffect(() => { api.telegramUnmatched().then(setUnmatchedTelegram).catch(() => setUnmatchedTelegram([])); }, []);
@@ -101,23 +104,44 @@ export function WorkshopPanel({
     setLinkQuery("");
   }, [selectedId]);
 
+  // Portaled to document.body, positioned off the trigger card's real rect --
+  // same reasoning as Dropdown.tsx: every .glass-panel sets overflow:hidden
+  // for the sheen highlight, so a plain position:absolute popover nested in
+  // this (scrollable) panel gets clipped/overlaps neighboring cards instead
+  // of floating cleanly above them.
+  function reposition() {
+    const r = linkTriggerRef.current?.getBoundingClientRect();
+    if (r) setLinkPos({ top: r.bottom + 6, left: r.left, width: Math.max(r.width, 240) });
+  }
+
+  useLayoutEffect(() => {
+    if (linkingConvId) reposition();
+    else setLinkPos(null);
+  }, [linkingConvId]);
+
   // Click-outside/Escape dismiss for the link picker, matching the same
   // convention as Dropdown.tsx/HudToolbar.tsx.
   useEffect(() => {
     if (!linkingConvId) return;
     function onDocClick(e: MouseEvent) {
-      if (unmatchedGridRef.current && !unmatchedGridRef.current.contains(e.target as Node)) {
-        setLinkingConvId(null);
-      }
+      const t = e.target as Node;
+      if (linkTriggerRef.current?.contains(t)) return;
+      if (linkPopoverRef.current?.contains(t)) return;
+      setLinkingConvId(null);
     }
     function onEsc(e: KeyboardEvent) {
       if (e.key === "Escape") setLinkingConvId(null);
     }
+    function onScrollOrResize() { reposition(); }
     document.addEventListener("mousedown", onDocClick);
     document.addEventListener("keydown", onEsc);
+    window.addEventListener("scroll", onScrollOrResize, true);
+    window.addEventListener("resize", onScrollOrResize);
     return () => {
       document.removeEventListener("mousedown", onDocClick);
       document.removeEventListener("keydown", onEsc);
+      window.removeEventListener("scroll", onScrollOrResize, true);
+      window.removeEventListener("resize", onScrollOrResize);
     };
   }, [linkingConvId]);
 
@@ -262,56 +286,69 @@ export function WorkshopPanel({
           <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: ".05em", color: "#2AABEE", marginBottom: 10 }}>
             Непривязанные Telegram-чаты — {unmatchedTelegram.length}
           </div>
-          <div ref={unmatchedGridRef} style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(220px,1fr))", gap: 10 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(220px,1fr))", gap: 10 }}>
             {unmatchedTelegram.map((c) => (
-              <div key={c.id} style={{ position: "relative" }}>
-                <div
-                  onClick={() => setLinkingConvId(linkingConvId === c.id ? null : c.id)}
-                  className="glass-panel press"
-                  style={{ padding: "13px 15px", cursor: "pointer", boxShadow: "0 0 0 1px color-mix(in srgb, #2AABEE 40%, transparent)" }}
-                >
-                  <div style={{ fontSize: 13, fontWeight: 700, color: "var(--color-text)" }}>
-                    {c.telegram_first_name || c.telegram_username || "Без имени"}
-                  </div>
-                  <div style={{ fontSize: 11, color: "#2AABEE", marginTop: 3 }}>Кто это? Нажмите, чтобы привязать</div>
+              <div
+                key={c.id}
+                ref={linkingConvId === c.id ? linkTriggerRef : undefined}
+                onClick={() => setLinkingConvId(linkingConvId === c.id ? null : c.id)}
+                className="glass-panel press"
+                style={{ padding: "13px 15px", cursor: "pointer", boxShadow: "0 0 0 1px color-mix(in srgb, #2AABEE 40%, transparent)" }}
+              >
+                <div style={{ fontSize: 13, fontWeight: 700, color: "var(--color-text)" }}>
+                  {c.telegram_first_name || c.telegram_username || "Без имени"}
                 </div>
-                {linkingConvId === c.id && (
-                  <div className="glass-panel" style={{ position: "absolute", top: "100%", left: 0, right: 0, marginTop: 6, zIndex: 10, padding: 10 }}>
-                    <input
-                      autoFocus
-                      value={linkQuery}
-                      onChange={(e) => setLinkQuery(e.target.value)}
-                      placeholder="Имя или телефон существующего клиента…"
-                      style={{ width: "100%", padding: "8px 10px", borderRadius: 8, background: "rgba(255,255,255,.04)", border: "1px solid var(--color-hairline)", color: "var(--color-text)", fontSize: 12.5, marginBottom: 8 }}
-                    />
-                    {linkQuery.trim() && (allClients || [])
-                      .filter((cl) => (cl.name || "").toLowerCase().includes(linkQuery.trim().toLowerCase()) || cl.phone.includes(linkQuery.trim()))
-                      .slice(0, 5)
-                      .map((cl) => (
-                        <div
-                          key={cl.id} onClick={() => linkTelegramToClient(cl)} className="press"
-                          style={{ padding: "7px 9px", borderRadius: 7, cursor: "pointer", fontSize: 12.5, display: "flex", justifyContent: "space-between", gap: 8 }}
-                        >
-                          <span style={{ fontWeight: 600, color: "var(--color-text)" }}>{cl.name || cl.phone}</span>
-                          <span style={{ color: "var(--color-text-faint)", fontSize: 11 }}>{cl.phone}</span>
-                        </div>
-                      ))}
-                    {linkQueryLooksLikePhone && (
-                      <div
-                        onClick={() => linkTelegramToNewClient(c.telegram_first_name || "", linkQuery.trim())}
-                        className="press"
-                        style={{ padding: "7px 9px", borderRadius: 7, cursor: "pointer", fontSize: 12.5, color: "var(--v-accent)", fontWeight: 700 }}
-                      >
-                        + Создать нового клиента с этим номером
-                      </div>
-                    )}
-                  </div>
-                )}
+                <div style={{ fontSize: 11, color: "#2AABEE", marginTop: 3 }}>Кто это? Нажмите, чтобы привязать</div>
               </div>
             ))}
           </div>
         </div>
       )}
+
+      {linkingConvId && linkPos && (() => {
+        const c = unmatchedTelegram?.find((x) => x.id === linkingConvId);
+        if (!c) return null;
+        return createPortal(
+          <div
+            ref={linkPopoverRef}
+            className="glass-panel"
+            style={{
+              position: "fixed", top: linkPos.top, left: linkPos.left, width: linkPos.width, zIndex: 1000,
+              padding: 10, background: "var(--v-bg-soft)", boxShadow: "0 24px 48px -20px rgba(0,0,0,0.6)",
+            }}
+          >
+            <input
+              autoFocus
+              value={linkQuery}
+              onChange={(e) => setLinkQuery(e.target.value)}
+              placeholder="Имя или телефон существующего клиента…"
+              style={{ width: "100%", padding: "8px 10px", borderRadius: 8, background: "rgba(255,255,255,.04)", border: "1px solid var(--color-hairline)", color: "var(--color-text)", fontSize: 12.5, marginBottom: 8 }}
+            />
+            {linkQuery.trim() && (allClients || [])
+              .filter((cl) => (cl.name || "").toLowerCase().includes(linkQuery.trim().toLowerCase()) || cl.phone.includes(linkQuery.trim()))
+              .slice(0, 5)
+              .map((cl) => (
+                <div
+                  key={cl.id} onClick={() => linkTelegramToClient(cl)} className="press"
+                  style={{ padding: "7px 9px", borderRadius: 7, cursor: "pointer", fontSize: 12.5, display: "flex", justifyContent: "space-between", gap: 8 }}
+                >
+                  <span style={{ fontWeight: 600, color: "var(--color-text)" }}>{cl.name || cl.phone}</span>
+                  <span style={{ color: "var(--color-text-faint)", fontSize: 11 }}>{cl.phone}</span>
+                </div>
+              ))}
+            {linkQueryLooksLikePhone && (
+              <div
+                onClick={() => linkTelegramToNewClient(c.telegram_first_name || "", linkQuery.trim())}
+                className="press"
+                style={{ padding: "7px 9px", borderRadius: 7, cursor: "pointer", fontSize: 12.5, color: "var(--v-accent)", fontWeight: 700 }}
+              >
+                + Создать нового клиента с этим номером
+              </div>
+            )}
+          </div>,
+          document.body
+        );
+      })()}
 
       <div>
         <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: ".05em", color: "var(--color-text-faint)", marginBottom: 10 }}>
