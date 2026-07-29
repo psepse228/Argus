@@ -113,13 +113,26 @@ export function UnitsPanel({
     return Array.from(byBuilding.entries());
   }, [filtered]);
 
+  const kpis = useMemo(() => {
+    const forSale = units.filter((u) => u.status === "for_sale").length;
+    const inDeal = units.filter((u) => u.status === "reserved" || u.status === "paid_reservation" || u.status === "deal_in_progress").length;
+    const sold = units.filter((u) => u.status === "deal_completed").length;
+    const portfolioUsd = units.reduce((s, u) => s + u.area_m2 * u.price_per_m2_usd, 0);
+    return [
+      { value: units.length, label: "Всего юнитов", color: "var(--color-text)" },
+      { value: forSale, label: STATUS_LABELS["for_sale"], color: STATUS_COLORS["for_sale"].fg },
+      { value: inDeal, label: "В брони / в сделке", color: STATUS_COLORS["reserved"].fg },
+      { value: `$${Math.round(portfolioUsd).toLocaleString("en-US")}`, label: `Портфель · ${sold} продано`, color: STATUS_COLORS["deal_completed"].fg },
+    ];
+  }, [units]);
+
   return (
     <div style={{ flex: 1, minHeight: 0, display: "flex", gap: 16 }}>
       <div style={{ flex: 1, minWidth: 0, overflowY: "auto" }}>
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
           <div>
             <h1 style={{ fontFamily: "var(--font-heading)", fontSize: 23, fontWeight: 700, margin: "0 0 6px", color: "var(--color-text)" }}>Юниты</h1>
-            <p style={{ color: "var(--color-text-soft)", fontSize: 13, margin: "0 0 16px" }}>{filtered.length} из {units.length} юнитов</p>
+            <p style={{ color: "var(--color-text-soft)", fontSize: 13, margin: 0 }}>{filtered.length} из {units.length} юнитов</p>
           </div>
           <div style={{ display: "flex", gap: 4, background: "rgba(255,255,255,.04)", borderRadius: 10, padding: 3, flexShrink: 0 }}>
             {(["grid", "list"] as const).map((v) => (
@@ -138,6 +151,16 @@ export function UnitsPanel({
             ))}
           </div>
         </div>
+        {units.length > 0 && (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 14, margin: "14px 0" }}>
+            {kpis.map((k) => (
+              <div key={k.label} className="glass-panel" style={{ padding: "17px 18px" }}>
+                <div style={{ fontFamily: "var(--font-heading)", fontSize: 27, fontWeight: 700, color: k.color, lineHeight: 1 }}>{k.value}</div>
+                <div style={{ fontSize: 12, color: "var(--color-text-faint)", marginTop: 6 }}>{k.label}</div>
+              </div>
+            ))}
+          </div>
+        )}
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
           {["Все", ...buildings.map((b) => b.name)].map((name) => (
             <div

@@ -32,12 +32,19 @@ export function PaymentsPanel() {
 
   if (payments === null && !error) {
     return (
-      <div style={{ flex: 1, minHeight: 0, overflowY: "auto" }}>
-        <h1 style={{ fontFamily: "var(--font-heading)", fontSize: 23, fontWeight: 700, margin: "0 0 6px", color: "var(--color-text)" }}>Платежи</h1>
-        <Skeleton width={220} height={13} style={{ margin: "0 0 20px" }} />
+      <div style={{ flex: 1, minHeight: 0, overflowY: "auto", display: "flex", flexDirection: "column", gap: 16 }}>
+        <h1 style={{ fontFamily: "var(--font-heading)", fontSize: 23, fontWeight: 700, margin: 0, color: "var(--color-text)" }}>Платежи</h1>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 14 }}>
+          {[0, 1, 2, 3].map((i) => (
+            <div key={i} className="glass-panel stagger-item" style={{ ["--i" as any]: i, padding: "17px 18px" }}>
+              <Skeleton height={27} width="55%" style={{ marginBottom: 8 }} />
+              <Skeleton height={11} width="80%" />
+            </div>
+          ))}
+        </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {[0, 1, 2, 3].map((i) => (
-            <div key={i} className="glass-panel stagger-item" style={{ ["--i" as any]: i, padding: "13px 16px", borderRadius: 14, display: "flex", alignItems: "center", gap: 14 }}>
+            <div key={i} className="glass-panel stagger-item" style={{ ["--i" as any]: i + 4, padding: "13px 16px", borderRadius: 14, display: "flex", alignItems: "center", gap: 14 }}>
               <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 7 }}>
                 <Skeleton width="45%" height={13} />
                 <Skeleton width="65%" height={11} />
@@ -58,10 +65,19 @@ export function PaymentsPanel() {
   const paid = rows.filter((p) => p.status === "paid");
 
   const totalDue = overdue.reduce((s, p) => s + p.amount_usd, 0) + pending.reduce((s, p) => s + p.amount_usd, 0);
+  const overdueSum = overdue.reduce((s, p) => s + p.amount_usd, 0);
+  const paidSum = paid.reduce((s, p) => s + p.amount_usd, 0);
 
   function fmt(n: number) {
     return `$${n.toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
   }
+
+  const kpis = [
+    { value: fmt(totalDue), label: "К получению", color: "var(--v-accent)" },
+    { value: overdue.length, label: `Просрочено${overdueSum ? ` · ${fmt(overdueSum)}` : ""}`, color: "var(--danger)" },
+    { value: dueSoon.length, label: "Скоро наступит срок", color: "var(--warning)" },
+    { value: fmt(paidSum), label: "Уже оплачено", color: "var(--success)" },
+  ];
 
   function Row({ p, index }: { p: Payment; index: number }) {
     const req = p.spravka_requests;
@@ -124,17 +140,25 @@ export function PaymentsPanel() {
   }
 
   return (
-    <div style={{ flex: 1, minHeight: 0, overflowY: "auto" }}>
-      <h1 style={{ fontFamily: "var(--font-heading)", fontSize: 23, fontWeight: 700, margin: "0 0 6px", color: "var(--color-text)" }}>Платежи</h1>
-      <p style={{ color: "var(--color-text-soft)", fontSize: 13, margin: "0 0 4px" }}>
-        {rows.length === 0 ? "Пока нет активных графиков платежей" : `К получению: ${fmt(totalDue)} · ${overdue.length} просрочено · ${dueSoon.length} скоро`}
-      </p>
+    <div style={{ flex: 1, minHeight: 0, overflowY: "auto", display: "flex", flexDirection: "column", gap: 16 }}>
+      <h1 style={{ fontFamily: "var(--font-heading)", fontSize: 23, fontWeight: 700, margin: 0, color: "var(--color-text)" }}>Платежи</h1>
+
       {rows.length > 0 && (
-        <p style={{ color: "var(--color-text-faint)", fontSize: 11.5, margin: "0 0 18px" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 14 }}>
+          {kpis.map((k) => (
+            <div key={k.label} className="glass-panel" style={{ padding: "17px 18px" }}>
+              <div style={{ fontFamily: "var(--font-heading)", fontSize: 27, fontWeight: 700, color: k.color, lineHeight: 1 }}>{k.value}</div>
+              <div style={{ fontSize: 12, color: "var(--color-text-faint)", marginTop: 6 }}>{k.label}</div>
+            </div>
+          ))}
+        </div>
+      )}
+      {rows.length > 0 && (
+        <p style={{ color: "var(--color-text-faint)", fontSize: 11.5, margin: 0 }}>
           Автонапоминаний в Telegram/WhatsApp пока нет — «Позвонить» открывает звонок клиенту напрямую.
         </p>
       )}
-      {error && <div style={{ color: "var(--danger)", fontSize: 13, marginBottom: 14 }}>{error}</div>}
+      {error && <div style={{ color: "var(--danger)", fontSize: 13 }}>{error}</div>}
       {rows.length === 0 && (
         <div style={{ color: "var(--color-text-faint)", fontSize: 13 }}>
           График платежей появляется автоматически, когда босс одобряет Справку с рассрочкой.

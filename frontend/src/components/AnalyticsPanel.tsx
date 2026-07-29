@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
-import { Building, Commission, ManagerPerformance, PlanRate, PLAN_LABELS, STATUS_LABELS } from "@/lib/types";
+import { Building, Commission, ManagerPerformance, PlanRate, PLAN_LABELS, STATUS_LABELS, STATUS_COLORS } from "@/lib/types";
 import { Skeleton } from "./Skeleton";
 
 type Summary = {
@@ -140,15 +140,18 @@ export function AnalyticsPanel() {
       <div className="glass-panel" style={{ padding: "18px 20px" }}>
         <h3 style={{ fontFamily: "var(--font-heading)", fontSize: 15, margin: "0 0 14px", color: "var(--color-text)" }}>Юниты по статусу</h3>
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {Object.entries(summary.units_by_status).map(([status, count]) => (
-            <div key={status} style={{ display: "flex", alignItems: "center", gap: 12 }}>
-              <span style={{ width: 140, fontSize: 12.5, color: "var(--color-text-soft)" }}>{STATUS_LABELS[status] || status}</span>
-              <div style={{ flex: 1, height: 8, borderRadius: 99, background: "rgba(255,255,255,.05)", overflow: "hidden" }}>
-                <div style={{ height: "100%", width: `${Math.min(100, (count / Math.max(...Object.values(summary.units_by_status))) * 100)}%`, background: "var(--v-accent)" }} />
+          {Object.entries(summary.units_by_status).map(([status, count]) => {
+            const color = STATUS_COLORS[status]?.fg || "var(--v-accent)";
+            return (
+              <div key={status} style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <span style={{ width: 140, fontSize: 12.5, color: "var(--color-text-soft)" }}>{STATUS_LABELS[status] || status}</span>
+                <div style={{ flex: 1, height: 8, borderRadius: 99, background: "rgba(255,255,255,.05)", overflow: "hidden" }}>
+                  <div style={{ height: "100%", width: `${Math.min(100, (count / Math.max(...Object.values(summary.units_by_status))) * 100)}%`, background: color }} />
+                </div>
+                <span style={{ width: 30, textAlign: "right", fontSize: 12.5, fontWeight: 700, color: "var(--color-text)" }}>{count}</span>
               </div>
-              <span style={{ width: 30, textAlign: "right", fontSize: 12.5, fontWeight: 700, color: "var(--color-text)" }}>{count}</span>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 
