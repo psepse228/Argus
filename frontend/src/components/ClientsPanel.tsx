@@ -24,7 +24,11 @@ export function ClientsPanel({
   const [clients, setClients] = useState<Client[] | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
-  const [showUnnamed, setShowUnnamed] = useState(false);
+  // Open by default -- collapsed-by-default left the page looking empty
+  // whenever most clients are still bare phone numbers from leads (e.g. 7
+  // of 11), since the named grid alone doesn't fill the panel. Still
+  // collapsible once there are enough named clients that this becomes noise.
+  const [showUnnamed, setShowUnnamed] = useState(true);
 
   useEffect(() => { api.clients().then(setClients).catch(() => setClients([])); }, []);
 

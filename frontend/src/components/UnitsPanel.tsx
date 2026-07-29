@@ -221,9 +221,11 @@ export function UnitsPanel({
         )}
 
         {!loading && view === "grid" && filtered.length > 0 && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 26 }}>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 20, alignItems: "flex-start" }}>
             {groupedForGrid.map(([buildingName, buildingUnits]) => (
-              <ChessGrid key={buildingName} buildingName={buildingName} units={buildingUnits} selectedId={selected?.id} onSelect={selectUnit} />
+              <div key={buildingName} className="glass-panel" style={{ padding: "18px 20px", width: "fit-content", minWidth: 220 }}>
+                <ChessGrid buildingName={buildingName} units={buildingUnits} selectedId={selected?.id} onSelect={selectUnit} />
+              </div>
             ))}
           </div>
         )}

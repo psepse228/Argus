@@ -1,9 +1,10 @@
 "use client";
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { Building, Commission, ManagerPerformance, PlanRate, PLAN_LABELS, STATUS_LABELS, STATUS_COLORS } from "@/lib/types";
 import { Skeleton } from "./Skeleton";
 import { DonutChart } from "./DonutChart";
+import { SectionLabel } from "./SectionLabel";
 
 type Summary = {
   units_by_status: Record<string, number>;
@@ -91,6 +92,7 @@ export function AnalyticsPanel() {
     <div style={{ flex: 1, minHeight: 0, overflowY: "auto", display: "flex", flexDirection: "column", gap: 16 }}>
       <h1 style={{ fontFamily: "var(--font-heading)", fontSize: 23, fontWeight: 700, margin: 0, color: "var(--color-text)" }}>Аналитика</h1>
 
+      <SectionLabel>Обзор</SectionLabel>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 14 }}>
         {kpis.map((k) => (
           <div key={k.label} className="glass-panel" style={{ padding: "17px 18px" }}>
@@ -100,6 +102,7 @@ export function AnalyticsPanel() {
         ))}
       </div>
 
+      <SectionLabel>Команда</SectionLabel>
       <div className="glass-panel" style={{ padding: "20px 22px" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
           <h3 style={{ fontFamily: "var(--font-heading)", fontSize: 16, margin: 0, color: "var(--color-text)" }}>Эффективность менеджеров</h3>
@@ -138,6 +141,7 @@ export function AnalyticsPanel() {
         )}
       </div>
 
+      <SectionLabel>Юниты</SectionLabel>
       <div className="glass-panel" style={{ padding: "18px 20px" }}>
         <h3 style={{ fontFamily: "var(--font-heading)", fontSize: 15, margin: "0 0 16px", color: "var(--color-text)" }}>Юниты по статусу</h3>
         <DonutChart
@@ -149,6 +153,7 @@ export function AnalyticsPanel() {
         />
       </div>
 
+      <SectionLabel>Финансы</SectionLabel>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
         <div className="glass-panel" style={{ padding: "18px 20px" }}>
           <h3 style={{ fontFamily: "var(--font-heading)", fontSize: 15, margin: "0 0 4px", color: "var(--color-text)" }}>Курс (сум за $)</h3>
@@ -221,8 +226,8 @@ export function AnalyticsPanel() {
             <span key={l} style={{ color: "var(--color-text-faint)", fontSize: 11, textTransform: "uppercase", letterSpacing: ".03em" }}>{l}</span>
           ))}
           {buildings.map((b) => (
-            <>
-              <span key={b.id} style={{ color: "var(--color-text)", fontWeight: 600 }}>{b.name}</span>
+            <Fragment key={b.id}>
+              <span style={{ color: "var(--color-text)", fontWeight: 600 }}>{b.name}</span>
               {Object.keys(PLAN_LABELS).map((plan) => {
                 const rate = (ratesByBuilding[b.id] || []).find((r) => r.plan_type === plan);
                 return (
@@ -231,7 +236,7 @@ export function AnalyticsPanel() {
                   </span>
                 );
               })}
-            </>
+            </Fragment>
           ))}
         </div>
       </div>

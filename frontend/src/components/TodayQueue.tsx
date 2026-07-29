@@ -93,13 +93,13 @@ export function TodayQueue({ isBoss }: { isBoss: boolean }) {
       {items.length === 0 ? (
         <div style={{ fontSize: 12.5, color: "var(--color-text-faint)" }}>Пусто — ничего срочного нет.</div>
       ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(260px,1fr))", gap: "12px 20px" }}>
           {items.slice(0, 8).map((it, i) => (
-            <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 9 }}>
+            <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 9, paddingBottom: 10, borderBottom: "1px solid var(--color-hairline-soft)", minWidth: 0 }}>
               <span style={{ width: 7, height: 7, borderRadius: 99, background: it.color, flexShrink: 0, marginTop: 5 }} />
               <div style={{ minWidth: 0 }}>
-                <div style={{ fontSize: 12.5, fontWeight: 700, color: "var(--color-text)" }}>{it.label}</div>
-                <div style={{ fontSize: 11.5, color: "var(--color-text-faint)" }}>{it.detail}</div>
+                <div style={{ fontSize: 12.5, fontWeight: 700, color: "var(--color-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{it.label}</div>
+                <div style={{ fontSize: 11.5, color: "var(--color-text-faint)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{it.detail}</div>
               </div>
             </div>
           ))}

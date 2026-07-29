@@ -40,6 +40,13 @@ export function WorkshopPanel({
   // already has, just a second entry point into it.
   const [linkingConvId, setLinkingConvId] = useState<string | null>(null);
   const [linkQuery, setLinkQuery] = useState("");
+  // Separate from linkQuery/search -- typing a name doesn't look like a
+  // phone number, so gating "create new" on linkQueryLooksLikePhone alone
+  // left no way to create a client from this modal unless you happened to
+  // type digits. This is its own explicit mode instead.
+  const [creatingNew, setCreatingNew] = useState(false);
+  const [newClientName, setNewClientName] = useState("");
+  const [newClientPhone, setNewClientPhone] = useState("");
 
   useEffect(() => { api.workspace().then(setPinned).catch(() => setPinned([])); }, []);
   useEffect(() => { api.telegramUnmatched().then(setUnmatchedTelegram).catch(() => setUnmatchedTelegram([])); }, []);
@@ -80,6 +87,9 @@ export function WorkshopPanel({
     setUnmatchedTelegram((cur) => (cur || []).filter((c) => c.id !== linkingConvId));
     setLinkingConvId(null);
     setLinkQuery("");
+    setCreatingNew(false);
+    setNewClientName("");
+    setNewClientPhone("");
     if (updated.client_id) await openRecentTelegramClient(updated.client_id);
   }
 
@@ -99,6 +109,9 @@ export function WorkshopPanel({
   useEffect(() => {
     setLinkingConvId(null);
     setLinkQuery("");
+    setCreatingNew(false);
+    setNewClientName("");
+    setNewClientPhone("");
   }, [selectedId]);
 
   // Rendered as a centered modal (backdrop + portal), not an anchored
@@ -299,40 +312,88 @@ export function WorkshopPanel({
               <div style={{ fontSize: 11.5, color: "var(--color-text-faint)", marginBottom: 12 }}>
                 Привяжите Telegram-чат к существующему клиенту или создайте нового.
               </div>
-              <input
-                autoFocus
-                value={linkQuery}
-                onChange={(e) => setLinkQuery(e.target.value)}
-                placeholder="Имя или телефон существующего клиента…"
-                style={{ width: "100%", padding: "9px 12px", borderRadius: 9, background: "rgba(255,255,255,.04)", border: "1px solid var(--color-hairline)", color: "var(--color-text)", fontSize: 13, marginBottom: 10 }}
-              />
-              {linkQuery.trim() && (allClients || [])
-                .filter((cl) => (cl.name || "").toLowerCase().includes(linkQuery.trim().toLowerCase()) || cl.phone.includes(linkQuery.trim()))
-                .slice(0, 5)
-                .map((cl) => (
+
+              {!creatingNew ? (
+                <>
+                  <input
+                    autoFocus
+                    value={linkQuery}
+                    onChange={(e) => setLinkQuery(e.target.value)}
+                    placeholder="Имя или телефон существующего клиента…"
+                    style={{ width: "100%", padding: "9px 12px", borderRadius: 9, background: "rgba(255,255,255,.04)", border: "1px solid var(--color-hairline)", color: "var(--color-text)", fontSize: 13, marginBottom: 10 }}
+                  />
+                  {linkQuery.trim() && (allClients || [])
+                    .filter((cl) => (cl.name || "").toLowerCase().includes(linkQuery.trim().toLowerCase()) || cl.phone.includes(linkQuery.trim()))
+                    .slice(0, 5)
+                    .map((cl) => (
+                      <div
+                        key={cl.id} onClick={() => linkTelegramToClient(cl)} className="press"
+                        style={{ padding: "9px 11px", borderRadius: 8, cursor: "pointer", fontSize: 13, display: "flex", justifyContent: "space-between", gap: 8 }}
+                      >
+                        <span style={{ fontWeight: 600, color: "var(--color-text)" }}>{cl.name || cl.phone}</span>
+                        <span style={{ color: "var(--color-text-faint)", fontSize: 11.5 }}>{cl.phone}</span>
+                      </div>
+                    ))}
+                  {linkQueryLooksLikePhone && (
+                    <div
+                      onClick={() => linkTelegramToNewClient(c.telegram_first_name || "", linkQuery.trim())}
+                      className="press"
+                      style={{ padding: "9px 11px", borderRadius: 8, cursor: "pointer", fontSize: 13, color: "var(--v-accent)", fontWeight: 700 }}
+                    >
+                      + Создать нового клиента с номером {linkQuery.trim()}
+                    </div>
+                  )}
                   <div
-                    key={cl.id} onClick={() => linkTelegramToClient(cl)} className="press"
-                    style={{ padding: "9px 11px", borderRadius: 8, cursor: "pointer", fontSize: 13, display: "flex", justifyContent: "space-between", gap: 8 }}
+                    onClick={() => { setCreatingNew(true); setNewClientName(c.telegram_first_name || ""); }}
+                    className="press"
+                    style={{ padding: "9px 11px", borderRadius: 8, cursor: "pointer", fontSize: 13, color: "var(--v-accent)", fontWeight: 700, marginTop: 4, borderTop: "1px solid var(--color-hairline-soft)" }}
                   >
-                    <span style={{ fontWeight: 600, color: "var(--color-text)" }}>{cl.name || cl.phone}</span>
-                    <span style={{ color: "var(--color-text-faint)", fontSize: 11.5 }}>{cl.phone}</span>
+                    + Создать новую карточку клиента
                   </div>
-                ))}
-              {linkQueryLooksLikePhone && (
-                <div
-                  onClick={() => linkTelegramToNewClient(c.telegram_first_name || "", linkQuery.trim())}
-                  className="press"
-                  style={{ padding: "9px 11px", borderRadius: 8, cursor: "pointer", fontSize: 13, color: "var(--v-accent)", fontWeight: 700 }}
-                >
-                  + Создать нового клиента с этим номером
-                </div>
+                  <button
+                    onClick={() => setLinkingConvId(null)}
+                    style={{ marginTop: 10, fontSize: 12, fontWeight: 600, color: "var(--color-text-soft)", background: "transparent", border: "none", cursor: "pointer", padding: 0 }}
+                  >
+                    Отмена
+                  </button>
+                </>
+              ) : (
+                <>
+                  <input
+                    autoFocus
+                    value={newClientName}
+                    onChange={(e) => setNewClientName(e.target.value)}
+                    placeholder="Имя клиента"
+                    style={{ width: "100%", padding: "9px 12px", borderRadius: 9, background: "rgba(255,255,255,.04)", border: "1px solid var(--color-hairline)", color: "var(--color-text)", fontSize: 13, marginBottom: 8 }}
+                  />
+                  <input
+                    value={newClientPhone}
+                    onChange={(e) => setNewClientPhone(e.target.value)}
+                    placeholder="Телефон (обязательно)"
+                    style={{ width: "100%", padding: "9px 12px", borderRadius: 9, background: "rgba(255,255,255,.04)", border: "1px solid var(--color-hairline)", color: "var(--color-text)", fontSize: 13, marginBottom: 10 }}
+                  />
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <button
+                      className="press"
+                      disabled={newClientPhone.replace(/\D/g, "").length < 9}
+                      onClick={() => linkTelegramToNewClient(newClientName.trim(), newClientPhone.trim())}
+                      style={{
+                        flex: 1, padding: "9px 11px", borderRadius: 8, cursor: "pointer", fontSize: 13, fontWeight: 700,
+                        background: "var(--v-accent)", color: "var(--v-text-on-accent)", border: "none",
+                        opacity: newClientPhone.replace(/\D/g, "").length < 9 ? 0.5 : 1,
+                      }}
+                    >
+                      Создать и привязать
+                    </button>
+                    <button
+                      onClick={() => setCreatingNew(false)}
+                      style={{ padding: "9px 13px", borderRadius: 8, fontSize: 13, fontWeight: 600, color: "var(--color-text-soft)", background: "rgba(255,255,255,.04)", border: "1px solid var(--color-hairline)", cursor: "pointer" }}
+                    >
+                      Назад
+                    </button>
+                  </div>
+                </>
               )}
-              <button
-                onClick={() => setLinkingConvId(null)}
-                style={{ marginTop: 10, fontSize: 12, fontWeight: 600, color: "var(--color-text-soft)", background: "transparent", border: "none", cursor: "pointer", padding: 0 }}
-              >
-                Отмена
-              </button>
             </div>
           </div>,
           document.body

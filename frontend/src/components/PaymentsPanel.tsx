@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { Payment, PAYMENT_STATUS_COLORS, PAYMENT_STATUS_LABELS } from "@/lib/types";
 import { Skeleton } from "./Skeleton";
+import { SectionLabel } from "./SectionLabel";
 
 /** Loan-servicing-style view over payment_schedule: what's due, what's paid,
  * what's overdue, per approved Справка. Rows are generated once at approval
@@ -143,6 +144,7 @@ export function PaymentsPanel() {
     <div style={{ flex: 1, minHeight: 0, overflowY: "auto", display: "flex", flexDirection: "column", gap: 16 }}>
       <h1 style={{ fontFamily: "var(--font-heading)", fontSize: 23, fontWeight: 700, margin: 0, color: "var(--color-text)" }}>Платежи</h1>
 
+      {rows.length > 0 && <SectionLabel>Обзор</SectionLabel>}
       {rows.length > 0 && (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 14 }}>
           {kpis.map((k) => (
