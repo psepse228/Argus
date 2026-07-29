@@ -1,11 +1,12 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
-import { Building, ClientDetail, PRIORITY_COLORS, PRIORITY_LABELS, Priority, STAGE_COLORS, STATUS_LABELS, PLAN_LABELS, PlanRate, Unit } from "@/lib/types";
+import { Building, ClientDetail, PRIORITY_COLORS, PRIORITY_LABELS, Priority, STAGE_COLORS, STATUS_LABELS, PLAN_LABELS, PlanRate, TelegramConversation, TelegramMessage, Unit } from "@/lib/types";
 import { ChatThread } from "./ChatThread";
 import { DealTimeline } from "./DealTimeline";
 import { Dropdown } from "./Dropdown";
-import { TelegramPreviewModal } from "./TelegramPreviewModal";
+import { TelegramBusinessThread } from "./TelegramBusinessThread";
+import { TelegramSummaryCard } from "./TelegramSummaryCard";
 
 const inputStyle: React.CSSProperties = { padding: "9px 12px", borderRadius: 10, background: "rgba(255,255,255,.04)", border: "1px solid var(--color-hairline-soft)", color: "var(--color-text)", fontSize: 12.5 };
 
@@ -44,7 +45,8 @@ export function ClientWorkspace({
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [spravkaMode, setSpravkaMode] = useState(false);
   const [savingFollowup, setSavingFollowup] = useState(false);
-  const [cortegePreviewOpen, setCortegePreviewOpen] = useState(false);
+  const [telegramConversation, setTelegramConversation] = useState<TelegramConversation | null>(null);
+  const [telegramMessages, setTelegramMessages] = useState<TelegramMessage[]>([]);
   const [actionError, setActionError] = useState("");
 
   // Manual справка form -- restores the old DocsPanel path (form → boss
@@ -67,18 +69,43 @@ export function ClientWorkspace({
   const [formBusy, setFormBusy] = useState(false);
   const [formError, setFormError] = useState("");
 
+  // ClientWorkspace is reused across client switches, not remounted (no
+  // key={clientId} at the call site) -- so an in-flight fetch/send for the
+  // previous client can still resolve after the rep has already switched to
+  // a new one. This ref lets every async callback below check "is my
+  // clientId still the one the user is actually looking at" before writing
+  // state, instead of silently overwriting the new client's data with the
+  // old one's late-arriving response.
+  const activeClientIdRef = useRef(clientId);
+
   useEffect(() => {
+    activeClientIdRef.current = clientId;
     setSelected(null);
     setConversationId(null);
     setSpravkaMode(false);
     setFormOpen(false);
     setRequestedPrice("");
+    setTelegramConversation(null);
+    setTelegramMessages([]);
     (async () => {
-      const [detail, conv] = await Promise.all([api.clientDetail(clientId), api.clientConversation(clientId)]);
+      const [detail, conv, tg] = await Promise.all([
+        api.clientDetail(clientId), api.clientConversation(clientId), api.telegramByClient(clientId),
+      ]);
+      if (activeClientIdRef.current !== clientId) return; // a newer client was selected meanwhile
       setSelected(detail);
       setConversationId(conv.id);
+      setTelegramConversation(tg.conversation);
+      setTelegramMessages(tg.messages);
     })();
   }, [clientId]);
+
+  async function refreshTelegram() {
+    const requestedId = clientId;
+    const tg = await api.telegramByClient(requestedId);
+    if (activeClientIdRef.current !== requestedId) return; // stale -- client switched before this resolved
+    setTelegramConversation(tg.conversation);
+    setTelegramMessages(tg.messages);
+  }
 
   useEffect(() => {
     if (formOpen && buildings.length === 0) {
@@ -388,36 +415,18 @@ export function ClientWorkspace({
           )}
         </div>
 
-        <div>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-            <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: ".05em", color: "var(--color-text-faint)" }}>Cortège+</div>
-            <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: ".04em", color: "#fff", background: "linear-gradient(150deg, #22d3ee, #6366f1)", borderRadius: 99, padding: "2px 7px" }}>СКОРО</span>
-          </div>
-          <div style={{ padding: "12px 14px", borderRadius: 10, background: "rgba(255,255,255,.03)", border: "1px dashed var(--color-hairline)" }}>
-            <div style={{ fontSize: 12, color: "var(--color-text-faint)", lineHeight: 1.5, marginBottom: 10 }}>
-              Платформа Cortège — бот сам отвечает клиенту в Telegram. Здесь, в Мастерской, вы сможете следить за перепиской в реальном времени, а AI-ассистент рядом читает её и продолжает советовать по этой сделке в чате. Пока интеграция не подключена — это превью того, как будет выглядеть.
-            </div>
-            <button
-              className="press"
-              onClick={() => setCortegePreviewOpen(true)}
-              style={{
-                display: "flex", alignItems: "center", gap: 7, fontSize: 11.5, fontWeight: 700, cursor: "pointer",
-                padding: "7px 12px", borderRadius: 9, border: "none", color: "#fff",
-                background: "linear-gradient(150deg, #2AABEE, #229ED9)",
-              }}
-            >
-              <svg viewBox="0 0 24 24" width={13} height={13} fill="#fff"><path d="M21.94 4.53 18.6 20.2c-.25 1.12-.9 1.4-1.83.87l-5.06-3.73-2.44 2.35c-.27.27-.5.5-1.02.5l.36-5.15L18.1 6.9c.4-.36-.09-.56-.63-.2L7.4 13.3l-5-1.57c-1.1-.34-1.12-1.1.23-1.63L20.6 3.5c.9-.34 1.7.2 1.34 1.03Z" /></svg>
-              Показать бета-превью
-            </button>
-          </div>
-        </div>
+        <TelegramBusinessThread
+          conversation={telegramConversation} messages={telegramMessages}
+          onSent={refreshTelegram}
+        />
       </div>
 
       <div className="glass-panel" style={{ width: 340, flexShrink: 0, minHeight: 0, padding: "18px 20px", display: "flex", flexDirection: "column" }}>
         <div style={{ fontFamily: "var(--font-heading)", fontSize: 13.5, fontWeight: 700, color: "var(--color-text)", marginBottom: 4 }}>
           Чат · {selected.name || selected.phone}
         </div>
-        <div style={{ flex: 1, minHeight: 0, paddingTop: 10 }}>
+        <div style={{ flex: 1, minHeight: 0, paddingTop: 10, display: "flex", flexDirection: "column" }}>
+          <TelegramSummaryCard conversation={telegramConversation} />
           {conversationId ? (
             <ChatThread
               conversationId={conversationId} isBoss={isBoss} spravkaMode={spravkaMode}
@@ -429,9 +438,6 @@ export function ClientWorkspace({
           )}
         </div>
       </div>
-      {cortegePreviewOpen && (
-        <TelegramPreviewModal clientName={selected.name || selected.phone} onClose={() => setCortegePreviewOpen(false)} />
-      )}
     </div>
   );
 }
