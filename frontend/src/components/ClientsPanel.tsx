@@ -4,6 +4,8 @@ import { api } from "@/lib/api";
 import { Client, PRIORITY_COLORS, PRIORITY_LABELS } from "@/lib/types";
 import { ClientInfoCard } from "./ClientInfoCard";
 import { Skeleton } from "./Skeleton";
+import { SectionLabel } from "./SectionLabel";
+import { DonutChart } from "./DonutChart";
 
 const PRIORITY_RANK: Record<string, number> = { hot: 0, warm: 1, cold: 2 };
 
@@ -92,24 +94,68 @@ export function ClientsPanel({
   const named = [...filtered.filter((c) => c.name)].sort(rank);
   const unnamed = [...filtered.filter((c) => !c.name)].sort(rank);
 
+  const activeCount = clients.filter((c) => c.leads_count + c.spravka_count > 0).length;
+  const hotCount = clients.filter((c) => c.priority === "hot").length;
+  const withSpravkaCount = clients.filter((c) => c.spravka_count > 0).length;
+  const priorityBreakdown = (["hot", "warm", "cold"] as const)
+    .map((p) => ({ label: PRIORITY_LABELS[p], value: clients.filter((c) => c.priority === p).length, color: PRIORITY_COLORS[p].fg }))
+    .filter((p) => p.value > 0);
+
   return (
-    <div style={{ flex: 1, minHeight: 0, overflowY: "auto" }}>
-      <h1 style={{ fontFamily: "var(--font-heading)", fontSize: 23, fontWeight: 700, margin: "0 0 6px", color: "var(--color-text)" }}>Клиенты</h1>
-      <p style={{ color: "var(--color-text-soft)", fontSize: 13, margin: "0 0 16px" }}>{clients.length} клиентов — их лиды, справки и переписка в одном месте</p>
+    <div style={{ flex: 1, minHeight: 0, overflowY: "auto", display: "flex", flexDirection: "column", gap: 16 }}>
+      <div>
+        <h1 style={{ fontFamily: "var(--font-heading)", fontSize: 23, fontWeight: 700, margin: "0 0 6px", color: "var(--color-text)" }}>Клиенты</h1>
+        <p style={{ color: "var(--color-text-soft)", fontSize: 13, margin: 0 }}>{clients.length} клиентов — их лиды, справки и переписка в одном месте</p>
+      </div>
       {clients.length === 0 && (
         <div style={{ color: "var(--color-text-faint)", fontSize: 13 }}>Пока нет клиентов — появятся из лидов и справок.</div>
       )}
+
       {clients.length > 0 && (
-        <input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Поиск по имени или телефону…"
-          style={{ width: "100%", maxWidth: 360, padding: "10px 14px", borderRadius: 12, background: "rgba(255,255,255,.04)", border: "1px solid var(--color-hairline)", color: "var(--color-text)", fontSize: 13, marginBottom: 20 }}
-        />
+        <>
+          <SectionLabel>Обзор</SectionLabel>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 14 }}>
+            <div className="glass-panel" style={{ padding: "17px 18px" }}>
+              <div style={{ fontFamily: "var(--font-heading)", fontSize: 27, fontWeight: 700, color: "var(--color-text)", lineHeight: 1 }}>{clients.length}</div>
+              <div style={{ fontSize: 12, color: "var(--color-text-faint)", marginTop: 6 }}>Всего клиентов</div>
+            </div>
+            <div className="glass-panel" style={{ padding: "17px 18px" }}>
+              <div style={{ fontFamily: "var(--font-heading)", fontSize: 27, fontWeight: 700, color: "var(--v-accent)", lineHeight: 1 }}>{activeCount}</div>
+              <div style={{ fontSize: 12, color: "var(--color-text-faint)", marginTop: 6 }}>Активных (есть лид/справка)</div>
+            </div>
+            <div className="glass-panel" style={{ padding: "17px 18px" }}>
+              <div style={{ fontFamily: "var(--font-heading)", fontSize: 27, fontWeight: 700, color: PRIORITY_COLORS.hot.fg, lineHeight: 1 }}>{hotCount}</div>
+              <div style={{ fontSize: 12, color: "var(--color-text-faint)", marginTop: 6 }}>Горячих</div>
+            </div>
+            <div className="glass-panel" style={{ padding: "17px 18px" }}>
+              <div style={{ fontFamily: "var(--font-heading)", fontSize: 27, fontWeight: 700, color: "var(--success)", lineHeight: 1 }}>{withSpravkaCount}</div>
+              <div style={{ fontSize: 12, color: "var(--color-text-faint)", marginTop: 6 }}>Со справками</div>
+            </div>
+          </div>
+
+          {priorityBreakdown.length > 0 && (
+            <div className="glass-panel" style={{ padding: "18px 20px", overflow: "visible" }}>
+              <h3 style={{ fontFamily: "var(--font-heading)", fontSize: 15, margin: "0 0 16px", color: "var(--color-text)" }}>Клиенты по приоритету</h3>
+              <DonutChart data={priorityBreakdown} />
+            </div>
+          )}
+        </>
+      )}
+
+      {clients.length > 0 && (
+        <>
+          <SectionLabel>Список</SectionLabel>
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Поиск по имени или телефону…"
+            style={{ width: "100%", maxWidth: 360, padding: "10px 14px", borderRadius: 12, background: "rgba(255,255,255,.04)", border: "1px solid var(--color-hairline)", color: "var(--color-text)", fontSize: 13 }}
+          />
+        </>
       )}
 
       {named.length > 0 && (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(260px,1fr))", gap: 16, marginBottom: unnamed.length > 0 ? 22 : 0 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(260px,1fr))", gap: 16 }}>
           {named.map((c, i) => <ClientCard key={c.id} client={c} index={i} onOpen={() => setSelectedId(c.id)} />)}
         </div>
       )}
