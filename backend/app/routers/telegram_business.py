@@ -3,6 +3,7 @@ scripted TelegramPreviewModal fake demo. One pilot manager's personal
 Telegram account for now (see the design spec); the schema supports more
 connections later without changes here.
 """
+import os
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, HTTPException, Request
@@ -70,10 +71,28 @@ def telegram_business_webhook(update: dict, request: Request):
 
     connection_event = update.get("business_connection")
     if connection_event:
-        client.table("telegram_business_connections").update({
-            "is_enabled": connection_event.get("is_enabled", False),
-            "disconnected_at": None if connection_event.get("is_enabled") else datetime.now(timezone.utc).isoformat(),
-        }).eq("business_connection_id", connection_event["id"]).execute()
+        is_enabled = connection_event.get("is_enabled", False)
+        connection_id = connection_event["id"]
+        if _get_connection(client, connection_id):
+            client.table("telegram_business_connections").update({
+                "is_enabled": is_enabled,
+                "disconnected_at": None if is_enabled else datetime.now(timezone.utc).isoformat(),
+            }).eq("business_connection_id", connection_id).execute()
+        else:
+            # First time this business_connection_id has ever been seen --
+            # bootstrap the row instead of requiring an operator to hand-
+            # capture the id from logs and INSERT it manually before any
+            # message can be relayed. Single-tenant, single-manager pilot,
+            # so tenant/manager come from env rather than the (tenant-less)
+            # Telegram payload -- see telegram_business_connections' comment
+            # on why business_connection_id must stay globally unique.
+            client.table("telegram_business_connections").insert({
+                "tenant_id": os.environ["TELEGRAM_PILOT_TENANT_ID"],
+                "manager_email": os.environ["TELEGRAM_PILOT_MANAGER_EMAIL"],
+                "business_connection_id": connection_id,
+                "telegram_user_id": connection_event.get("user", {}).get("id") or connection_event["user_chat_id"],
+                "is_enabled": is_enabled,
+            }).execute()
         return {"ok": True}
 
     message = update.get("business_message") or update.get("edited_business_message")
