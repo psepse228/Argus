@@ -1,7 +1,7 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
-import { Client } from "@/lib/types";
+import { Client, TelegramConversation } from "@/lib/types";
 import { ClientWorkspace } from "./ClientWorkspace";
 import { Skeleton } from "./Skeleton";
 import { SpravkaApprovalTable } from "./SpravkaApprovalTable";
@@ -30,8 +30,20 @@ export function WorkshopPanel({
   const [query, setQuery] = useState("");
   const [allClients, setAllClients] = useState<Client[] | null>(null);
   const [showAllRequests, setShowAllRequests] = useState(false);
+  const [unmatchedTelegram, setUnmatchedTelegram] = useState<TelegramConversation[] | null>(null);
+  const [recentMatchedTelegram, setRecentMatchedTelegram] = useState<
+    (TelegramConversation & { clients: { name: string | null; phone: string } | null })[] | null
+  >(null);
+  // Which unmatched conversation the inline "attach to client" picker is open
+  // for -- reuses the same allClients/pin machinery the main search box
+  // already has, just a second entry point into it.
+  const [linkingConvId, setLinkingConvId] = useState<string | null>(null);
+  const [linkQuery, setLinkQuery] = useState("");
+  const unmatchedGridRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => { api.workspace().then(setPinned).catch(() => setPinned([])); }, []);
+  useEffect(() => { api.telegramUnmatched().then(setUnmatchedTelegram).catch(() => setUnmatchedTelegram([])); }, []);
+  useEffect(() => { api.telegramRecentMatched().then(setRecentMatchedTelegram).catch(() => setRecentMatchedTelegram([])); }, []);
 
   useEffect(() => {
     if (initialClientId) {
@@ -53,6 +65,62 @@ export function WorkshopPanel({
     setSelectedId((cur) => (cur === clientId ? null : cur));
   }
 
+  async function linkTelegramToClient(client: Client) {
+    if (!linkingConvId) return;
+    await api.telegramLinkConversation(linkingConvId, { client_id: client.id });
+    setUnmatchedTelegram((cur) => (cur || []).filter((c) => c.id !== linkingConvId));
+    setLinkingConvId(null);
+    setLinkQuery("");
+    pin(client);
+  }
+
+  async function linkTelegramToNewClient(name: string, phone: string) {
+    if (!linkingConvId) return;
+    const updated = await api.telegramLinkConversation(linkingConvId, { new_client_name: name, new_client_phone: phone });
+    setUnmatchedTelegram((cur) => (cur || []).filter((c) => c.id !== linkingConvId));
+    setLinkingConvId(null);
+    setLinkQuery("");
+    if (updated.client_id) await openRecentTelegramClient(updated.client_id);
+  }
+
+  async function openRecentTelegramClient(clientId: string) {
+    await api.pinToWorkspace(clientId).catch(() => {});
+    api.workspace().then(setPinned).catch(() => {});
+    setSelectedId(clientId);
+  }
+
+  useEffect(() => {
+    if (linkingConvId && !allClients) api.clients().then(setAllClients).catch(() => {});
+  }, [linkingConvId, allClients]);
+
+  // Reset the picker whenever the rep navigates away from the Мастерская
+  // list (into a client's workspace) and back, so it doesn't silently stay
+  // open with stale typed text.
+  useEffect(() => {
+    setLinkingConvId(null);
+    setLinkQuery("");
+  }, [selectedId]);
+
+  // Click-outside/Escape dismiss for the link picker, matching the same
+  // convention as Dropdown.tsx/HudToolbar.tsx.
+  useEffect(() => {
+    if (!linkingConvId) return;
+    function onDocClick(e: MouseEvent) {
+      if (unmatchedGridRef.current && !unmatchedGridRef.current.contains(e.target as Node)) {
+        setLinkingConvId(null);
+      }
+    }
+    function onEsc(e: KeyboardEvent) {
+      if (e.key === "Escape") setLinkingConvId(null);
+    }
+    document.addEventListener("mousedown", onDocClick);
+    document.addEventListener("keydown", onEsc);
+    return () => {
+      document.removeEventListener("mousedown", onDocClick);
+      document.removeEventListener("keydown", onEsc);
+    };
+  }, [linkingConvId]);
+
   const q = query.trim().toLowerCase();
   const searchResults = q && allClients
     ? allClients.filter((c) => (c.name || "").toLowerCase().includes(q) || c.phone.includes(q)).slice(0, 6)
@@ -62,6 +130,12 @@ export function WorkshopPanel({
   const unpinnedApprovals = isBoss
     ? Array.from(new Map(pendingApprovals.filter((a) => !pinnedIds.has(a.client_id)).map((a) => [a.client_id, a])).values())
     : [];
+  const newTelegramClients = (recentMatchedTelegram || []).filter((c) => c.client_id && !pinnedIds.has(c.client_id));
+  // Mirrors backend/app/telegram/matching.py's normalize_phone: strip
+  // everything but digits, then sanity-check the resulting length rather
+  // than gating on punctuation the backend strips anyway (parens included).
+  const linkQueryDigits = linkQuery.trim().replace(/\D/g, "");
+  const linkQueryLooksLikePhone = linkQueryDigits.length >= 9 && linkQueryDigits.length <= 12;
 
   if (showAllRequests) {
     return (
@@ -154,6 +228,85 @@ export function WorkshopPanel({
               >
                 <div style={{ fontSize: 13, fontWeight: 700, color: "var(--color-text)" }}>{a.client_name}</div>
                 <div style={{ fontSize: 11, color: "var(--warning)", marginTop: 3 }}>Справка на согласовании</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {newTelegramClients.length > 0 && (
+        <div>
+          <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: ".05em", color: "#2AABEE", marginBottom: 10 }}>
+            Новое в Telegram — {newTelegramClients.length}
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(220px,1fr))", gap: 10 }}>
+            {newTelegramClients.map((c) => (
+              <div
+                key={c.id}
+                onClick={() => openRecentTelegramClient(c.client_id!)}
+                className="glass-panel press"
+                style={{ padding: "13px 15px", cursor: "pointer", boxShadow: "0 0 0 1px color-mix(in srgb, #2AABEE 40%, transparent)" }}
+              >
+                <div style={{ fontSize: 13, fontWeight: 700, color: "var(--color-text)" }}>
+                  {c.clients?.name || c.clients?.phone || "Клиент"}
+                </div>
+                <div style={{ fontSize: 11, color: "#2AABEE", marginTop: 3 }}>Новое сообщение в Telegram</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {unmatchedTelegram && unmatchedTelegram.length > 0 && (
+        <div>
+          <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: ".05em", color: "#2AABEE", marginBottom: 10 }}>
+            Непривязанные Telegram-чаты — {unmatchedTelegram.length}
+          </div>
+          <div ref={unmatchedGridRef} style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(220px,1fr))", gap: 10 }}>
+            {unmatchedTelegram.map((c) => (
+              <div key={c.id} style={{ position: "relative" }}>
+                <div
+                  onClick={() => setLinkingConvId(linkingConvId === c.id ? null : c.id)}
+                  className="glass-panel press"
+                  style={{ padding: "13px 15px", cursor: "pointer", boxShadow: "0 0 0 1px color-mix(in srgb, #2AABEE 40%, transparent)" }}
+                >
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "var(--color-text)" }}>
+                    {c.telegram_first_name || c.telegram_username || "Без имени"}
+                  </div>
+                  <div style={{ fontSize: 11, color: "#2AABEE", marginTop: 3 }}>Кто это? Нажмите, чтобы привязать</div>
+                </div>
+                {linkingConvId === c.id && (
+                  <div className="glass-panel" style={{ position: "absolute", top: "100%", left: 0, right: 0, marginTop: 6, zIndex: 10, padding: 10 }}>
+                    <input
+                      autoFocus
+                      value={linkQuery}
+                      onChange={(e) => setLinkQuery(e.target.value)}
+                      placeholder="Имя или телефон существующего клиента…"
+                      style={{ width: "100%", padding: "8px 10px", borderRadius: 8, background: "rgba(255,255,255,.04)", border: "1px solid var(--color-hairline)", color: "var(--color-text)", fontSize: 12.5, marginBottom: 8 }}
+                    />
+                    {linkQuery.trim() && (allClients || [])
+                      .filter((cl) => (cl.name || "").toLowerCase().includes(linkQuery.trim().toLowerCase()) || cl.phone.includes(linkQuery.trim()))
+                      .slice(0, 5)
+                      .map((cl) => (
+                        <div
+                          key={cl.id} onClick={() => linkTelegramToClient(cl)} className="press"
+                          style={{ padding: "7px 9px", borderRadius: 7, cursor: "pointer", fontSize: 12.5, display: "flex", justifyContent: "space-between", gap: 8 }}
+                        >
+                          <span style={{ fontWeight: 600, color: "var(--color-text)" }}>{cl.name || cl.phone}</span>
+                          <span style={{ color: "var(--color-text-faint)", fontSize: 11 }}>{cl.phone}</span>
+                        </div>
+                      ))}
+                    {linkQueryLooksLikePhone && (
+                      <div
+                        onClick={() => linkTelegramToNewClient(c.telegram_first_name || "", linkQuery.trim())}
+                        className="press"
+                        style={{ padding: "7px 9px", borderRadius: 7, cursor: "pointer", fontSize: 12.5, color: "var(--v-accent)", fontWeight: 700 }}
+                      >
+                        + Создать нового клиента с этим номером
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             ))}
           </div>
