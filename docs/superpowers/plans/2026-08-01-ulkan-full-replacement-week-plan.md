@@ -16,9 +16,9 @@
 Not a build day — a grounding/scoping session before the real week starts.
 - [ ] Confirm current status of Macro CRM access (has the client actually granted it yet?). This gates Day 1.
 - [ ] Walk the full requirements list together (vault page) and confirm nothing was missed from the brief.
-- [ ] Answer or explicitly defer the two open questions:
+- [ ] Answer or explicitly defer the remaining open question:
   1. Does `payment_plan_rates` pricing logic survive the Payments-section removal, or is pricing tracking being cut too?
-  2. Lead-distribution algorithm: round-robin, or criteria-based (and on what criteria)?
+  - ~~Lead-distribution algorithm~~ — resolved 2026-08-02: simple even split between the two managers, no criteria. See Day 5.
 - [ ] Lock Day 1's scope based on whether Macro access is ready.
 
 ## Day 1 — Sun Aug 2: Macro parity foundation
@@ -43,7 +43,7 @@ Everything downstream (Шахматка redesign, PDF export) needs a real basel
 ## Day 5 — Thu Aug 6: AI continued + Telephony + lead distribution
 - [ ] Мастерская split, **flow (b)**: the deeper "trained sales AI" ongoing-conversation flow, distinct from Tuesday's fast greeting.
 - [ ] Telephony click-to-call: add a `tel:`-style protocol-link button next to phone numbers (confirmed by the client to be genuinely this simple — telephony itself is already fully set up on their end, no VoIP/PBX work needed).
-- [ ] Implement lead auto-distribution using whatever algorithm was settled on Day 0 (round-robin as the fallback default if the client never specifies criteria).
+- [ ] Implement lead auto-distribution: simple even split across the 2 managers (confirmed 2026-08-02) — no criteria/load-awareness needed.
 - [ ] Extend pervasive AI reminders (call this lead, reply here, meeting at 2pm) by building on `TodayQueue.tsx` rather than a new component — this is literally what it already half-does. Rewire its `api.payments()` dependency per the Day 1 pricing-logic resolution.
 
 ## Day 6 — Fri Aug 7: Шахматка redesign + integration
