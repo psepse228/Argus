@@ -1,9 +1,14 @@
 "use client";
 import { createContext, useContext, useEffect, useState } from "react";
 
-export type Theme = "crimson" | "mono" | "teal" | "light";
+export type Theme = "crimson" | "mono" | "teal" | "crimson-light" | "mono-light" | "teal-light";
 const STORAGE_KEY = "argus-theme";
-const THEMES: Theme[] = ["crimson", "mono", "teal", "light"];
+const THEMES: Theme[] = ["crimson", "mono", "teal", "crimson-light", "mono-light", "teal-light"];
+
+/** Two sections, dark and light -- same three accent identities in each,
+ * not six unrelated themes. See ThemeSwitcher for the grouped UI. */
+export const DARK_THEMES: Theme[] = ["crimson", "mono", "teal"];
+export const LIGHT_THEMES: Theme[] = ["crimson-light", "mono-light", "teal-light"];
 
 const ThemeContext = createContext<{ theme: Theme; setTheme: (t: Theme) => void }>({
   theme: "crimson",
@@ -35,5 +40,7 @@ export const THEME_LABELS: Record<Theme, string> = {
   crimson: "Crimson",
   mono: "Mono",
   teal: "Teal",
-  light: "Light",
+  "crimson-light": "Crimson",
+  "mono-light": "Mono",
+  "teal-light": "Teal",
 };

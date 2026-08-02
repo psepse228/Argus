@@ -1,24 +1,26 @@
-/* Four switchable themes (see ThemeProvider + ThemeSwitcher):
-   - "crimson" (default) — deep navy-violet ground with a crimson signal
-     accent, modeled directly on a real fintech app (WorldFirst) the owner
-     pointed to as "this is the direction" after rejecting an all-recolored
-     glass-panel shell and several concept/gimmick redesigns.
-   - "mono" — minimalistic black/white/grey, no color accent at all
-   - "teal" — reused from the earlier design-variations work, tied to
+/* Two sections, three accent identities each (see ThemeProvider +
+   ThemeSwitcher's grouped "Тёмная"/"Светлая" rows) -- six themes total, not
+   six unrelated ones:
+   - "crimson" -- deep navy-violet ground with a crimson signal accent,
+     modeled directly on a real fintech app (WorldFirst) the owner pointed to
+     as "this is the direction" after rejecting an all-recolored glass-panel
+     shell and several concept/gimmick redesigns.
+   - "mono" -- minimalistic black/white/grey, no color accent at all
+   - "teal" -- reused from the earlier design-variations work, tied to
      Italiano Vero's own real logo color, not an arbitrary new pick
-   - "light" (added 2026-08-02) — the client-facing theme: staff now pull the
-     screen up for walk-in clients (see the requirements vault page), so this
-     is a toggle, not a one-way replacement -- staff keep whichever dark
-     theme they work in day-to-day. Reuses the teal accent (darkened for
-     contrast on white) rather than inventing a new brand color, for the same
-     reason "teal" itself exists: it's the client's own real logo color.
+   - "crimson-light" / "mono-light" / "teal-light" (added 2026-08-02,
+     restructured into this grouped six-theme form 2026-08-02 same night) --
+     white-ground versions of the same three identities, for the client-
+     facing case: staff now pull the screen up for walk-in clients (see the
+     requirements vault page), so these are a toggle, not a one-way
+     replacement -- staff keep whichever dark theme they work in day-to-day.
    Only the --v-* block + a couple of semantic tints differ per theme; the
    rest of the app reads these variables and never hardcodes a color --
    EXCEPT ~60 places across ~20 components that hardcode
    `rgba(255,255,255,.0N)` as a dark-background-only "raised surface" tint
    (found via grep 2026-08-02, not fixed yet). Those will look wrong/near-
-   invisible under "light" until refactored to a variable -- flagged as a
-   follow-up, not silently left broken. */
+   invisible under any *-light theme until refactored to a variable --
+   flagged as a follow-up, not silently left broken. */
 :root {
   --v-bg: #140a2c;
   --v-bg-soft: #1c1044;
@@ -72,13 +74,12 @@
   --v-accent-tint: rgba(45, 212, 191, 0.14); --v-text-on-accent: #001a17;
 }
 
-:root[data-theme="light"] {
-  /* Client-facing. Unlike the three dark themes above, this also has to flip
-     every text/hairline/glass variable that assumed a dark ground -- not
-     just --v-*. */
+/* Shared white-ground base for all three light themes -- text/hairline/
+   glass/semantic-tint variables that don't depend on which of the three
+   accents is active. The attribute-suffix selector matches any
+   "*-light" theme so these aren't repeated three times. */
+:root[data-theme$="-light"] {
   --v-bg: #f3f5f6; --v-bg-soft: #ffffff;
-  --v-accent: #0f9488; --v-accent-strong: #0c766c;
-  --v-accent-tint: rgba(15, 148, 136, 0.12); --v-text-on-accent: #ffffff;
   --v-violet: #6947c6; --v-violet-strong: #5b3fc4;
 
   --color-text: #171a1f;
@@ -92,11 +93,35 @@
   --glass-sheen: rgba(255, 255, 255, 0.9);
 
   /* The dark themes' success/warning/danger are pale colors meant to read as
-     text on a dark ground -- too low-contrast on white, so this theme needs
-     its own darker/more saturated set rather than reusing them as-is. */
+     text on a dark ground -- too low-contrast on white, so light needs its
+     own darker/more saturated set rather than reusing them as-is. */
   --success: #15803d; --success-tint: rgba(21, 128, 61, 0.12);
   --warning: #a15c07; --warning-tint: rgba(161, 92, 7, 0.13);
   --danger: #dc2626; --danger-tint: rgba(220, 38, 38, 0.11);
+}
+
+:root[data-theme="crimson-light"] {
+  /* Same crimson identity as the dark theme, deepened slightly for AA
+     contrast on white (the dark theme's #f01c52 is tuned for a black
+     ground, not white). */
+  --v-accent: #d81049; --v-accent-strong: #a80d3a;
+  --v-accent-tint: rgba(216, 16, 73, 0.12); --v-text-on-accent: #ffffff;
+}
+
+:root[data-theme="mono-light"] {
+  /* Mirrors dark "mono"'s no-color-accent spirit: dark mono uses a
+     near-white accent against black, light mono uses near-black against
+     white -- same idea, opposite polarity. */
+  --v-accent: #18181b; --v-accent-strong: #000000;
+  --v-accent-tint: rgba(24, 24, 27, 0.08); --v-text-on-accent: #ffffff;
+}
+
+:root[data-theme="teal-light"] {
+  /* Same teal identity as the dark theme -- Italiano Vero's real logo
+     color, darkened for contrast on white rather than a new invented
+     brand color. */
+  --v-accent: #0f9488; --v-accent-strong: #0c766c;
+  --v-accent-tint: rgba(15, 148, 136, 0.12); --v-text-on-accent: #ffffff;
 }
 
 * { box-sizing: border-box; }
