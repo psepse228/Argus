@@ -16,23 +16,35 @@
 Not a build day — a grounding/scoping session before the real week starts.
 - [ ] Confirm current status of Macro CRM access (has the client actually granted it yet?). This gates Day 1.
 - [ ] Walk the full requirements list together (vault page) and confirm nothing was missed from the brief.
-- [ ] Answer or explicitly defer the remaining open question:
-  1. Does `payment_plan_rates` pricing logic survive the Payments-section removal, or is pricing tracking being cut too?
+- [x] ~~Does `payment_plan_rates` pricing logic survive the Payments-section removal?~~ — resolved 2026-08-02: yes, pricing stays. Only the due/paid/overdue tracking UI (`payments.py`) is cut, not the pricing lookup (`pricing.py`). See Day 1.
   - ~~Lead-distribution algorithm~~ — resolved 2026-08-02: simple even split between the two managers, no criteria. See Day 5.
+  - Both Day 0 open questions now resolved.
 - [ ] Lock Day 1's scope based on whether Macro access is ready.
 
 ## Day 1 — Sun Aug 2: Macro parity foundation
 Everything downstream (Шахматка redesign, PDF export) needs a real baseline, so this goes first.
-- [ ] **If Macro access is granted:** run a Claude Cowork audit against `macroserver.uz`'s real Шахматка and PDF-export flow. Capture: exact fields on the chess-grid, exact PDF layout/contents, any other Macro feature not yet accounted for in the requirements list.
-- [ ] **If Macro access is NOT yet granted:** don't block the whole day — start the per-unit PDF export backend work using the already-known spec (floor plan image + building/unit info + manager contact) as a placeholder layout, flag it for a visual pass once real Macro PDFs are seen.
-- [ ] Resolve the payments-logic question from Day 0 concretely: if pricing stays, carve `payment_plan_rates` access out of `backend/app/routers/payments.py` before deleting the rest of that router, rather than deleting the whole file.
+- [x] ~~If Macro access is granted, run a Claude Cowork audit~~ — **live access is blocked by the client's own privacy policy** (confirmed 2026-08-02 night), not just delayed. **Substitute found the same night:** client sent 2 real Macro PDF exports + 2 real screenshots (Заявки board, Шахматка grid). Full findings extracted into the vault page (`argus-full-replacement-requirements-2026-08.md`, section 1) — the real PDF is 4 pages, not 1; Шахматка/Заявки structure mostly already matches Argus, one missing status enum value found (Day 6 item).
+- [x] Built the per-unit PDF export backend, twice tonight — first on the placeholder spec, then rebuilt once the real samples landed:
+  - `backend/supabase/migrations/0020_tenant_users_phone.sql` — added `tenant_users.phone` (was missing entirely; needed for manager contact on the PDF).
+  - `backend/supabase/migrations/0021_buildings_macro_parity_fields.sql` — added `buildings.address/landmark/completion_label/material/total_floors`, all nullable — fields the real PDF uses that the schema never had. Currently null for real buildings (not fabricated); the PDF renders each conditionally and omits it when absent.
+  - `backend/app/services/unit_pdf_service.py` — page 1 (the unit info card) rebuilt field-for-field to match the real samples: manager+date header, project wordmark, title, two-column field grid, floor-plan image or placeholder. Pages 2-4 (full-floor plan, marketing copy, building renders) are explicitly deferred, not built — see the vault page for exactly why (asset-sourcing + schema gaps, not just time).
+  - `GET /api/units/{unit_id}/pdf` in `backend/app/routers/units.py`, tenant-scoped, mirrors the `spravka.py` download-endpoint pattern.
+  - Frontend: `api.unitPdfUrl()` in `frontend/src/lib/api.ts` + a "PDF юнита →" button in `UnitsPanel.tsx`'s unit detail panel.
+  - Verified: both modules import cleanly, sample renders (full data + all-nulls) both produce valid `%PDF` output without crashing or fabricating missing fields.
+  - **New open question found while reading the real PDFs:** does "Спецпредложение" (a second, lower price shown on some units — presumably `payment_plan_rates`-driven) need to appear on this general-purpose PDF, and against which plan_type, given there's no client/plan context here unlike a Справка? Left out of the rebuild — needs a client answer, not a guess.
+  - **Bug caught by visual verification, fixed same night:** reportlab's built-in Helvetica/Helvetica-Bold have zero Cyrillic glyphs — every Russian label was rendering as a solid black box. Fixed by bundling DejaVu Sans (Bitstream Vera derivative, full Cyrillic coverage, freely redistributable — `backend/app/assets/fonts/DejaVuSans.ttf` + `-Bold.ttf` + `LICENSE.txt`) and registering it with reportlab in `unit_pdf_service.py`. Re-rendered the same Milano №38 sample as the real PDF side-by-side afterward to confirm — matches closely.
+- [x] Resolve the payments-logic question from Day 0 concretely — **resolved 2026-08-02: pricing stays.** `payment_plan_rates` and its anchor/illusion mechanic keep driving real Справка pricing, unchanged. Only the Платежи section itself (due/paid/overdue installment tracking — `backend/app/routers/payments.py`, `payment_schedule` table) is being cut, per the original "banks won't provide the feed" reasoning.
+  - Confirmed safe by code inspection the same day: `payment_plan_rates` already lives entirely separately in `backend/app/routers/pricing.py` (`/api/payment-plan-rates`), used only by `spravka_service.py` at Справка-creation time. `payments.py` is a different, unrelated table — the two were never coupled in code, only in the client's phrasing ("Платежи"). So deleting `payments.py` is a clean removal, no carve-out needed.
+  - Remaining follow-up (unchanged from before, just re-scoped): `TodayQueue.tsx` calls `api.payments()` and needs rewiring once the section is actually removed — still a Day 5 item, now simpler since there's no pricing-logic entanglement to worry about.
 
 ## Day 2 — Mon Aug 3: Клиенты (client database)
 - [ ] Design + build the sorting/segmentation/filter overhaul for `ClientsPanel.tsx` — match Macro's own clarity (client's stated bar), then exceed it with AI-assisted segmentation.
 - [ ] Wire real filter criteria informed by whatever the lead-distribution answer from Day 0 turned out to be, if it's ready in time (the two features share client attributes).
 
 ## Day 3 — Tue Aug 4: UI (client-facing + Мастерская split, part 1)
-- [ ] Add the 4th light theme to `frontend/src/lib/theme.ts` + `ThemeSwitcher.tsx` (toggle, not a one-way replacement — staff keep their normal working theme).
+- [x] ~~Add the 4th light theme~~ — **pulled forward and done 2026-08-02 night**, out of sequence, per the user's own call (client-facing UI felt more urgent to start than Day 2). `frontend/src/lib/theme.tsx` (`Theme` type + `THEME_LABELS`), `ThemeSwitcher.tsx` (swatch), `frontend/src/app/globals.css` (`:root[data-theme="light"]` block) — toggle, not a one-way replacement, staff keep their normal dark theme as default. Reuses the "teal" accent (darkened for white-background contrast) since that's already the client's real logo color, not a new invented brand color. Typechecked clean (`npx tsc --noEmit`).
+  - **Known gap, not fixed tonight:** ~60 places across ~20 components hardcode `rgba(255,255,255,.0N)` as a dark-background-only "raised surface" tint (list-row hover states, subtle panel backgrounds, etc. — found via grep). These aren't wired to a CSS variable, so they'll look wrong or near-invisible once the light theme is actually selected. Needs a follow-up pass: introduce a `--surface-tint`-style variable and migrate call sites, or convert case-by-case. Not attempted tonight — flagged rather than silently left half-working.
+  - **Visually verified 2026-08-02 night** (dev server + Playwright, dev-bypass login as the boss): the two main client-facing screens the theme was built for — Юниты grid and Клиенты list — hold up well in light mode, no invisible or broken elements. Confirmed the flagged gap empirically too: opening a unit's detail panel, the "Кто интересуется" (soft-leads) rows lose their card definition in light mode — text stays readable (dark-on-white), but the missing background tint flattens them into a plain list instead of boxed cards. Minor, matches what was predicted from the grep, not a blocker.
 - [ ] Build a "presentation mode" for the chess-grid / unit views that hides internal-only fields when a client is looking at the screen.
 - [ ] Start the Мастерская split: implement **flow (a)**, the fast auto-greeting message that fires immediately when a lead arrives — this is the smaller, more self-contained half of the split.
 
@@ -47,8 +59,9 @@ Everything downstream (Шахматка redesign, PDF export) needs a real basel
 - [ ] Extend pervasive AI reminders (call this lead, reply here, meeting at 2pm) by building on `TodayQueue.tsx` rather than a new component — this is literally what it already half-does. Rewire its `api.payments()` dependency per the Day 1 pricing-logic resolution.
 
 ## Day 6 — Fri Aug 7: Шахматка redesign + integration
-- [ ] Full Шахматка redesign, now grounded in the Day 1 Macro audit (or the placeholder-then-revisit path if access came late).
-- [ ] Wire the per-unit PDF export button into the redesigned chess-grid.
+- [ ] Full Шахматка redesign, grounded in the real screenshots from Day 1 (live audit never happened — access is blocked by the client's privacy policy). See vault page section 1 "Шахматка findings" for the extracted details.
+- [ ] Add the missing `units.status` value: real Macro has a distinct "Маркетинговая сделка" status alongside `marketing_reserve`/`deal_completed` that Argus's enum doesn't have yet (found 2026-08-02 from the real Шахматка screenshot). Needs a migration touching the `status` check constraint plus every place that lists/colors statuses (`STATUS_LABELS`/`STATUS_COLORS` in `frontend/src/lib/types.ts`).
+- [ ] Wire the per-unit PDF export button into the redesigned chess-grid (endpoint already built Day 1 — see `backend/app/routers/units.py`).
 - [ ] Integration pass: walk every new surface (Calendar, monitor proposals, TodayQueue reminders, lead distribution, click-to-call, light theme) end-to-end as one connected story, not isolated features.
 
 ## Day 7 — Sat Aug 8: Testing & stress-testing
