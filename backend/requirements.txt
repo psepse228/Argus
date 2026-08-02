@@ -3,6 +3,7 @@ uvicorn[standard]
 supabase
 httpx
 openpyxl
+reportlab
 pydantic
 python-dotenv
 openai

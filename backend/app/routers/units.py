@@ -1,10 +1,11 @@
 """Units API — both roles can read; only bosses can write status changes
 directly (sales agents go through spravka_requests for anything price/status
 related, per the owner's explicit veto on silent automated changes)."""
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 
 from app.db import get_service_client
 from app.deps import get_current_user
+from app.services.unit_pdf_service import generate_unit_pdf
 
 router = APIRouter(prefix="/api/units")
 
@@ -52,6 +53,24 @@ def unit_interest(unit_id: str, user=Depends(get_current_user)):
     soft_leads = [l for l in leads if l.get("client_id") not in spravka_client_ids]
 
     return {"spravka_requests": spravki, "soft_leads": soft_leads}
+
+
+@router.get("/{unit_id}/pdf")
+def unit_pdf(unit_id: str, user=Depends(get_current_user)):
+    """Macro parity: the one-page PDF (floor plan + building/unit info +
+    manager contact) staff print and hand to walk-in clients. Placeholder
+    layout until the Cowork audit sees the real Macro PDF -- see
+    app/services/unit_pdf_service.py."""
+    client = get_service_client()
+    result = generate_unit_pdf(client, user.tenant_id, unit_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Unit not found")
+    pdf_bytes, filename = result
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'inline; filename="{filename}"'},
+    )
 
 
 @router.get("/buildings")

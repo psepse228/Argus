@@ -284,6 +284,20 @@ export function UnitsPanel({
             )}
           </div>
 
+          <a
+            href={api.unitPdfUrl(selected.id)}
+            target="_blank"
+            rel="noreferrer"
+            className="press"
+            style={{
+              display: "block", marginTop: 14, padding: "9px 0", textAlign: "center",
+              borderRadius: 9, background: "var(--v-accent-tint)", color: "var(--v-accent)",
+              fontSize: 12.5, fontWeight: 700, textDecoration: "none",
+            }}
+          >
+            PDF юнита →
+          </a>
+
           <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid var(--color-hairline-soft)" }}>
             <div style={{ fontSize: 10.5, textTransform: "uppercase", letterSpacing: ".05em", color: "var(--color-text-faint)", marginBottom: 10 }}>Кто интересуется</div>
             {!interest ? (

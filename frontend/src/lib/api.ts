@@ -22,6 +22,7 @@ export const api = {
   buildings: () => request("/api/units/buildings"),
   units: (building?: string) => request(`/api/units${building ? `?building=${encodeURIComponent(building)}` : ""}`),
   unitInterest: (unitId: string) => request(`/api/units/${unitId}/interest`),
+  unitPdfUrl: (unitId: string) => `${API_BASE}/api/units/${unitId}/pdf`,
   leads: () => request("/api/leads"),
   updateLeadStage: (id: string, stage: string) =>
     request(`/api/leads/${id}/stage`, { method: "PATCH", body: JSON.stringify({ stage }) }),
