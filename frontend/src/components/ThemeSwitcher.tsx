@@ -1,8 +1,8 @@
 "use client";
 import { useTheme, THEME_LABELS, Theme } from "@/lib/theme";
 
-const SWATCH: Record<Theme, string> = { crimson: "#f01c52", mono: "#e8e8e8", teal: "#2dd4bf" };
-const THEMES: Theme[] = ["crimson", "mono", "teal"];
+const SWATCH: Record<Theme, string> = { crimson: "#f01c52", mono: "#e8e8e8", teal: "#2dd4bf", light: "#ffffff" };
+const THEMES: Theme[] = ["crimson", "mono", "teal", "light"];
 
 export function ThemeSwitcher() {
   const { theme, setTheme } = useTheme();

@@ -1,9 +1,9 @@
 "use client";
 import { createContext, useContext, useEffect, useState } from "react";
 
-export type Theme = "crimson" | "mono" | "teal";
+export type Theme = "crimson" | "mono" | "teal" | "light";
 const STORAGE_KEY = "argus-theme";
-const THEMES: Theme[] = ["crimson", "mono", "teal"];
+const THEMES: Theme[] = ["crimson", "mono", "teal", "light"];
 
 const ThemeContext = createContext<{ theme: Theme; setTheme: (t: Theme) => void }>({
   theme: "crimson",
@@ -35,4 +35,5 @@ export const THEME_LABELS: Record<Theme, string> = {
   crimson: "Crimson",
   mono: "Mono",
   teal: "Teal",
+  light: "Light",
 };

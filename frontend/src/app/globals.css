@@ -1,4 +1,4 @@
-/* Three switchable themes (see ThemeProvider + ThemeSwitcher):
+/* Four switchable themes (see ThemeProvider + ThemeSwitcher):
    - "crimson" (default) — deep navy-violet ground with a crimson signal
      accent, modeled directly on a real fintech app (WorldFirst) the owner
      pointed to as "this is the direction" after rejecting an all-recolored
@@ -6,8 +6,19 @@
    - "mono" — minimalistic black/white/grey, no color accent at all
    - "teal" — reused from the earlier design-variations work, tied to
      Italiano Vero's own real logo color, not an arbitrary new pick
+   - "light" (added 2026-08-02) — the client-facing theme: staff now pull the
+     screen up for walk-in clients (see the requirements vault page), so this
+     is a toggle, not a one-way replacement -- staff keep whichever dark
+     theme they work in day-to-day. Reuses the teal accent (darkened for
+     contrast on white) rather than inventing a new brand color, for the same
+     reason "teal" itself exists: it's the client's own real logo color.
    Only the --v-* block + a couple of semantic tints differ per theme; the
-   rest of the app reads these variables and never hardcodes a color. */
+   rest of the app reads these variables and never hardcodes a color --
+   EXCEPT ~60 places across ~20 components that hardcode
+   `rgba(255,255,255,.0N)` as a dark-background-only "raised surface" tint
+   (found via grep 2026-08-02, not fixed yet). Those will look wrong/near-
+   invisible under "light" until refactored to a variable -- flagged as a
+   follow-up, not silently left broken. */
 :root {
   --v-bg: #140a2c;
   --v-bg-soft: #1c1044;
@@ -59,6 +70,33 @@
   --v-bg: #0a1214; --v-bg-soft: #101c1f;
   --v-accent: #2dd4bf; --v-accent-strong: #14b8a6;
   --v-accent-tint: rgba(45, 212, 191, 0.14); --v-text-on-accent: #001a17;
+}
+
+:root[data-theme="light"] {
+  /* Client-facing. Unlike the three dark themes above, this also has to flip
+     every text/hairline/glass variable that assumed a dark ground -- not
+     just --v-*. */
+  --v-bg: #f3f5f6; --v-bg-soft: #ffffff;
+  --v-accent: #0f9488; --v-accent-strong: #0c766c;
+  --v-accent-tint: rgba(15, 148, 136, 0.12); --v-text-on-accent: #ffffff;
+  --v-violet: #6947c6; --v-violet-strong: #5b3fc4;
+
+  --color-text: #171a1f;
+  --color-text-soft: #4b515c;
+  --color-text-faint: #868c99;
+  --color-hairline: rgba(15, 20, 25, 0.11);
+  --color-hairline-soft: rgba(15, 20, 25, 0.06);
+  --glass: rgba(255, 255, 255, 0.72);
+  --glass-border: rgba(15, 20, 25, 0.10);
+  --glass-border-soft: rgba(15, 20, 25, 0.05);
+  --glass-sheen: rgba(255, 255, 255, 0.9);
+
+  /* The dark themes' success/warning/danger are pale colors meant to read as
+     text on a dark ground -- too low-contrast on white, so this theme needs
+     its own darker/more saturated set rather than reusing them as-is. */
+  --success: #15803d; --success-tint: rgba(21, 128, 61, 0.12);
+  --warning: #a15c07; --warning-tint: rgba(161, 92, 7, 0.13);
+  --danger: #dc2626; --danger-tint: rgba(220, 38, 38, 0.11);
 }
 
 * { box-sizing: border-box; }
