@@ -13,6 +13,34 @@ function fmt(iso: string) {
   return d.toLocaleString("ru-RU", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 }
 
+function fmtTime(iso: string) {
+  return new Date(iso).toLocaleString("ru-RU", { hour: "2-digit", minute: "2-digit" });
+}
+
+function sameDay(a: Date, b: Date) {
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+}
+
+function startOfMonth(d: Date) {
+  return new Date(d.getFullYear(), d.getMonth(), 1);
+}
+
+const WEEKDAY_LABELS = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
+
+/** Monday-first 6x7 grid covering the whole month plus leading/trailing days
+ * from the adjacent months, so every row is a full week. */
+function buildMonthGrid(viewDate: Date): Date[] {
+  const monthStart = startOfMonth(viewDate);
+  const firstWeekday = (monthStart.getDay() + 6) % 7; // 0=Monday
+  const daysInMonth = new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 0).getDate();
+  const totalCells = Math.ceil((firstWeekday + daysInMonth) / 7) * 7;
+  const cells: Date[] = [];
+  for (let i = 0; i < totalCells; i++) {
+    cells.push(new Date(monthStart.getFullYear(), monthStart.getMonth(), i - firstWeekday + 1));
+  }
+  return cells;
+}
+
 // datetime-local expects "YYYY-MM-DDTHH:mm" in local time, not the raw ISO
 // (which is UTC and has seconds/timezone) -- this is the standard
 // local-timezone conversion for that input type.
@@ -35,6 +63,8 @@ export function CalendarPanel({ onOpenClient }: { onOpenClient?: (clientId: stri
   const [showAddForm, setShowAddForm] = useState(false);
   const [newTitle, setNewTitle] = useState("");
   const [newAt, setNewAt] = useState("");
+  const [viewDate, setViewDate] = useState(() => new Date());
+  const [selectedDay, setSelectedDay] = useState(() => new Date());
 
   async function refresh() {
     const all = await api.calendarEvents();
@@ -64,6 +94,12 @@ export function CalendarPanel({ onOpenClient }: { onOpenClient?: (clientId: stri
     } catch (e: any) {
       setActionError(e.message);
     }
+  }
+
+  function openAddFormFor(date: Date) {
+    const local = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 12, 0);
+    setNewAt(toLocalInputValue(local.toISOString()));
+    setShowAddForm(true);
   }
 
   function startEdit(ev: CalendarEvent) {
@@ -174,25 +210,91 @@ export function CalendarPanel({ onOpenClient }: { onOpenClient?: (clientId: stri
         </>
       )}
 
-      <SectionLabel>Ближайшие события</SectionLabel>
-      {confirmed.length === 0 ? (
-        <div style={{ color: "var(--color-text-faint)", fontSize: 13 }}>Пока нет подтверждённых событий.</div>
-      ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          {confirmed.map((ev) => (
-            <div key={ev.id} className="glass-panel" style={{ padding: "13px 16px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <div>
-                <div style={{ fontSize: 13.5, fontWeight: 700, color: "var(--color-text)" }}>{ev.title}</div>
-                <div style={{ fontSize: 11.5, color: "var(--color-text-faint)", marginTop: 2 }}>
-                  {fmt(ev.event_at)}
-                  {ev.clients && <> · <span onClick={() => ev.client_id && onOpenClient?.(ev.client_id)} className={ev.client_id ? "press" : undefined} style={{ cursor: ev.client_id ? "pointer" : "default", color: ev.client_id ? "var(--v-accent)" : undefined }}>{ev.clients.name || ev.clients.phone}</span></>}
-                </div>
-              </div>
-              <span style={{ fontSize: 10, color: "var(--color-text-faint)" }}>{ev.source === "monitor" ? "из переписки" : "вручную"}</span>
-            </div>
-          ))}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <SectionLabel>Календарь</SectionLabel>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <button onClick={() => setViewDate((d) => new Date(d.getFullYear(), d.getMonth() - 1, 1))} className="press" style={{ ...ghostBtnStyle, padding: "5px 10px" }}>‹</button>
+          <span style={{ fontSize: 13, fontWeight: 700, color: "var(--color-text)", minWidth: 130, textAlign: "center", textTransform: "capitalize" }}>
+            {viewDate.toLocaleDateString("ru-RU", { month: "long", year: "numeric" })}
+          </span>
+          <button onClick={() => setViewDate((d) => new Date(d.getFullYear(), d.getMonth() + 1, 1))} className="press" style={{ ...ghostBtnStyle, padding: "5px 10px" }}>›</button>
+          <button onClick={() => { const t = new Date(); setViewDate(t); setSelectedDay(t); }} className="press" style={ghostBtnStyle}>Сегодня</button>
         </div>
-      )}
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 6 }}>
+        {WEEKDAY_LABELS.map((w) => (
+          <div key={w} style={{ fontSize: 10.5, textTransform: "uppercase", letterSpacing: ".05em", color: "var(--color-text-faint)", textAlign: "center", padding: "2px 0" }}>{w}</div>
+        ))}
+        {buildMonthGrid(viewDate).map((date, i) => {
+          const inMonth = date.getMonth() === viewDate.getMonth();
+          const isToday = sameDay(date, new Date());
+          const isSelected = sameDay(date, selectedDay);
+          const dayEvents = confirmed.filter((ev) => sameDay(new Date(ev.event_at), date));
+          const visible = dayEvents.slice(0, 3);
+          const overflow = dayEvents.length - visible.length;
+          return (
+            <div
+              key={i}
+              onClick={() => setSelectedDay(date)}
+              onDoubleClick={() => openAddFormFor(date)}
+              className="press"
+              style={{
+                minHeight: 84, borderRadius: 10, padding: "6px 7px", cursor: "pointer",
+                background: isSelected ? "var(--v-accent-tint)" : "rgba(255,255,255,.02)",
+                border: isSelected ? "1px solid var(--v-accent)" : "1px solid var(--color-hairline-soft)",
+                opacity: inMonth ? 1 : 0.4,
+                display: "flex", flexDirection: "column", gap: 3,
+              }}
+            >
+              <span style={{
+                fontSize: 11.5, fontWeight: isToday ? 800 : 600, color: isToday ? "var(--v-accent)" : "var(--color-text)",
+                width: 20, height: 20, display: "flex", alignItems: "center", justifyContent: "center",
+                borderRadius: "50%", background: isToday ? "var(--v-accent-tint)" : "transparent",
+              }}>
+                {date.getDate()}
+              </span>
+              {visible.map((ev) => (
+                <div key={ev.id} style={{ fontSize: 10, padding: "1px 5px", borderRadius: 6, background: "rgba(255,255,255,.05)", color: "var(--color-text-soft)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {fmtTime(ev.event_at)} {ev.title}
+                </div>
+              ))}
+              {overflow > 0 && <div style={{ fontSize: 10, color: "var(--color-text-faint)", padding: "0 5px" }}>+{overflow}</div>}
+            </div>
+          );
+        })}
+      </div>
+
+      <SectionLabel>
+        {selectedDay.toLocaleDateString("ru-RU", { day: "numeric", month: "long", weekday: "long" })}
+      </SectionLabel>
+      {(() => {
+        const dayEvents = confirmed.filter((ev) => sameDay(new Date(ev.event_at), selectedDay));
+        if (dayEvents.length === 0) {
+          return (
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <span style={{ color: "var(--color-text-faint)", fontSize: 13 }}>Событий нет.</span>
+              <button onClick={() => openAddFormFor(selectedDay)} className="press" style={ghostBtnStyle}>+ Добавить на этот день</button>
+            </div>
+          );
+        }
+        return (
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            {dayEvents.map((ev) => (
+              <div key={ev.id} className="glass-panel" style={{ padding: "13px 16px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div>
+                  <div style={{ fontSize: 13.5, fontWeight: 700, color: "var(--color-text)" }}>{ev.title}</div>
+                  <div style={{ fontSize: 11.5, color: "var(--color-text-faint)", marginTop: 2 }}>
+                    {fmtTime(ev.event_at)}
+                    {ev.clients && <> · <span onClick={() => ev.client_id && onOpenClient?.(ev.client_id)} className={ev.client_id ? "press" : undefined} style={{ cursor: ev.client_id ? "pointer" : "default", color: ev.client_id ? "var(--v-accent)" : undefined }}>{ev.clients.name || ev.clients.phone}</span></>}
+                  </div>
+                </div>
+                <span style={{ fontSize: 10, color: "var(--color-text-faint)" }}>{ev.source === "monitor" ? "из переписки" : "вручную"}</span>
+              </div>
+            ))}
+          </div>
+        );
+      })()}
     </div>
   );
 }
