@@ -32,6 +32,7 @@ export default function AppPage() {
   const [user, setUser] = useState<CurrentUser | null>(null);
   const [activeIndex, setActiveIndex] = useState(0);
   const [previewRole, setPreviewRole] = useState<"boss" | "sales_agent" | null>(null);
+  const [presentationMode, setPresentationMode] = useState(false);
   const [pendingClientId, setPendingClientId] = useState<string | null>(null);
   const [pendingUnitId, setPendingUnitId] = useState<string | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -147,6 +148,8 @@ export default function AppPage() {
         previewRole={canPreviewRole ? (previewRole || "boss") : undefined}
         onPreviewRoleChange={canPreviewRole ? changePreviewRole : undefined}
         onOpenSearch={() => setSearchOpen(true)}
+        presentationMode={presentationMode}
+        onTogglePresentation={() => setPresentationMode((v) => !v)}
       />
       <GlobalSearch
         open={searchOpen} onOpenChange={setSearchOpen} onGoTo={goToSection}
@@ -188,7 +191,10 @@ export default function AppPage() {
                 />
               )}
               {s.key === "units" && (
-                <UnitsPanel openUnitId={pendingUnitId} onOpenUnitHandled={() => setPendingUnitId(null)} onOpenClient={openClientFromLead} />
+                <UnitsPanel
+                  openUnitId={pendingUnitId} onOpenUnitHandled={() => setPendingUnitId(null)} onOpenClient={openClientFromLead}
+                  presentationMode={presentationMode}
+                />
               )}
               {s.key === "leads" && <LeadsPanel onOpenClient={openClientFromLead} />}
               {s.key === "clients" && (

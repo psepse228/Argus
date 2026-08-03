@@ -9,12 +9,17 @@ import { ThemeSwitcher } from "./ThemeSwitcher";
  * there's no more rail to anchor them to once navigation is space-based (see
  * page.tsx), so they float top-right like a real HUD corner readout. */
 export function HudToolbar({
-  user, previewRole, onPreviewRoleChange, onOpenSearch,
+  user, previewRole, onPreviewRoleChange, onOpenSearch, presentationMode, onTogglePresentation,
 }: {
   user: CurrentUser;
   previewRole?: "boss" | "sales_agent";
   onPreviewRoleChange?: (r: "boss" | "sales_agent") => void;
   onOpenSearch?: () => void;
+  /** Client is looking at the screen right now -- hides internal-only
+   * fields (manager, client name/phone, who's-interested) on the Юниты
+   * screen. See UnitsPanel.tsx. */
+  presentationMode?: boolean;
+  onTogglePresentation?: () => void;
 }) {
   const [themeOpen, setThemeOpen] = useState(false);
   const [themePos, setThemePos] = useState<{ left: number; top: number } | null>(null);
@@ -84,6 +89,23 @@ export function HudToolbar({
         >
           <svg viewBox="0 0 24 24" width={15} height={15} fill="none" stroke="var(--color-text-soft)" strokeWidth={2}>
             <circle cx="11" cy="11" r="7" /><path d="M21 21l-4.3-4.3" />
+          </svg>
+        </button>
+      )}
+      {onTogglePresentation && (
+        <button
+          onClick={onTogglePresentation}
+          title={presentationMode ? "Режим показа клиенту: включён" : "Режим показа клиенту"}
+          className="press"
+          style={{
+            width: 32, height: 32, borderRadius: 10, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+            border: presentationMode ? "1px solid var(--v-accent)" : "1px solid var(--color-hairline-soft)",
+            background: presentationMode ? "var(--v-accent-tint)" : "rgba(255,255,255,.03)",
+            color: presentationMode ? "var(--v-accent)" : "var(--color-text-soft)",
+          }}
+        >
+          <svg viewBox="0 0 24 24" width={15} height={15} fill="none" stroke="currentColor" strokeWidth={2}>
+            <rect x="3" y="4" width="18" height="13" rx="2" /><path d="M8 21h8M12 17v4" />
           </svg>
         </button>
       )}

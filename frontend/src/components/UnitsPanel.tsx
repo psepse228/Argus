@@ -15,13 +15,16 @@ const SORTS = {
 } as const;
 
 export function UnitsPanel({
-  openUnitId, onOpenUnitHandled, onOpenClient,
+  openUnitId, onOpenUnitHandled, onOpenClient, presentationMode,
 }: {
   /** Set from outside (e.g. global search) to drill straight into a unit. */
   openUnitId?: string | null;
   onOpenUnitHandled?: () => void;
   /** Jumps to Клиенты for a specific client -- reused for "who wants this unit". */
   onOpenClient?: (clientId: string) => void;
+  /** Client is looking at the screen -- hide manager/client identity and the
+   * "Кто интересуется" list, keep everything else (unit facts, PDF export). */
+  presentationMode?: boolean;
 } = {}) {
   const [buildings, setBuildings] = useState<Building[]>([]);
   const [units, setUnits] = useState<Unit[]>([]);
@@ -249,7 +252,9 @@ export function UnitsPanel({
                   <div style={{ fontFamily: "var(--font-heading)", fontSize: 18, fontWeight: 700, color: "var(--color-text)" }}>
                     ${Math.round(u.area_m2 * u.price_per_m2_usd).toLocaleString("ru-RU")}
                   </div>
-                  <span style={{ fontSize: 11, color: "var(--color-text-faint)" }}>{u.assigned_manager || u.client_name || ""}</span>
+                  {!presentationMode && (
+                    <span style={{ fontSize: 11, color: "var(--color-text-faint)" }}>{u.assigned_manager || u.client_name || ""}</span>
+                  )}
                 </div>
               </div>
             ))}
@@ -276,7 +281,7 @@ export function UnitsPanel({
             <div style={{ display: "flex", justifyContent: "space-between", paddingTop: 9, borderTop: "1px solid var(--color-hairline-soft)" }}>
               <span>Цена</span><b style={{ color: "var(--color-text)" }}>${Math.round(selected.area_m2 * selected.price_per_m2_usd).toLocaleString("ru-RU")}</b>
             </div>
-            {(selected.assigned_manager || selected.client_name) && (
+            {!presentationMode && (selected.assigned_manager || selected.client_name) && (
               <div style={{ paddingTop: 9, borderTop: "1px solid var(--color-hairline-soft)" }}>
                 {selected.assigned_manager && <div>Менеджер: <b style={{ color: "var(--color-text)" }}>{selected.assigned_manager}</b></div>}
                 {selected.client_name && <div style={{ marginTop: 4 }}>Клиент: <b style={{ color: "var(--color-text)" }}>{selected.client_name}</b></div>}
@@ -298,6 +303,7 @@ export function UnitsPanel({
             PDF юнита →
           </a>
 
+          {!presentationMode && (
           <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid var(--color-hairline-soft)" }}>
             <div style={{ fontSize: 10.5, textTransform: "uppercase", letterSpacing: ".05em", color: "var(--color-text-faint)", marginBottom: 10 }}>Кто интересуется</div>
             {!interest ? (
@@ -331,6 +337,7 @@ export function UnitsPanel({
               </div>
             )}
           </div>
+          )}
         </div>
       )}
     </div>
