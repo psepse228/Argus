@@ -113,7 +113,12 @@ export type Client = {
   priority?: Priority | null;
   next_followup_at?: string | null;
   next_followup_note?: string | null;
+  buildings?: string[];
+  assigned_manager?: string | null;
+  last_activity_at?: string | null;
 };
+
+export type ClientSegment = { label: string; reason: string; client_ids: string[] };
 
 export type ClientDetail = Client & {
   leads: (Lead & { buildings?: { name: string } })[];

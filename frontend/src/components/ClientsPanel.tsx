@@ -1,13 +1,17 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "@/lib/api";
-import { Client, PRIORITY_COLORS, PRIORITY_LABELS } from "@/lib/types";
+import { Client, ClientSegment, PRIORITY_COLORS, PRIORITY_LABELS } from "@/lib/types";
 import { ClientInfoCard } from "./ClientInfoCard";
 import { Skeleton } from "./Skeleton";
 import { SectionLabel } from "./SectionLabel";
 import { DonutChart } from "./DonutChart";
+import { Dropdown } from "./Dropdown";
 
 const PRIORITY_RANK: Record<string, number> = { hot: 0, warm: 1, cold: 2 };
+const ALL = "";
+type SortBy = "priority" | "recency" | "name";
+const SORT_LABELS: Record<SortBy, string> = { priority: "По приоритету", recency: "По активности", name: "По имени" };
 
 /** Just the directory now -- browse and quick-edit a client's priority/next
  * contact. Actually working a client (chat, справка, Cortège+) is
@@ -32,6 +36,16 @@ export function ClientsPanel({
   // collapsible once there are enough named clients that this becomes noise.
   const [showUnnamed, setShowUnnamed] = useState(true);
 
+  const [buildingFilter, setBuildingFilter] = useState(ALL);
+  const [managerFilter, setManagerFilter] = useState(ALL);
+  const [priorityFilter, setPriorityFilter] = useState(ALL);
+  const [sortBy, setSortBy] = useState<SortBy>("priority");
+
+  const [segments, setSegments] = useState<ClientSegment[] | null>(null);
+  const [segmentsLoading, setSegmentsLoading] = useState(false);
+  const [segmentsError, setSegmentsError] = useState(false);
+  const [activeSegment, setActiveSegment] = useState<ClientSegment | null>(null);
+
   useEffect(() => { api.clients().then(setClients).catch(() => setClients([])); }, []);
 
   useEffect(() => {
@@ -47,6 +61,20 @@ export function ClientsPanel({
       onClose={() => setSelectedId(null)}
       onOpenWorkspace={onOpenWorkspace}
     />
+  );
+
+  // Hooks must run unconditionally on every render (Rules of Hooks) -- these
+  // used to sit after the `clients === null` early return below, which threw
+  // "Rendered more hooks than during the previous render" the moment the
+  // fetch resolved. `clients || []` keeps them safe to call before the data
+  // exists.
+  const buildingOptions = useMemo(
+    () => Array.from(new Set((clients || []).flatMap((c) => c.buildings || []))).sort(),
+    [clients]
+  );
+  const managerOptions = useMemo(
+    () => Array.from(new Set((clients || []).map((c) => c.assigned_manager).filter((m): m is string => !!m))).sort(),
+    [clients]
   );
 
   if (clients === null) {
@@ -73,7 +101,15 @@ export function ClientsPanel({
     );
   }
 
-  function rank(a: Client, b: Client): number {
+  function compare(a: Client, b: Client): number {
+    if (sortBy === "name") return (a.name || a.phone).localeCompare(b.name || b.phone);
+    if (sortBy === "recency") {
+      const ra = a.last_activity_at || "";
+      const rb = b.last_activity_at || "";
+      if (ra !== rb) return ra > rb ? -1 : 1; // most recent first, no-activity last
+      return (a.name || a.phone).localeCompare(b.name || b.phone);
+    }
+    // "priority" (default) -- unchanged from the original behavior.
     const pa = a.priority ? PRIORITY_RANK[a.priority] : 3;
     const pb = b.priority ? PRIORITY_RANK[b.priority] : 3;
     if (pa !== pb) return pa - pb;
@@ -84,15 +120,24 @@ export function ClientsPanel({
   }
 
   const q = query.trim().toLowerCase();
-  const filtered = q ? clients.filter((c) => (c.name || "").toLowerCase().includes(q) || c.phone.includes(q)) : clients;
+  let filtered = clients;
+  if (q) filtered = filtered.filter((c) => (c.name || "").toLowerCase().includes(q) || c.phone.includes(q));
+  if (buildingFilter) filtered = filtered.filter((c) => (c.buildings || []).includes(buildingFilter));
+  if (managerFilter) filtered = filtered.filter((c) => c.assigned_manager === managerFilter);
+  if (priorityFilter) filtered = filtered.filter((c) => c.priority === priorityFilter);
+  const filtersActive = !!(buildingFilter || managerFilter || priorityFilter);
+
+  const segmentFiltered = activeSegment
+    ? filtered.filter((c) => activeSegment.client_ids.includes(c.id))
+    : filtered;
 
   // A real name is the actual signal of "someone worth looking at" -- a bare
   // phone number is just a lead that was never named, and there are dozens
   // of those (see 0009's seed leads). Splitting them out is what actually
   // fixes the "paper pile" feel -- sorting alone still put 20 phone-number
   // cards in the same grid as 2 real people.
-  const named = [...filtered.filter((c) => c.name)].sort(rank);
-  const unnamed = [...filtered.filter((c) => !c.name)].sort(rank);
+  const named = [...segmentFiltered.filter((c) => c.name)].sort(compare);
+  const unnamed = [...segmentFiltered.filter((c) => !c.name)].sort(compare);
 
   const activeCount = clients.filter((c) => c.leads_count + c.spravka_count > 0).length;
   const hotCount = clients.filter((c) => c.priority === "hot").length;
@@ -100,6 +145,21 @@ export function ClientsPanel({
   const priorityBreakdown = (["hot", "warm", "cold"] as const)
     .map((p) => ({ label: PRIORITY_LABELS[p], value: clients.filter((c) => c.priority === p).length, color: PRIORITY_COLORS[p].fg }))
     .filter((p) => p.value > 0);
+
+  async function runAISegments() {
+    setSegmentsLoading(true);
+    setSegmentsError(false);
+    setActiveSegment(null);
+    try {
+      const res = await api.clientAISegments(filtered.map((c) => c.id));
+      setSegments(res.segments);
+    } catch {
+      setSegmentsError(true);
+      setSegments(null);
+    } finally {
+      setSegmentsLoading(false);
+    }
+  }
 
   return (
     <div style={{ flex: 1, minHeight: 0, overflowY: "auto", display: "flex", flexDirection: "column", gap: 16 }}>
@@ -145,12 +205,76 @@ export function ClientsPanel({
       {clients.length > 0 && (
         <>
           <SectionLabel>Список</SectionLabel>
-          <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Поиск по имени или телефону…"
-            style={{ width: "100%", maxWidth: 360, padding: "10px 14px", borderRadius: 12, background: "rgba(255,255,255,.04)", border: "1px solid var(--color-hairline)", color: "var(--color-text)", fontSize: 13 }}
-          />
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center" }}>
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Поиск по имени или телефону…"
+              style={{ flex: "1 1 240px", maxWidth: 320, padding: "10px 14px", borderRadius: 12, background: "rgba(255,255,255,.04)", border: "1px solid var(--color-hairline)", color: "var(--color-text)", fontSize: 13 }}
+            />
+            <Dropdown
+              value={buildingFilter} onChange={setBuildingFilter} placeholder="Все здания" style={{ width: 160 }}
+              options={[{ value: ALL, label: "Все здания" }, ...buildingOptions.map((b) => ({ value: b, label: b }))]}
+            />
+            <Dropdown
+              value={managerFilter} onChange={setManagerFilter} placeholder="Все менеджеры" style={{ width: 170 }}
+              options={[{ value: ALL, label: "Все менеджеры" }, ...managerOptions.map((m) => ({ value: m, label: m }))]}
+            />
+            <Dropdown
+              value={priorityFilter} onChange={setPriorityFilter} placeholder="Любой приоритет" style={{ width: 160 }}
+              options={[{ value: ALL, label: "Любой приоритет" }, ...(["hot", "warm", "cold"] as const).map((p) => ({ value: p, label: PRIORITY_LABELS[p] }))]}
+            />
+            <Dropdown
+              value={sortBy} onChange={(v) => setSortBy(v as SortBy)} style={{ width: 170 }}
+              options={(Object.keys(SORT_LABELS) as SortBy[]).map((s) => ({ value: s, label: SORT_LABELS[s] }))}
+            />
+            <button
+              onClick={runAISegments}
+              disabled={segmentsLoading || filtered.length === 0}
+              className="press"
+              style={{
+                marginLeft: "auto", padding: "10px 16px", borderRadius: 12, cursor: segmentsLoading ? "default" : "pointer",
+                background: "var(--v-accent-tint)", color: "var(--v-accent)", border: "1px solid transparent",
+                fontSize: 12.5, fontWeight: 700, opacity: filtered.length === 0 ? 0.5 : 1,
+              }}
+            >
+              {segmentsLoading ? "Анализирую…" : "✨ AI-сводка"}
+            </button>
+          </div>
+
+          {segmentsError && (
+            <div style={{ fontSize: 12, color: "var(--danger)" }}>Не удалось получить AI-сегменты — попробуйте ещё раз.</div>
+          )}
+
+          {segments && segments.length > 0 && (
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+              {segments.map((seg, i) => (
+                <div
+                  key={i}
+                  onClick={() => setActiveSegment(activeSegment === seg ? null : seg)}
+                  title={seg.reason}
+                  className="press"
+                  style={{
+                    cursor: "pointer", padding: "8px 14px", borderRadius: 12,
+                    background: activeSegment === seg ? "var(--v-accent)" : "var(--v-accent-tint)",
+                    color: activeSegment === seg ? "var(--v-text-on-accent)" : "var(--v-accent)",
+                    fontSize: 12, fontWeight: 700,
+                  }}
+                >
+                  {seg.label} · {seg.client_ids.length}
+                </div>
+              ))}
+            </div>
+          )}
+          {segments && segments.length === 0 && !segmentsLoading && (
+            <div style={{ fontSize: 12, color: "var(--color-text-faint)" }}>AI не нашёл явных сегментов в этом списке.</div>
+          )}
+          {activeSegment && (
+            <div style={{ fontSize: 12, color: "var(--color-text-soft)" }}>
+              Сегмент «{activeSegment.label}»: {activeSegment.reason}
+              <span onClick={() => setActiveSegment(null)} className="press" style={{ marginLeft: 10, cursor: "pointer", color: "var(--v-accent)", fontWeight: 700 }}>✕ Сбросить</span>
+            </div>
+          )}
         </>
       )}
 
@@ -194,8 +318,8 @@ export function ClientsPanel({
         </div>
       )}
 
-      {named.length === 0 && unnamed.length === 0 && q && (
-        <div style={{ color: "var(--color-text-faint)", fontSize: 13 }}>Ничего не найдено по «{query}».</div>
+      {named.length === 0 && unnamed.length === 0 && (q || filtersActive || activeSegment) && (
+        <div style={{ color: "var(--color-text-faint)", fontSize: 13 }}>Ничего не найдено по заданным фильтрам.</div>
       )}
       {modal}
     </div>
@@ -259,10 +383,13 @@ function ClientCard({ client: c, index, onOpen }: { client: Client; index: numbe
         </div>
       </div>
 
-      <div style={{ display: "flex", gap: 8 }}>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
         <span style={{ fontSize: 10.5, fontWeight: 700, color: "var(--color-text-soft)", background: "rgba(255,255,255,.05)", padding: "3px 9px", borderRadius: 99 }}>{c.leads_count} лидов</span>
         {c.spravka_count > 0 && (
           <span style={{ fontSize: 10.5, fontWeight: 700, color: "var(--v-accent)", background: "var(--v-accent-tint)", padding: "3px 9px", borderRadius: 99 }}>{c.spravka_count} справок</span>
+        )}
+        {c.assigned_manager && (
+          <span style={{ fontSize: 10.5, fontWeight: 600, color: "var(--color-text-faint)", background: "rgba(255,255,255,.05)", padding: "3px 9px", borderRadius: 99 }}>{c.assigned_manager}</span>
         )}
       </div>
     </div>

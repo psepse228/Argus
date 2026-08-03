@@ -1,4 +1,4 @@
-import { Client, TelegramConversation, TelegramMessage } from "./types";
+import { Client, ClientSegment, TelegramConversation, TelegramMessage } from "./types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8010";
 
@@ -65,8 +65,10 @@ export const api = {
   conversationMessages: (id: string) => request(`/api/conversations/${id}/messages`),
   clientConversation: (clientId: string) => request(`/api/conversations/client/${clientId}`, { method: "POST" }),
 
-  clients: () => request("/api/clients"),
+  clients: (): Promise<Client[]> => request("/api/clients"),
   clientDetail: (id: string) => request(`/api/clients/${id}`),
+  clientAISegments: (clientIds: string[]): Promise<{ segments: ClientSegment[] }> =>
+    request("/api/clients/ai-segments", { method: "POST", body: JSON.stringify({ client_ids: clientIds }) }),
   updateClientFollowup: (id: string, body: { priority?: string | null; next_followup_at?: string | null; next_followup_note?: string | null }) =>
     request(`/api/clients/${id}/followup`, { method: "PATCH", body: JSON.stringify(body) }),
 
