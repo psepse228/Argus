@@ -34,6 +34,8 @@ export function ClientInfoCard({
   const [selected, setSelected] = useState<ClientDetail | null>(null);
   const [savingFollowup, setSavingFollowup] = useState(false);
   const [opening, setOpening] = useState(false);
+  const [refreshingContext, setRefreshingContext] = useState(false);
+  const [contextError, setContextError] = useState("");
 
   useEffect(() => {
     setSelected(null);
@@ -54,6 +56,20 @@ export function ClientInfoCard({
       setSelected((cur) => cur && { ...cur, ...patch });
     } finally {
       setSavingFollowup(false);
+    }
+  }
+
+  async function refreshContext() {
+    if (!selected) return;
+    setRefreshingContext(true);
+    setContextError("");
+    try {
+      const updated = await api.refreshClientContext(selected.id);
+      setSelected((cur) => cur && { ...cur, ai_context_summary: updated.ai_context_summary, ai_context_generated_at: updated.ai_context_generated_at });
+    } catch (e: any) {
+      setContextError(e.message);
+    } finally {
+      setRefreshingContext(false);
     }
   }
 
@@ -94,7 +110,22 @@ export function ClientInfoCard({
               </>
             ) : (
               <>
-                <div style={{ fontSize: 12.5, color: "var(--color-text-faint)" }}>{selected.phone}</div>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ fontSize: 12.5, color: "var(--color-text-faint)" }}>{selected.phone}</span>
+                  <a
+                    href={`tel:${selected.phone}`}
+                    title="Позвонить"
+                    className="press"
+                    style={{
+                      width: 22, height: 22, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center",
+                      background: "var(--success-tint)", color: "var(--success)", flexShrink: 0,
+                    }}
+                  >
+                    <svg viewBox="0 0 24 24" width={12} height={12} fill="none" stroke="currentColor" strokeWidth={2.3}>
+                      <path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2Z" />
+                    </svg>
+                  </a>
+                </div>
 
                 {(() => {
                   const stage = clientStage(selected);
@@ -149,6 +180,41 @@ export function ClientInfoCard({
                     rows={2}
                     style={{ width: "100%", resize: "vertical", background: "rgba(255,255,255,.04)", border: "1px solid var(--color-hairline)", borderRadius: 8, color: "var(--color-text)", fontSize: 12, padding: "6px 8px", fontFamily: "inherit" }}
                   />
+                </div>
+
+                <div style={{ paddingTop: 4, borderTop: "1px solid var(--color-hairline-soft)" }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                    <div style={{ fontSize: 10.5, textTransform: "uppercase", letterSpacing: ".05em", color: "var(--color-text-faint)" }}>
+                      Контекст для передачи
+                    </div>
+                    <button
+                      onClick={refreshContext}
+                      disabled={refreshingContext}
+                      className="press"
+                      style={{
+                        fontSize: 10.5, fontWeight: 700, color: "var(--v-accent)", background: "var(--v-accent-tint)",
+                        border: "none", borderRadius: 7, padding: "4px 9px", cursor: refreshingContext ? "default" : "pointer",
+                        opacity: refreshingContext ? 0.6 : 1,
+                      }}
+                    >
+                      {refreshingContext ? "…" : "✨ Обновить"}
+                    </button>
+                  </div>
+                  {contextError && <div style={{ fontSize: 11, color: "var(--danger)", marginBottom: 6 }}>{contextError}</div>}
+                  {selected.ai_context_summary ? (
+                    <>
+                      <div style={{ fontSize: 12.5, color: "var(--color-text)", lineHeight: 1.5 }}>{selected.ai_context_summary}</div>
+                      {selected.ai_context_generated_at && (
+                        <div style={{ fontSize: 10, color: "var(--color-text-faint)", marginTop: 5 }}>
+                          Обновлено {new Date(selected.ai_context_generated_at).toLocaleString("ru-RU", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <div style={{ fontSize: 12, color: "var(--color-text-faint)" }}>
+                      Сводки ещё нет — нажмите "Обновить", чтобы AI собрал контекст из истории клиента.
+                    </div>
+                  )}
                 </div>
 
                 {selected.leads.length > 0 && (

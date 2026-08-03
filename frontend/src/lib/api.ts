@@ -67,6 +67,7 @@ export const api = {
 
   clients: (): Promise<Client[]> => request("/api/clients"),
   clientDetail: (id: string) => request(`/api/clients/${id}`),
+  refreshClientContext: (id: string) => request(`/api/clients/${id}/context-summary`, { method: "POST" }),
   clientAISegments: (clientIds: string[]): Promise<{ segments: ClientSegment[] }> =>
     request("/api/clients/ai-segments", { method: "POST", body: JSON.stringify({ client_ids: clientIds }) }),
   updateClientFollowup: (id: string, body: { priority?: string | null; next_followup_at?: string | null; next_followup_note?: string | null }) =>

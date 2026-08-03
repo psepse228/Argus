@@ -5,11 +5,12 @@ profile-chat conversation (see routers/conversations.py) where a rep's
 entire back-and-forth about that person, plus their real Справки, live
 together.
 """
-from datetime import date
+from datetime import date, datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
+from app.ai.client_context import summarize_client_context
 from app.ai.client_segmentation import segment_clients
 from app.db import get_service_client
 from app.deps import get_current_user
@@ -154,6 +155,47 @@ def get_client(client_id: str, user=Depends(get_current_user)):
         if spravka_ids else []
     )
     return {**res.data[0], "leads": leads, "spravka_requests": spravki, "payments": payments}
+
+
+@router.post("/{client_id}/context-summary")
+def refresh_context_summary(client_id: str, user=Depends(get_current_user)):
+    """Manager-handover problem: whoever inherits a departed agent's clients
+    has no idea what's been discussed. On-demand (not automatic on every
+    event, keeps this cheap and simple) -- a manager clicks "Обновить
+    сводку" and gets a fresh 2-4 sentence brief synthesized from everything
+    known about this client."""
+    client = get_service_client()
+    res = client.table("clients").select("*").eq("id", client_id).eq("tenant_id", user.tenant_id).execute()
+    if not res.data:
+        raise HTTPException(status_code=404, detail="Client not found")
+    c = res.data[0]
+    leads = (
+        client.table("leads").select("stage, source, buy_intent, created_at, buildings(name)")
+        .eq("client_id", client_id).order("created_at", desc=True).execute().data
+    )
+    spravki = (
+        client.table("spravka_requests")
+        .select("status, plan_type, created_at, units(unit_number, buildings(name))")
+        .eq("client_id", client_id).order("created_at", desc=True).execute().data
+    )
+    telegram = (
+        client.table("telegram_conversations").select("summary, next_step_suggestion")
+        .eq("client_id", client_id).eq("tenant_id", user.tenant_id).execute().data
+    )
+    context_data = {
+        "name": c.get("name"), "phone": c["phone"], "priority": c.get("priority"),
+        "next_followup_note": c.get("next_followup_note"),
+        "leads": leads, "spravka_requests": spravki,
+        "telegram_summary": telegram[0] if telegram else None,
+    }
+    try:
+        summary = summarize_client_context(context_data)
+    except Exception:
+        raise HTTPException(status_code=503, detail="Не удалось обновить сводку — попробуйте ещё раз")
+    updated = client.table("clients").update({
+        "ai_context_summary": summary, "ai_context_generated_at": datetime.now(timezone.utc).isoformat(),
+    }).eq("id", client_id).eq("tenant_id", user.tenant_id).execute().data
+    return updated[0]
 
 
 @router.patch("/{client_id}/followup")

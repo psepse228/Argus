@@ -6,6 +6,8 @@ export type Unit = {
   room_type: string | null;
   area_m2: number;
   price_per_m2_usd: number;
+  ceiling_height_m?: number | null;
+  floor_plan_url?: string | null;
   status: string;
   building_id: string;
   buildings?: { name: string };
@@ -116,6 +118,8 @@ export type Client = {
   buildings?: string[];
   assigned_manager?: string | null;
   last_activity_at?: string | null;
+  ai_context_summary?: string | null;
+  ai_context_generated_at?: string | null;
 };
 
 export type ClientSegment = { label: string; reason: string; client_ids: string[] };
@@ -202,6 +206,7 @@ export const STATUS_COLORS: Record<string, { bg: string; fg: string }> = {
   deal_in_progress: { bg: "rgba(125,211,252,0.14)", fg: "#7dd3fc" },
   deal_completed: { bg: "var(--success-tint)", fg: "var(--success)" },
   marketing_reserve: { bg: "rgba(255,255,255,0.08)", fg: "var(--color-text-soft)" },
+  marketing_deal: { bg: "rgba(122,92,255,0.14)", fg: "var(--v-violet-strong, #7a5cff)" },
   pending: { bg: "var(--warning-tint)", fg: "var(--warning)" },
   approved: { bg: "var(--success-tint)", fg: "var(--success)" },
   auto_approved: { bg: "var(--success-tint)", fg: "var(--success)" },
@@ -226,7 +231,8 @@ export const STATUS_LABELS: Record<string, string> = {
   paid_reservation: "Платная бронь",
   deal_in_progress: "Сделка в работе",
   deal_completed: "Продано",
-  marketing_reserve: "Резерв",
+  marketing_reserve: "Маркетинговый резерв",
+  marketing_deal: "Маркетинговая сделка",
   pending: "Ожидает",
   approved: "Одобрено",
   auto_approved: "Одобрено (авто)",

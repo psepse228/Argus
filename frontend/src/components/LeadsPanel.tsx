@@ -121,7 +121,22 @@ export function LeadsPanel({ onOpenClient }: { onOpenClient: (clientId: string) 
                   }}
                 >
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: "var(--color-text)" }}>{l.phone}</div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: "var(--color-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{l.phone}</div>
+                      <a
+                        href={`tel:${l.phone}`}
+                        title="Позвонить"
+                        className="press"
+                        style={{
+                          width: 20, height: 20, flexShrink: 0, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center",
+                          background: "var(--success-tint)", color: "var(--success)",
+                        }}
+                      >
+                        <svg viewBox="0 0 24 24" width={11} height={11} fill="none" stroke="currentColor" strokeWidth={2.3}>
+                          <path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2Z" />
+                        </svg>
+                      </a>
+                    </div>
                     {l.is_stale && (
                       <span title={`Без движения ${STALE_DAYS}+ дней`} style={{ fontSize: 9.5, fontWeight: 700, color: "var(--warning)", background: "var(--warning-tint)", borderRadius: 99, padding: "2px 7px", whiteSpace: "nowrap" }}>
                         Простаивает
