@@ -28,14 +28,19 @@ def _get_connection(client, business_connection_id: str) -> dict | None:
     return res[0] if res else None
 
 
-def _get_or_create_conversation(client, connection: dict, chat: dict) -> dict:
+def _get_or_create_conversation(client, connection: dict, chat: dict) -> tuple[dict, bool]:
+    """Returns (conversation, is_new) -- is_new is what the auto-greeting
+    (Мастерская flow (a)) keys off: a brand-new conversation IS a lead just
+    arriving, in this codebase's actual shape (see the week plan's Day 3
+    note -- there's no separate lead-creation endpoint this pilot uses;
+    Telegram is the real arrival channel)."""
     existing = (
         client.table("telegram_conversations").select("*")
         .eq("connection_id", connection["id"]).eq("telegram_chat_id", chat["id"])
         .execute().data
     )
     if existing:
-        return existing[0]
+        return existing[0], False
     inserted = client.table("telegram_conversations").insert({
         "tenant_id": connection["tenant_id"],
         "connection_id": connection["id"],
@@ -43,7 +48,31 @@ def _get_or_create_conversation(client, connection: dict, chat: dict) -> dict:
         "telegram_first_name": chat.get("first_name"),
         "telegram_username": chat.get("username"),
     }).execute().data[0]
-    return inserted
+    return inserted, True
+
+
+# Мастерская flow (a): the fast, fixed first-touch message -- deliberately
+# NOT AI-composed (that's flow (b)'s job, Day 5). Fires once, automatically,
+# the moment a brand-new conversation's first real text message arrives; no
+# propose-then-confirm step, because there's no parsing/inference here that
+# could misfire -- same reasoning the client used to describe this as the
+# "small, self-contained half of the split".
+_AUTO_GREETING_TEXT = (
+    "Здравствуйте! Спасибо, что написали 👋\n"
+    "Мы получили ваше сообщение — менеджер ответит вам в ближайшее время. "
+    "Если хотите, можете уже сейчас написать, что вас интересует."
+)
+
+
+def _send_auto_greeting(client, connection: dict, conversation: dict) -> None:
+    send_message(connection["business_connection_id"], conversation["telegram_chat_id"], _AUTO_GREETING_TEXT)
+    client.table("telegram_messages").insert({
+        "conversation_id": conversation["id"], "direction": "outbound",
+        "content": _AUTO_GREETING_TEXT, "sent_by": None,
+    }).execute()
+    client.table("telegram_conversations").update({
+        "last_message_at": datetime.now(timezone.utc).isoformat(),
+    }).eq("id", conversation["id"]).execute()
 
 
 def _history_for_evaluation(client, conversation_id: str) -> list[dict]:
@@ -107,7 +136,7 @@ def telegram_business_webhook(update: dict, request: Request):
     if not connection:
         return {"ok": True}  # message from a connection we don't have a row for -- ignore, don't crash
 
-    conversation = _get_or_create_conversation(client, connection, message["chat"])
+    conversation, is_new_conversation = _get_or_create_conversation(client, connection, message["chat"])
 
     if conversation.get("client_id") is None and message.get("contact"):
         client_id = find_client_by_phone(client, connection["tenant_id"], message["contact"]["phone_number"])
@@ -125,6 +154,12 @@ def telegram_business_webhook(update: dict, request: Request):
         client.table("telegram_conversations").update({
             "last_message_at": datetime.now(timezone.utc).isoformat(),
         }).eq("id", conversation["id"]).execute()
+
+        if is_new_conversation:
+            try:
+                _send_auto_greeting(client, connection, conversation)
+            except Exception:
+                pass  # best-effort -- a failed auto-greeting must not break message ingestion
 
         try:
             history = _history_for_evaluation(client, conversation["id"])
