@@ -120,6 +120,20 @@ export type Client = {
 
 export type ClientSegment = { label: string; reason: string; client_ids: string[] };
 
+export type CalendarEvent = {
+  id: string;
+  client_id: string | null;
+  telegram_conversation_id: string | null;
+  title: string;
+  event_at: string;
+  note: string | null;
+  source: "manual" | "monitor";
+  status: "proposed" | "confirmed" | "dismissed";
+  created_by: string | null;
+  created_at: string;
+  clients?: { name: string | null; phone: string } | null;
+};
+
 export type ClientDetail = Client & {
   leads: (Lead & { buildings?: { name: string } })[];
   spravka_requests: SpravkaRequest[];

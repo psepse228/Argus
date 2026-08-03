@@ -168,6 +168,31 @@ def telegram_business_webhook(update: dict, request: Request):
                 "summary": evaluation["summary"], "next_step_suggestion": evaluation["next_step"],
                 "draft_reply": evaluation["draft_reply"], "draft_generated_at": datetime.now(timezone.utc).isoformat(),
             }).eq("id", conversation["id"]).execute()
+
+            # AI "monitor" (Day 4): propose, never auto-confirm -- same
+            # review-after posture as spravka_requests. One pending proposal
+            # per conversation at a time (skip re-proposing every message
+            # while one's still awaiting a manager's review).
+            if evaluation.get("has_event") and evaluation.get("event_at"):
+                try:
+                    event_at = datetime.fromisoformat(evaluation["event_at"].replace("Z", "+00:00"))
+                    existing_proposal = (
+                        client.table("calendar_events").select("id")
+                        .eq("telegram_conversation_id", conversation["id"]).eq("status", "proposed")
+                        .execute().data
+                    )
+                    if not existing_proposal:
+                        client.table("calendar_events").insert({
+                            "tenant_id": connection["tenant_id"],
+                            "client_id": conversation.get("client_id"),
+                            "telegram_conversation_id": conversation["id"],
+                            "title": evaluation.get("event_title") or "Встреча с клиентом",
+                            "event_at": event_at.isoformat(),
+                            "note": evaluation.get("event_note"),
+                            "source": "monitor", "status": "proposed",
+                        }).execute()
+                except (ValueError, KeyError):
+                    pass  # unparseable event_at -- skip the proposal rather than guess
         except Exception:
             pass  # best-effort -- the message still saved; a manager can always reply manually
 

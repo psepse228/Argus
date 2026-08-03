@@ -1,4 +1,4 @@
-import { Client, ClientSegment, TelegramConversation, TelegramMessage } from "./types";
+import { CalendarEvent, Client, ClientSegment, TelegramConversation, TelegramMessage } from "./types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8010";
 
@@ -87,6 +87,14 @@ export const api = {
     request("/api/telegram-business/conversations/unmatched"),
   telegramRecentMatched: (): Promise<(TelegramConversation & { clients: { name: string | null; phone: string } | null })[]> =>
     request("/api/telegram-business/conversations/recent-matched"),
+  calendarEvents: (): Promise<CalendarEvent[]> => request("/api/calendar"),
+  createCalendarEvent: (body: { title: string; event_at: string; note?: string; client_id?: string }) =>
+    request("/api/calendar", { method: "POST", body: JSON.stringify(body) }),
+  updateCalendarEvent: (id: string, body: { title?: string; event_at?: string; note?: string }) =>
+    request(`/api/calendar/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
+  confirmCalendarEvent: (id: string) => request(`/api/calendar/${id}/confirm`, { method: "POST" }),
+  dismissCalendarEvent: (id: string) => request(`/api/calendar/${id}/dismiss`, { method: "POST" }),
+
   telegramLinkConversation: (
     conversationId: string,
     body: { client_id?: string; new_client_name?: string; new_client_phone?: string }

@@ -10,6 +10,7 @@ import { LeadsPanel } from "@/components/LeadsPanel";
 import { ClientsPanel } from "@/components/ClientsPanel";
 import { PaymentsPanel } from "@/components/PaymentsPanel";
 import { AnalyticsPanel } from "@/components/AnalyticsPanel";
+import { CalendarPanel } from "@/components/CalendarPanel";
 import { AssistantWidget } from "@/components/AssistantWidget";
 import { GlobalSearch } from "@/components/GlobalSearch";
 
@@ -20,6 +21,7 @@ const TITLES: Record<Section, string> = {
   clients: "Клиенты",
   payments: "Платежи",
   analytics: "Аналитика",
+  calendar: "Календарь",
 };
 
 /** Вариант А: no persistent rail -- every section is a full-screen HUD
@@ -205,6 +207,7 @@ export default function AppPage() {
                 />
               )}
               {s.key === "payments" && <PaymentsPanel />}
+              {s.key === "calendar" && <CalendarPanel onOpenClient={openClientFromLead} />}
               {s.key === "analytics" && effectiveUser.role === "boss" && <AnalyticsPanel />}
             </div>
           </div>

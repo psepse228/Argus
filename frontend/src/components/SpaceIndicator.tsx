@@ -1,7 +1,7 @@
 "use client";
 import { CurrentUser } from "@/lib/api";
 
-export type Section = "assistant" | "leads" | "clients" | "units" | "payments" | "analytics";
+export type Section = "assistant" | "leads" | "clients" | "units" | "payments" | "analytics" | "calendar";
 
 export const SPACES: { key: Section; label: string; icon: JSX.Element; bossOnly?: boolean }[] = [
   {
@@ -38,6 +38,13 @@ export const SPACES: { key: Section; label: string; icon: JSX.Element; bossOnly?
     key: "units", label: "Юниты", icon: (
       <svg viewBox="0 0 24 24" width={18} height={18} fill="none" stroke="currentColor" strokeWidth={1.8}>
         <path d="M3 21V8l9-5 9 5v13" /><path d="M9 21v-7h6v7" />
+      </svg>
+    ),
+  },
+  {
+    key: "calendar", label: "Календарь", icon: (
+      <svg viewBox="0 0 24 24" width={18} height={18} fill="none" stroke="currentColor" strokeWidth={1.8}>
+        <rect x="3" y="5" width="18" height="16" rx="2.2" /><path d="M3 10h18M8 3v4M16 3v4" />
       </svg>
     ),
   },
