@@ -118,7 +118,7 @@ export function UnitsPanel({
 
   const kpis = useMemo(() => {
     const forSale = units.filter((u) => u.status === "for_sale").length;
-    const inDeal = units.filter((u) => u.status === "reserved" || u.status === "paid_reservation" || u.status === "deal_in_progress").length;
+    const inDeal = units.filter((u) => u.status === "reserved" || u.status === "paid_reservation" || u.status === "deal_in_progress" || u.status === "marketing_deal").length;
     const sold = units.filter((u) => u.status === "deal_completed").length;
     const portfolioUsd = units.reduce((s, u) => s + u.area_m2 * u.price_per_m2_usd, 0);
     return [
@@ -278,13 +278,53 @@ export function UnitsPanel({
             )}
             <div style={{ display: "flex", justifyContent: "space-between" }}><span>Тип</span><b style={{ color: "var(--color-text)" }}>{selected.room_type || "—"}</b></div>
             <div style={{ display: "flex", justifyContent: "space-between" }}><span>Площадь</span><b style={{ color: "var(--color-text)" }}>{selected.area_m2} м²</b></div>
+            {selected.ceiling_height_m != null && (
+              <div style={{ display: "flex", justifyContent: "space-between" }}><span>Высота потолка</span><b style={{ color: "var(--color-text)" }}>{selected.ceiling_height_m} м</b></div>
+            )}
             <div style={{ display: "flex", justifyContent: "space-between", paddingTop: 9, borderTop: "1px solid var(--color-hairline-soft)" }}>
               <span>Цена</span><b style={{ color: "var(--color-text)" }}>${Math.round(selected.area_m2 * selected.price_per_m2_usd).toLocaleString("ru-RU")}</b>
             </div>
             {!presentationMode && (selected.assigned_manager || selected.client_name) && (
               <div style={{ paddingTop: 9, borderTop: "1px solid var(--color-hairline-soft)" }}>
                 {selected.assigned_manager && <div>Менеджер: <b style={{ color: "var(--color-text)" }}>{selected.assigned_manager}</b></div>}
-                {selected.client_name && <div style={{ marginTop: 4 }}>Клиент: <b style={{ color: "var(--color-text)" }}>{selected.client_name}</b></div>}
+                {selected.client_name && (
+                  <div style={{ marginTop: 4, display: "flex", alignItems: "center", gap: 6 }}>
+                    Клиент: <b style={{ color: "var(--color-text)" }}>{selected.client_name}</b>
+                    {selected.client_phone && (
+                      <a
+                        href={`tel:${selected.client_phone}`}
+                        title="Позвонить"
+                        className="press"
+                        style={{
+                          width: 18, height: 18, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center",
+                          background: "var(--success-tint)", color: "var(--success)", flexShrink: 0,
+                        }}
+                      >
+                        <svg viewBox="0 0 24 24" width={10} height={10} fill="none" stroke="currentColor" strokeWidth={2.5}>
+                          <path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2Z" />
+                        </svg>
+                      </a>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          <div style={{ marginTop: 14 }}>
+            {selected.floor_plan_url ? (
+              <img
+                src={selected.floor_plan_url}
+                alt="План этажа"
+                style={{ width: "100%", borderRadius: 9, border: "1px solid var(--color-hairline-soft)", display: "block" }}
+              />
+            ) : (
+              <div style={{
+                height: 90, borderRadius: 9, border: "1px dashed var(--color-hairline)",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                fontSize: 11, color: "var(--color-text-faint)", textAlign: "center", padding: "0 12px",
+              }}>
+                План появится после загрузки в систему
               </div>
             )}
           </div>
@@ -344,39 +384,78 @@ export function UnitsPanel({
   );
 }
 
+/** "1-комнатная" / "Студия" / "3-комнатная" -> "1К" / "СТ" / "3К" -- mirrors
+ * the room-count badge seen on the real Macro chess-grid cell. Never
+ * fabricates a count for a room_type string that doesn't give one. */
+function roomBadge(roomType: string | null): string {
+  if (!roomType) return "—";
+  if (/студ/i.test(roomType)) return "СТ";
+  const m = roomType.match(/(\d+)/);
+  return m ? `${m[1]}К` : roomType.slice(0, 2).toUpperCase();
+}
+
+function UnitCell({ u, isSelected, onSelect }: { u: Unit; isSelected: boolean; onSelect: (u: Unit, rect?: DOMRect) => void }) {
+  const c = STATUS_COLORS[u.status] || { bg: "rgba(255,255,255,.06)", fg: "var(--color-text-soft)" };
+  const price = Math.round(u.area_m2 * u.price_per_m2_usd);
+  return (
+    <div
+      onClick={(e) => onSelect(u, e.currentTarget.getBoundingClientRect())}
+      title={`№${u.unit_number} · ${u.floor} эт · ${STATUS_LABELS[u.status] || u.status}`}
+      className="press"
+      style={{
+        width: 92, borderRadius: 8, padding: "5px 7px", cursor: "pointer", background: c.bg, color: c.fg,
+        border: isSelected ? `1.5px solid ${c.fg}` : "1px solid transparent",
+        boxShadow: isSelected ? `0 0 0 2px color-mix(in srgb, ${c.fg} 30%, transparent)` : "none",
+        display: "flex", flexDirection: "column", gap: 2,
+      }}
+    >
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <span style={{ fontSize: 10.5, fontWeight: 800 }}>№{u.unit_number}</span>
+        <span style={{ fontSize: 8, fontWeight: 700, padding: "1px 4px", borderRadius: 5, background: "rgba(255,255,255,.18)" }}>{roomBadge(u.room_type)}</span>
+      </div>
+      <div style={{ fontSize: 10.5, fontWeight: 700 }}>${price.toLocaleString("en-US")}</div>
+      <div style={{ fontSize: 8.5, opacity: 0.85 }}>{u.area_m2} м²</div>
+    </div>
+  );
+}
+
+/** Real Macro reference: Подъезд (entrance) as column groups side by side,
+ * floor as row labels (descending) within each. Units with no entrance data
+ * fall back into a single unlabeled group instead of a "Подъезд —" column
+ * that would just be noise. */
 function ChessGrid({
   buildingName, units, selectedId, onSelect,
 }: { buildingName: string; units: Unit[]; selectedId?: string; onSelect: (u: Unit, rect?: DOMRect) => void }) {
-  const floors = Array.from(new Set(units.map((u) => u.floor))).sort((a, b) => b - a);
+  const hasEntrances = units.some((u) => u.entrance != null);
+  const entranceGroups = hasEntrances
+    ? Array.from(new Set(units.map((u) => u.entrance ?? 0))).sort((a, b) => a - b)
+    : [null];
+
   return (
     <div>
       <div style={{ fontSize: 13, fontWeight: 800, color: "var(--color-text)", marginBottom: 10 }}>{buildingName}</div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-        {floors.map((floor) => {
-          const inFloor = units
-            .filter((u) => u.floor === floor)
-            .sort((a, b) => (a.entrance ?? 0) - (b.entrance ?? 0) || a.unit_number.localeCompare(b.unit_number, undefined, { numeric: true }));
+      <div style={{ display: "flex", gap: 18, alignItems: "flex-start" }}>
+        {entranceGroups.map((entrance) => {
+          const inEntrance = entrance === null ? units : units.filter((u) => (u.entrance ?? 0) === entrance);
+          const floors = Array.from(new Set(inEntrance.map((u) => u.floor))).sort((a, b) => b - a);
           return (
-            <div key={floor} style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <span style={{ width: 22, fontSize: 10.5, fontWeight: 700, color: "var(--color-text-faint)", flexShrink: 0, textAlign: "right" }}>{floor}</span>
-              <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
-                {inFloor.map((u) => {
-                  const c = STATUS_COLORS[u.status] || { bg: "rgba(255,255,255,.06)", fg: "var(--color-text-soft)" };
-                  const isSelected = selectedId === u.id;
+            <div key={entrance ?? "all"}>
+              {entrance !== null && (
+                <div style={{ fontSize: 11, fontWeight: 700, color: "var(--color-text-faint)", marginBottom: 8 }}>Подъезд №{entrance}</div>
+              )}
+              <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+                {floors.map((floor) => {
+                  const inFloor = inEntrance
+                    .filter((u) => u.floor === floor)
+                    .sort((a, b) => a.unit_number.localeCompare(b.unit_number, undefined, { numeric: true }));
                   return (
-                    <div
-                      key={u.id}
-                      onClick={(e) => onSelect(u, e.currentTarget.getBoundingClientRect())}
-                      title={`№${u.unit_number} · ${u.floor} эт · ${STATUS_LABELS[u.status] || u.status}`}
-                      className="press"
-                      style={{
-                        width: 38, height: 30, borderRadius: 7, display: "flex", alignItems: "center", justifyContent: "center",
-                        fontSize: 9.5, fontWeight: 700, cursor: "pointer", background: c.bg, color: c.fg,
-                        border: isSelected ? `1.5px solid ${c.fg}` : "1px solid transparent",
-                        boxShadow: isSelected ? `0 0 0 2px color-mix(in srgb, ${c.fg} 30%, transparent)` : "none",
-                      }}
-                    >
-                      {u.unit_number}
+                    <div key={floor} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <span style={{ width: 18, fontSize: 10.5, fontWeight: 700, color: "var(--color-text-faint)", flexShrink: 0, textAlign: "right" }}>{floor}</span>
+                      <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+                        {inFloor.map((u) => (
+                          <UnitCell key={u.id} u={u} isSelected={selectedId === u.id} onSelect={onSelect} />
+                        ))}
+                      </div>
                     </div>
                   );
                 })}
