@@ -8,7 +8,6 @@ import { AssistantPanel } from "@/components/AssistantPanel";
 import { UnitsPanel } from "@/components/UnitsPanel";
 import { LeadsPanel } from "@/components/LeadsPanel";
 import { ClientsPanel } from "@/components/ClientsPanel";
-import { PaymentsPanel } from "@/components/PaymentsPanel";
 import { AnalyticsPanel } from "@/components/AnalyticsPanel";
 import { CalendarPanel } from "@/components/CalendarPanel";
 import { AssistantWidget } from "@/components/AssistantWidget";
@@ -19,7 +18,6 @@ const TITLES: Record<Section, string> = {
   units: "Юниты",
   leads: "Лиды",
   clients: "Клиенты",
-  payments: "Платежи",
   analytics: "Аналитика",
   calendar: "Календарь",
 };
@@ -206,7 +204,6 @@ export default function AppPage() {
                   onOpenWorkspace={openWorkspaceClient}
                 />
               )}
-              {s.key === "payments" && <PaymentsPanel />}
               {s.key === "calendar" && <CalendarPanel onOpenClient={openClientFromLead} />}
               {s.key === "analytics" && effectiveUser.role === "boss" && <AnalyticsPanel />}
             </div>
