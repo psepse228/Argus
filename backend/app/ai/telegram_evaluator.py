@@ -7,6 +7,16 @@ chat, this is a single-shot judgment on a client-facing thread, a different
 domain entirely. The event detection is folded into this same call rather
 than a second one, to keep latency/cost to one OpenAI round-trip per message
 -- same conversation history, same "don't invent facts" discipline applies.
+
+Day 5 "Мастерская flow (b)": the draft reply is now grounded in real
+inventory/pricing (optional `inventory_context`, fetched by the caller via
+app.ai.functions.get_units/get_payment_plan_rates -- plain Python calls, not
+a second OpenAI round-trip) so it can name real units/prices instead of
+deflecting everything to "уточните у менеджера". Deliberately READ-ONLY data
+only, never the function-calling loop itself -- this must never be able to
+call create_spravka_request or set_payment_plan_rate on its own; drafting a
+reply is not a write, and the human still has to click "Отправить" in
+TelegramBusinessThread.tsx before anything reaches the client.
 """
 import json
 import logging
@@ -40,7 +50,14 @@ _SYSTEM_PROMPT = """Ты помогаешь агенту по недвижимо
 ISO 8601 (с временем; если время не названо, поставь 12:00). Сегодняшняя дата: {today}, используй её
 для разрешения относительных дат ("завтра", "в среду"). Если время/дата размыты или это не про визит
 клиента (например абстрактное "как-нибудь на неделе"), верни has_event=false и остальные event-поля
-null — никогда не выдумывай дату, которой явно не было в переписке."""
+null — никогда не выдумывай дату, которой явно не было в переписке.
+{inventory_block}"""
+
+_INVENTORY_BLOCK_TEMPLATE = """
+В черновике ответа можешь ссылаться на конкретные юниты и цены — ниже реальные данные о доступных
+юнитах и тарифах (JSON). Используй ТОЛЬКО то, что есть в этом списке — если подходящего варианта нет
+или клиент спросил о том, чего здесь нет, предложи агенту уточнить лично, а не придумывай:
+{inventory_json}"""
 
 _SCHEMA = {
     "type": "json_schema",
@@ -68,9 +85,12 @@ _SCHEMA = {
 }
 
 
-def evaluate_conversation(history: list[dict]) -> dict:
+def evaluate_conversation(history: list[dict], inventory_context: dict | None = None) -> dict:
     """history: [{"role": "client"|"manager", "content": str}, ...], oldest
-    message first. Returns {"summary", "next_step", "draft_reply", "has_event",
+    message first. `inventory_context` (optional): {"units": [...], "rates":
+    [...]} from app.ai.functions.get_units/get_payment_plan_rates -- plain
+    Python calls the caller makes beforehand, not a second OpenAI round-trip.
+    Returns {"summary", "next_step", "draft_reply", "has_event",
     "event_title", "event_at", "event_note"}.
 
     This function makes no attempt to catch or wrap errors itself -- any
@@ -80,7 +100,11 @@ def evaluate_conversation(history: list[dict]) -> dict:
     app/ai/chat.py's ChatUnavailableError, there's no dedicated exception
     type here because nothing downstream needs to branch on one."""
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d (%A)")
-    messages = [{"role": "system", "content": _SYSTEM_PROMPT.format(today=today)}]
+    inventory_block = (
+        _INVENTORY_BLOCK_TEMPLATE.format(inventory_json=json.dumps(inventory_context, ensure_ascii=False))
+        if inventory_context else ""
+    )
+    messages = [{"role": "system", "content": _SYSTEM_PROMPT.format(today=today, inventory_block=inventory_block)}]
     for turn in history:
         messages.append({
             "role": "user" if turn["role"] == "client" else "assistant",

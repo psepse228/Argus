@@ -15,6 +15,7 @@ from app.deps import get_current_user
 from app.telegram.bot_client import TelegramSendError, send_message, verify_webhook_signature
 from app.telegram.matching import find_client_by_phone
 from app.ai.telegram_evaluator import evaluate_conversation
+from app.ai.functions import get_units, get_payment_plan_rates
 
 router = APIRouter()
 api_router = APIRouter(prefix="/api/telegram-business")
@@ -163,7 +164,20 @@ def telegram_business_webhook(update: dict, request: Request):
 
         try:
             history = _history_for_evaluation(client, conversation["id"])
-            evaluation = evaluate_conversation(history)
+            # Мастерская flow (b): ground the draft reply in real inventory/
+            # pricing (plain reads, reusing the same functions the assistant
+            # chat calls) instead of a second OpenAI round-trip. Best-effort
+            # -- if this lookup fails, fall through with no inventory context
+            # rather than lose the whole evaluation.
+            inventory_context = None
+            try:
+                inventory_context = {
+                    "units": get_units(connection["tenant_id"]),
+                    "rates": get_payment_plan_rates(connection["tenant_id"]),
+                }
+            except Exception:
+                pass
+            evaluation = evaluate_conversation(history, inventory_context)
             client.table("telegram_conversations").update({
                 "summary": evaluation["summary"], "next_step_suggestion": evaluation["next_step"],
                 "draft_reply": evaluation["draft_reply"], "draft_generated_at": datetime.now(timezone.utc).isoformat(),
