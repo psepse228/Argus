@@ -10,6 +10,7 @@ from datetime import date, datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
+from app.ai.brain import gather_client_context
 from app.ai.client_context import summarize_client_context
 from app.ai.client_segmentation import segment_clients
 from app.db import get_service_client
@@ -165,29 +166,9 @@ def refresh_context_summary(client_id: str, user=Depends(get_current_user)):
     сводку" and gets a fresh 2-4 sentence brief synthesized from everything
     known about this client."""
     client = get_service_client()
-    res = client.table("clients").select("*").eq("id", client_id).eq("tenant_id", user.tenant_id).execute()
-    if not res.data:
+    context_data = gather_client_context(client, user.tenant_id, client_id)
+    if not context_data:
         raise HTTPException(status_code=404, detail="Client not found")
-    c = res.data[0]
-    leads = (
-        client.table("leads").select("stage, source, buy_intent, created_at, buildings(name)")
-        .eq("client_id", client_id).order("created_at", desc=True).execute().data
-    )
-    spravki = (
-        client.table("spravka_requests")
-        .select("status, plan_type, created_at, units(unit_number, buildings(name))")
-        .eq("client_id", client_id).order("created_at", desc=True).execute().data
-    )
-    telegram = (
-        client.table("telegram_conversations").select("summary, next_step_suggestion")
-        .eq("client_id", client_id).eq("tenant_id", user.tenant_id).execute().data
-    )
-    context_data = {
-        "name": c.get("name"), "phone": c["phone"], "priority": c.get("priority"),
-        "next_followup_note": c.get("next_followup_note"),
-        "leads": leads, "spravka_requests": spravki,
-        "telegram_summary": telegram[0] if telegram else None,
-    }
     try:
         summary = summarize_client_context(context_data)
     except Exception:
