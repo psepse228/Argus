@@ -180,7 +180,8 @@ def telegram_business_webhook(update: dict, request: Request):
             evaluation = evaluate_conversation(history, inventory_context)
             client.table("telegram_conversations").update({
                 "summary": evaluation["summary"], "next_step_suggestion": evaluation["next_step"],
-                "draft_reply": evaluation["draft_reply"], "draft_generated_at": datetime.now(timezone.utc).isoformat(),
+                "draft_reply": evaluation["draft_reply"], "coaching_tip": evaluation["coaching_tip"],
+                "draft_generated_at": datetime.now(timezone.utc).isoformat(),
             }).eq("id", conversation["id"]).execute()
 
             # AI "monitor" (Day 4): propose, never auto-confirm -- same
@@ -238,7 +239,7 @@ def send_reply(conversation_id: str, body: SendBody, user=Depends(get_current_us
         "content": body.text, "sent_by": user.email,
     }).execute()
     client.table("telegram_conversations").update({
-        "draft_reply": None, "last_message_at": datetime.now(timezone.utc).isoformat(),
+        "draft_reply": None, "coaching_tip": None, "last_message_at": datetime.now(timezone.utc).isoformat(),
     }).eq("id", conversation_id).execute()
     return {"ok": True}
 
