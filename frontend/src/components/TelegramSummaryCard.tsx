@@ -1,22 +1,30 @@
 "use client";
 import { TelegramConversation } from "@/lib/types";
 
-/** The right-column "Итог диалога" block above ClientWorkspace's existing
- * AI-assistant ChatThread -- surfaces the bot's per-message evaluation
- * (summary + next-step) of the live Telegram thread, kept fully separate
- * from the rep-facing assistant chat below it. */
+/** Sits flush inside ClientWorkspace's advisor panel, directly above
+ * ChatThread -- deliberately NOT its own nested glass-panel anymore (that
+ * read as two separate AI voices stacked on top of each other, flagged
+ * directly during the 2026-08-05 brainstorm). One panel, one advisor: this
+ * is that panel's live-conversation section; the Q&A chat below it is the
+ * same advisor, just conversational -- and now shares the same context via
+ * app/ai/brain.py's gather_client_context. */
 export function TelegramSummaryCard({ conversation }: { conversation: TelegramConversation | null }) {
-  if (!conversation || (!conversation.summary && !conversation.next_step_suggestion)) return null;
+  if (!conversation || (!conversation.summary && !conversation.next_step_suggestion && !conversation.coaching_tip)) return null;
   return (
-    <div className="glass-panel" style={{ padding: "14px 16px", marginBottom: 14, display: "flex", flexDirection: "column", gap: 8 }}>
+    <div style={{ paddingBottom: 12, marginBottom: 12, borderBottom: "1px solid var(--color-hairline-soft)", display: "flex", flexDirection: "column", gap: 8 }}>
       <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: ".05em", color: "var(--color-text-faint)" }}>
-        Итог диалога в Telegram
+        Разговор в Telegram
       </div>
       {conversation.summary && (
         <div style={{ fontSize: 12.5, color: "var(--color-text)", lineHeight: 1.5 }}>{conversation.summary}</div>
       )}
-      {conversation.next_step_suggestion && (
+      {conversation.coaching_tip && (
         <div style={{ fontSize: 12, color: "var(--v-accent)", fontWeight: 600, lineHeight: 1.5 }}>
+          💡 {conversation.coaching_tip}
+        </div>
+      )}
+      {conversation.next_step_suggestion && (
+        <div style={{ fontSize: 12, color: "var(--color-text-soft)", lineHeight: 1.5 }}>
           → {conversation.next_step_suggestion}
         </div>
       )}

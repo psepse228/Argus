@@ -423,7 +423,7 @@ export function ClientWorkspace({
 
       <div className="glass-panel" style={{ width: 340, flexShrink: 0, minHeight: 0, padding: "18px 20px", display: "flex", flexDirection: "column" }}>
         <div style={{ fontFamily: "var(--font-heading)", fontSize: 13.5, fontWeight: 700, color: "var(--color-text)", marginBottom: 4 }}>
-          Чат · {selected.name || selected.phone}
+          AI-советник · {selected.name || selected.phone}
         </div>
         <div style={{ flex: 1, minHeight: 0, paddingTop: 10, display: "flex", flexDirection: "column" }}>
           <TelegramSummaryCard conversation={telegramConversation} />
