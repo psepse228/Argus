@@ -1,7 +1,7 @@
 import { STATUS_COLORS, STATUS_LABELS } from "@/lib/types";
 
 export function StatusChip({ status }: { status: string }) {
-  const c = STATUS_COLORS[status] || { bg: "rgba(255,255,255,.06)", fg: "var(--color-text-soft)" };
+  const c = STATUS_COLORS[status] || { bg: "var(--surface-06)", fg: "var(--color-text-soft)" };
   return (
     <span
       style={{

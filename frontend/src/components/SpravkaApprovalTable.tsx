@@ -85,7 +85,7 @@ export function SpravkaApprovalTable({
                     >
                       Просмотр
                     </button>
-                    <a href={api.spravkaDownloadUrl(r.id)} style={{ padding: "6px 12px", borderRadius: 99, background: "rgba(255,255,255,.05)", border: "1px solid var(--color-hairline)", color: "var(--color-text-soft)", fontSize: 11.5, fontWeight: 600 }}>
+                    <a href={api.spravkaDownloadUrl(r.id)} style={{ padding: "6px 12px", borderRadius: 99, background: "var(--surface-05)", border: "1px solid var(--color-hairline)", color: "var(--color-text-soft)", fontSize: 11.5, fontWeight: 600 }}>
                       Скачать
                     </a>
                   </>
@@ -139,7 +139,7 @@ export function SpravkaApprovalTable({
 
 function PreviewStat({ label, value }: { label: string; value: string }) {
   return (
-    <div style={{ padding: "10px 12px", borderRadius: 10, background: "rgba(255,255,255,.03)", border: "1px solid var(--color-hairline-soft)" }}>
+    <div style={{ padding: "10px 12px", borderRadius: 10, background: "var(--surface-03)", border: "1px solid var(--color-hairline-soft)" }}>
       <div style={{ fontSize: 10.5, textTransform: "uppercase", letterSpacing: ".04em", color: "var(--color-text-faint)", marginBottom: 4 }}>{label}</div>
       <div style={{ fontSize: 14, fontWeight: 700, color: "var(--color-text)" }}>{value}</div>
     </div>

@@ -148,11 +148,11 @@ export function CalendarPanel({ onOpenClient }: { onOpenClient?: (clientId: stri
         <div className="glass-panel" style={{ padding: 16, display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
           <input
             value={newTitle} onChange={(e) => setNewTitle(e.target.value)} placeholder="Название события"
-            style={{ flex: "1 1 200px", padding: "9px 12px", borderRadius: 10, background: "rgba(255,255,255,.04)", border: "1px solid var(--color-hairline)", color: "var(--color-text)", fontSize: 13 }}
+            style={{ flex: "1 1 200px", padding: "9px 12px", borderRadius: 10, background: "var(--surface-04)", border: "1px solid var(--color-hairline)", color: "var(--color-text)", fontSize: 13 }}
           />
           <input
             type="datetime-local" value={newAt} onChange={(e) => setNewAt(e.target.value)}
-            style={{ padding: "9px 12px", borderRadius: 10, background: "rgba(255,255,255,.04)", border: "1px solid var(--color-hairline)", color: "var(--color-text)", fontSize: 13 }}
+            style={{ padding: "9px 12px", borderRadius: 10, background: "var(--surface-04)", border: "1px solid var(--color-hairline)", color: "var(--color-text)", fontSize: 13 }}
           />
           <button onClick={addManual} className="press" style={primaryBtnStyle}>Сохранить</button>
           <button onClick={() => setShowAddForm(false)} className="press" style={ghostBtnStyle}>Отмена</button>
@@ -169,11 +169,11 @@ export function CalendarPanel({ onOpenClient }: { onOpenClient?: (clientId: stri
                   <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
                     <input
                       value={editTitle} onChange={(e) => setEditTitle(e.target.value)}
-                      style={{ flex: "1 1 200px", padding: "8px 11px", borderRadius: 9, background: "rgba(255,255,255,.04)", border: "1px solid var(--color-hairline)", color: "var(--color-text)", fontSize: 13 }}
+                      style={{ flex: "1 1 200px", padding: "8px 11px", borderRadius: 9, background: "var(--surface-04)", border: "1px solid var(--color-hairline)", color: "var(--color-text)", fontSize: 13 }}
                     />
                     <input
                       type="datetime-local" value={editAt} onChange={(e) => setEditAt(e.target.value)}
-                      style={{ padding: "8px 11px", borderRadius: 9, background: "rgba(255,255,255,.04)", border: "1px solid var(--color-hairline)", color: "var(--color-text)", fontSize: 13 }}
+                      style={{ padding: "8px 11px", borderRadius: 9, background: "var(--surface-04)", border: "1px solid var(--color-hairline)", color: "var(--color-text)", fontSize: 13 }}
                     />
                   </div>
                 ) : (
@@ -192,7 +192,7 @@ export function CalendarPanel({ onOpenClient }: { onOpenClient?: (clientId: stri
                         </div>
                       )}
                     </div>
-                    <span style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: ".05em", color: "var(--color-text-faint)", background: "rgba(255,255,255,.05)", padding: "3px 9px", borderRadius: 99, flexShrink: 0 }}>AI</span>
+                    <span style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: ".05em", color: "var(--color-text-faint)", background: "var(--surface-05)", padding: "3px 9px", borderRadius: 99, flexShrink: 0 }}>AI</span>
                   </div>
                 )}
                 <div style={{ display: "flex", gap: 7 }}>
@@ -241,7 +241,7 @@ export function CalendarPanel({ onOpenClient }: { onOpenClient?: (clientId: stri
               className="press"
               style={{
                 minHeight: 84, borderRadius: 10, padding: "6px 7px", cursor: "pointer",
-                background: isSelected ? "var(--v-accent-tint)" : "rgba(255,255,255,.02)",
+                background: isSelected ? "var(--v-accent-tint)" : "var(--surface-02)",
                 border: isSelected ? "1px solid var(--v-accent)" : "1px solid var(--color-hairline-soft)",
                 opacity: inMonth ? 1 : 0.4,
                 display: "flex", flexDirection: "column", gap: 3,
@@ -255,7 +255,7 @@ export function CalendarPanel({ onOpenClient }: { onOpenClient?: (clientId: stri
                 {date.getDate()}
               </span>
               {visible.map((ev) => (
-                <div key={ev.id} style={{ fontSize: 10, padding: "1px 5px", borderRadius: 6, background: "rgba(255,255,255,.05)", color: "var(--color-text-soft)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                <div key={ev.id} style={{ fontSize: 10, padding: "1px 5px", borderRadius: 6, background: "var(--surface-05)", color: "var(--color-text-soft)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                   {fmtTime(ev.event_at)} {ev.title}
                 </div>
               ))}

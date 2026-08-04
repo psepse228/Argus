@@ -8,7 +8,7 @@ import { Dropdown } from "./Dropdown";
 import { TelegramBusinessThread } from "./TelegramBusinessThread";
 import { TelegramSummaryCard } from "./TelegramSummaryCard";
 
-const inputStyle: React.CSSProperties = { padding: "9px 12px", borderRadius: 10, background: "rgba(255,255,255,.04)", border: "1px solid var(--color-hairline-soft)", color: "var(--color-text)", fontSize: 12.5 };
+const inputStyle: React.CSSProperties = { padding: "9px 12px", borderRadius: 10, background: "var(--surface-04)", border: "1px solid var(--color-hairline-soft)", color: "var(--color-text)", fontSize: 12.5 };
 
 /** Rolls the client's leads + справки into one "where things stand" badge --
  * an approved deal or a pending справка takes priority over whatever stage
@@ -222,7 +222,7 @@ export function ClientWorkspace({
                     style={{
                       fontSize: 10.5, fontWeight: 700, padding: "4px 9px", borderRadius: 99, cursor: "pointer",
                       color: active ? c.fg : "var(--color-text-faint)",
-                      background: active ? c.bg : "rgba(255,255,255,.04)",
+                      background: active ? c.bg : "var(--surface-04)",
                       border: active ? `1px solid color-mix(in srgb, ${c.fg} 45%, transparent)` : "1px solid transparent",
                       opacity: savingFollowup ? 0.6 : 1,
                     }}
@@ -240,14 +240,14 @@ export function ClientWorkspace({
               type="date"
               defaultValue={selected.next_followup_at || ""}
               onBlur={(e) => saveFollowup({ next_followup_at: e.target.value || null })}
-              style={{ width: "100%", background: "rgba(255,255,255,.04)", border: "1px solid var(--color-hairline)", borderRadius: 8, color: "var(--color-text)", fontSize: 12, padding: "6px 8px", marginBottom: 6 }}
+              style={{ width: "100%", background: "var(--surface-04)", border: "1px solid var(--color-hairline)", borderRadius: 8, color: "var(--color-text)", fontSize: 12, padding: "6px 8px", marginBottom: 6 }}
             />
             <textarea
               placeholder="Заметка после звонка…"
               defaultValue={selected.next_followup_note || ""}
               onBlur={(e) => saveFollowup({ next_followup_note: e.target.value || null })}
               rows={2}
-              style={{ width: "100%", resize: "vertical", background: "rgba(255,255,255,.04)", border: "1px solid var(--color-hairline)", borderRadius: 8, color: "var(--color-text)", fontSize: 12, padding: "6px 8px", fontFamily: "inherit" }}
+              style={{ width: "100%", resize: "vertical", background: "var(--surface-04)", border: "1px solid var(--color-hairline)", borderRadius: 8, color: "var(--color-text)", fontSize: 12, padding: "6px 8px", fontFamily: "inherit" }}
             />
           </div>
         </div>
@@ -379,7 +379,7 @@ export function ClientWorkspace({
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               {selected.spravka_requests.map((s) => (
-                <div key={s.id} style={{ padding: "10px 12px", borderRadius: 10, background: "rgba(255,255,255,.03)", border: "1px solid var(--color-hairline-soft)" }}>
+                <div key={s.id} style={{ padding: "10px 12px", borderRadius: 10, background: "var(--surface-03)", border: "1px solid var(--color-hairline-soft)" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
                     <div>
                       <div style={{ fontSize: 12.5, fontWeight: 600, color: "var(--color-text)" }}>

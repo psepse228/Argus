@@ -2,7 +2,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { api, CurrentUser } from "@/lib/api";
-import { SpravkaRequest, Payment } from "@/lib/types";
+import { SpravkaRequest } from "@/lib/types";
 import { SpravkaApprovalTable } from "./SpravkaApprovalTable";
 import { TodayQueue } from "./TodayQueue";
 import { WorkshopPanel } from "./WorkshopPanel";
@@ -16,7 +16,6 @@ type Digest = {
   leadsCount: number;
   buildingStats: { name: string; forSale: number; price: number }[];
   totalUnits: number;
-  duePaymentsCount: number;
 };
 
 type View = "overview" | "workshop";
@@ -85,8 +84,8 @@ export function AssistantPanel({
   // badge and the SpaceIndicator's badge both stay stale until a reload.
   async function refreshDigest() {
     try {
-      const [requests, leads, buildings, units, payments]: [SpravkaRequest[], any[], any[], any[], Payment[]] = await Promise.all([
-        api.spravkaRequests(), api.leads(), api.buildings(), api.units(), api.payments().catch(() => []),
+      const [requests, leads, buildings, units]: [SpravkaRequest[], any[], any[], any[]] = await Promise.all([
+        api.spravkaRequests(), api.leads(), api.buildings(), api.units(),
       ]);
       const pending = requests.filter((r) => r.status === "pending");
       const recent = [...requests]
@@ -97,17 +96,16 @@ export function AssistantPanel({
         const price = inBuilding.length ? Math.min(...inBuilding.map((u: any) => u.price_per_m2_usd)) : 0;
         return { name: b.name, forSale: inBuilding.length, price };
       });
-      const duePaymentsCount = payments.filter((p) => p.status === "overdue" || p.due_soon).length;
       onPendingChange?.(pending.length);
       if (isBoss) {
         const summary = await api.analyticsSummary();
         setDigest({
-          pending: pending.length, pendingItems: pending, recent, leadsCount: leads.length, buildingStats, totalUnits: units.length, duePaymentsCount,
+          pending: pending.length, pendingItems: pending, recent, leadsCount: leads.length, buildingStats, totalUnits: units.length,
           approvedTotal: summary.spravka_requests_approved,
           avgDiscount: summary.average_approved_discount_pct,
         });
       } else {
-        setDigest({ pending: pending.length, pendingItems: pending, recent, leadsCount: leads.length, buildingStats, totalUnits: units.length, duePaymentsCount });
+        setDigest({ pending: pending.length, pendingItems: pending, recent, leadsCount: leads.length, buildingStats, totalUnits: units.length });
       }
     } catch {
       /* best-effort — inbox still works without the digest */
@@ -155,14 +153,14 @@ export function AssistantPanel({
           onClick={() => setBellOpen((v) => !v)}
           style={{
             width: 32, height: 32, borderRadius: "50%", flexShrink: 0, position: "relative", cursor: "pointer",
-            background: "rgba(255,255,255,.05)", border: "1px solid var(--color-hairline)",
+            background: "var(--surface-05)", border: "1px solid var(--color-hairline)",
             display: "flex", alignItems: "center", justifyContent: "center", color: "var(--color-text-soft)",
           }}
         >
           <svg viewBox="0 0 24 24" width={15} height={15} fill="none" stroke="currentColor" strokeWidth={1.9}>
             <path d="M6 8a6 6 0 0 1 12 0c0 5 2 6 2 6H4s2-1 2-6Z" /><path d="M10 21a2 2 0 0 0 4 0" />
           </svg>
-          {digest && (digest.pending > 0 || digest.duePaymentsCount > 0) && (
+          {digest && digest.pending > 0 && (
             <span style={{ position: "absolute", top: 5, right: 6, width: 6, height: 6, borderRadius: "50%", background: "var(--v-accent)", boxShadow: "0 0 0 2px var(--v-bg, #140a2c)" }} />
           )}
         </div>
@@ -189,14 +187,6 @@ export function AssistantPanel({
                   </div>
                 ))}
               </div>
-            )}
-            {digest && digest.duePaymentsCount > 0 && (
-              <>
-                <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: ".05em", color: "var(--warning)", margin: "14px 0 8px" }}>
-                  Платежи скоро/просрочены
-                </div>
-                <div style={{ fontSize: 12.5, color: "var(--color-text-soft)" }}>{digest.duePaymentsCount} — см. Платежи</div>
-              </>
             )}
           </div>,
           document.body
@@ -390,7 +380,7 @@ function QuickAction({
         className="press"
         style={{
           width: 52, height: 52, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", position: "relative",
-          background: isFilled ? "var(--v-accent)" : active ? "var(--v-accent-tint)" : "rgba(255,255,255,.05)",
+          background: isFilled ? "var(--v-accent)" : active ? "var(--v-accent-tint)" : "var(--surface-05)",
           border: isFilled ? "none" : `1px solid ${active ? "var(--v-accent)" : "var(--color-hairline)"}`,
           color: isFilled ? "var(--v-text-on-accent)" : active ? "var(--v-accent)" : "var(--color-text-soft)",
           boxShadow: isFilled ? "0 14px 26px -10px color-mix(in srgb, var(--v-accent) 55%, transparent)" : "none",

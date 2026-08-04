@@ -40,7 +40,7 @@ export function ExcelPreviewModal({ requestId, onClose }: { requestId: string; o
           </div>
           <button
             onClick={onClose}
-            style={{ background: "rgba(255,255,255,.06)", border: "1px solid var(--color-hairline)", color: "var(--color-text-soft)", borderRadius: 99, padding: "6px 14px", fontSize: 12, cursor: "pointer" }}
+            style={{ background: "var(--surface-06)", border: "1px solid var(--color-hairline)", color: "var(--color-text-soft)", borderRadius: 99, padding: "6px 14px", fontSize: 12, cursor: "pointer" }}
           >
             Закрыть
           </button>

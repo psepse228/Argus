@@ -83,7 +83,7 @@ export function TelegramBusinessThread({
           <div key={m.id} style={{ display: "flex", flexDirection: m.direction === "inbound" ? "row" : "row-reverse" }}>
             <div style={{
               maxWidth: "76%", padding: "10px 13px", fontSize: 13, lineHeight: 1.5, whiteSpace: "pre-wrap",
-              background: m.direction === "inbound" ? "rgba(255,255,255,.05)" : "var(--v-accent)",
+              background: m.direction === "inbound" ? "var(--surface-05)" : "var(--v-accent)",
               color: m.direction === "inbound" ? "var(--color-text)" : "var(--v-text-on-accent)",
               border: m.direction === "inbound" ? "1px solid var(--color-hairline-soft)" : "none",
               borderRadius: m.direction === "inbound" ? "4px 15px 15px 15px" : "15px 15px 4px 15px",
@@ -105,7 +105,7 @@ export function TelegramBusinessThread({
           rows={3}
           disabled={sending}
           aria-label="Ответ клиенту"
-          style={{ width: "100%", resize: "vertical", background: "rgba(255,255,255,.04)", border: "1px solid var(--color-hairline)", borderRadius: 10, color: "var(--color-text)", fontSize: 13, padding: "9px 12px", fontFamily: "inherit" }}
+          style={{ width: "100%", resize: "vertical", background: "var(--surface-04)", border: "1px solid var(--color-hairline)", borderRadius: 10, color: "var(--color-text)", fontSize: 13, padding: "9px 12px", fontFamily: "inherit" }}
         />
         <div style={{ display: "flex", gap: 8 }}>
           <button

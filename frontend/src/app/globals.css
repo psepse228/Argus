@@ -16,11 +16,11 @@
      replacement -- staff keep whichever dark theme they work in day-to-day.
    Only the --v-* block + a couple of semantic tints differ per theme; the
    rest of the app reads these variables and never hardcodes a color --
-   EXCEPT ~60 places across ~20 components that hardcode
+   the ~60 places across ~20 components that used to hardcode
    `rgba(255,255,255,.0N)` as a dark-background-only "raised surface" tint
-   (found via grep 2026-08-02, not fixed yet). Those will look wrong/near-
-   invisible under any *-light theme until refactored to a variable --
-   flagged as a follow-up, not silently left broken. */
+   (found via grep 2026-08-02) were migrated to the --surface-0N scale below
+   on 2026-08-04, so light themes now get a dark-on-white tint instead of an
+   invisible white-on-white one. */
 :root {
   --v-bg: #140a2c;
   --v-bg-soft: #1c1044;
@@ -50,6 +50,17 @@
   --warning-tint: rgba(212, 167, 44, 0.16);
   --danger: #f19a9a;
   --danger-tint: rgba(248, 113, 113, 0.15);
+
+  /* "Raised surface" fills (card backgrounds, chips, inputs, hover states)
+     at varying strength -- white-on-dark here, redefined dark-on-white
+     under the *-light block below so they stay visible on both grounds. */
+  --surface-02: rgba(255, 255, 255, 0.02);
+  --surface-03: rgba(255, 255, 255, 0.03);
+  --surface-04: rgba(255, 255, 255, 0.04);
+  --surface-05: rgba(255, 255, 255, 0.05);
+  --surface-06: rgba(255, 255, 255, 0.06);
+  --surface-08: rgba(255, 255, 255, 0.08);
+  --surface-11: rgba(255, 255, 255, 0.11);
 }
 
 :root[data-theme="crimson"] {
@@ -98,6 +109,17 @@
   --success: #15803d; --success-tint: rgba(21, 128, 61, 0.12);
   --warning: #a15c07; --warning-tint: rgba(161, 92, 7, 0.13);
   --danger: #dc2626; --danger-tint: rgba(220, 38, 38, 0.11);
+
+  /* Dark-on-white, ~1.4x the dark values (matches the hairline conversion
+     ratio above) -- a plain inverted opacity reads as near-invisible ink
+     on white at these low strengths. */
+  --surface-02: rgba(15, 20, 25, 0.03);
+  --surface-03: rgba(15, 20, 25, 0.04);
+  --surface-04: rgba(15, 20, 25, 0.06);
+  --surface-05: rgba(15, 20, 25, 0.07);
+  --surface-06: rgba(15, 20, 25, 0.08);
+  --surface-08: rgba(15, 20, 25, 0.11);
+  --surface-11: rgba(15, 20, 25, 0.15);
 }
 
 :root[data-theme="crimson-light"] {
@@ -172,7 +194,7 @@ input::placeholder, textarea::placeholder { color: var(--color-text-faint); }
 .stagger-item { animation: argIn .32s cubic-bezier(.2,.7,.3,1) both; animation-delay: calc(var(--i, 0) * 35ms); }
 
 .skeleton {
-  background: linear-gradient(90deg, rgba(255,255,255,.05) 25%, rgba(255,255,255,.11) 37%, rgba(255,255,255,.05) 63%);
+  background: linear-gradient(90deg, var(--surface-05) 25%, var(--surface-11) 37%, var(--surface-05) 63%);
   background-size: 400% 100%;
   animation: argShimmer 1.6s ease-in-out infinite;
 }
@@ -187,7 +209,7 @@ input::placeholder, textarea::placeholder { color: var(--color-text-faint); }
 .press { transition: transform .12s cubic-bezier(.2,.7,.3,1), box-shadow .15s ease, background .15s ease, color .15s ease, opacity .15s ease; }
 .press:active { transform: scale(.94); }
 
-.search-row:hover { background: rgba(255,255,255,.05); }
+.search-row:hover { background: var(--surface-05); }
 
 .rail-btn { transition: transform .18s cubic-bezier(.34,1.56,.64,1), background .15s ease, color .15s ease, box-shadow .2s ease; }
 .rail-btn:hover { transform: translateY(-1px); }

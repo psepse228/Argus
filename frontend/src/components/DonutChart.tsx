@@ -18,7 +18,7 @@ export function DonutChart({
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 22 }}>
       <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ flexShrink: 0, transform: "rotate(-90deg)" }}>
-        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="rgba(255,255,255,.05)" strokeWidth={thickness} />
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--surface-05)" strokeWidth={thickness} />
         {total > 0 && data.filter((d) => d.value > 0).map((d) => {
           const frac = d.value / total;
           const dash = frac * c;

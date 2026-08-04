@@ -137,7 +137,7 @@ export function UnitsPanel({
             <h1 style={{ fontFamily: "var(--font-heading)", fontSize: 23, fontWeight: 700, margin: "0 0 6px", color: "var(--color-text)" }}>Юниты</h1>
             <p style={{ color: "var(--color-text-soft)", fontSize: 13, margin: 0 }}>{filtered.length} из {units.length} юнитов</p>
           </div>
-          <div style={{ display: "flex", gap: 4, background: "rgba(255,255,255,.04)", borderRadius: 10, padding: 3, flexShrink: 0 }}>
+          <div style={{ display: "flex", gap: 4, background: "var(--surface-04)", borderRadius: 10, padding: 3, flexShrink: 0 }}>
             {(["grid", "list"] as const).map((v) => (
               <div
                 key={v}
@@ -172,7 +172,7 @@ export function UnitsPanel({
               className="press"
               style={{
                 padding: "7px 14px", borderRadius: 99, fontSize: 12.5, fontWeight: 600, cursor: "pointer",
-                background: filter === name ? "var(--v-accent)" : "rgba(255,255,255,.04)",
+                background: filter === name ? "var(--v-accent)" : "var(--surface-04)",
                 color: filter === name ? "var(--v-text-on-accent)" : "var(--color-text-soft)",
                 border: filter === name ? "none" : "1px solid var(--color-hairline-soft)",
               }}
@@ -368,7 +368,7 @@ export function UnitsPanel({
                     key={l.id}
                     onClick={() => l.client_id && onOpenClient?.(l.client_id)}
                     className={l.client_id ? "press" : undefined}
-                    style={{ padding: "8px 10px", borderRadius: 9, background: "rgba(255,255,255,.03)", cursor: l.client_id ? "pointer" : "default" }}
+                    style={{ padding: "8px 10px", borderRadius: 9, background: "var(--surface-03)", cursor: l.client_id ? "pointer" : "default" }}
                   >
                     <div style={{ fontSize: 12, fontWeight: 700, color: "var(--color-text)" }}>{l.phone}</div>
                     <div style={{ fontSize: 10.5, color: "var(--color-text-faint)" }}>Лид (это здание) · {STATUS_LABELS[l.stage] || l.stage}</div>
@@ -395,7 +395,7 @@ function roomBadge(roomType: string | null): string {
 }
 
 function UnitCell({ u, isSelected, onSelect }: { u: Unit; isSelected: boolean; onSelect: (u: Unit, rect?: DOMRect) => void }) {
-  const c = STATUS_COLORS[u.status] || { bg: "rgba(255,255,255,.06)", fg: "var(--color-text-soft)" };
+  const c = STATUS_COLORS[u.status] || { bg: "var(--surface-06)", fg: "var(--color-text-soft)" };
   const price = Math.round(u.area_m2 * u.price_per_m2_usd);
   return (
     <div

@@ -1,23 +1,24 @@
 "use client";
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
-import { Client, Lead, Payment, SpravkaRequest } from "@/lib/types";
+import { Client, Lead, SpravkaRequest } from "@/lib/types";
 
 type QueueItem = { label: string; detail: string; color: string; sortKey: number };
 
-/** Pulls the four separate "something needs attention" signals already
- * scattered across the app (stale leads, due/overdue payments, pending
- * справки, overdue follow-ups) into one ranked list -- the same
- * consolidation instinct as the Клиенты workspace, applied to "what should
- * I work on today" instead of "everything about one client". */
+/** Pulls the "something needs attention" signals already scattered across
+ * the app (stale leads, pending справки, overdue follow-ups) into one ranked
+ * list -- the same consolidation instinct as the Клиенты workspace, applied
+ * to "what should I work on today" instead of "everything about one
+ * client". Payment due/overdue reminders were dropped when the Платежи
+ * section was cut -- there's no screen left to act on them from. */
 export function TodayQueue({ isBoss }: { isBoss: boolean }) {
   const [items, setItems] = useState<QueueItem[] | null>(null);
 
   useEffect(() => {
     (async () => {
       try {
-        const [leads, payments, spravki, clients]: [Lead[], Payment[], SpravkaRequest[], Client[]] = await Promise.all([
-          api.leads(), api.payments(), api.spravkaRequests(), api.clients(),
+        const [leads, spravki, clients]: [Lead[], SpravkaRequest[], Client[]] = await Promise.all([
+          api.leads(), api.spravkaRequests(), api.clients(),
         ]);
         const today = new Date().toISOString().slice(0, 10);
         const out: QueueItem[] = [];
@@ -31,17 +32,6 @@ export function TodayQueue({ isBoss }: { isBoss: boolean }) {
             detail: c.next_followup_note || (overdue ? "Просроченный контакт" : "Запланировано на сегодня"),
             color: overdue ? "var(--danger)" : "var(--warning)",
             sortKey: overdue ? 0 : 1,
-          });
-        }
-
-        for (const p of payments) {
-          if (p.status === "paid") continue;
-          if (p.status !== "overdue" && !p.due_soon) continue;
-          out.push({
-            label: `Платёж: ${p.spravka_requests?.client_name || "—"}`,
-            detail: `${p.label} · $${p.amount_usd.toLocaleString("en-US")}`,
-            color: p.status === "overdue" ? "var(--danger)" : "var(--warning)",
-            sortKey: p.status === "overdue" ? 0 : 2,
           });
         }
 
@@ -88,7 +78,7 @@ export function TodayQueue({ isBoss }: { isBoss: boolean }) {
         )}
       </div>
       <p style={{ fontSize: 11, color: "var(--color-text-faint)", margin: "0 0 12px" }}>
-        Просроченные контакты, платежи и справки в одном списке — вместо трёх разных значков.
+        Просроченные контакты, справки и простаивающие лиды в одном списке — вместо трёх разных значков.
       </p>
       {items.length === 0 ? (
         <div style={{ fontSize: 12.5, color: "var(--color-text-faint)" }}>Пусто — ничего срочного нет.</div>

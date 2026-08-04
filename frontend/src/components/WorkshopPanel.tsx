@@ -187,7 +187,7 @@ export function WorkshopPanel({
         <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
           <button
             onClick={() => setSelectedId(null)}
-            style={{ fontSize: 12, fontWeight: 700, color: "var(--color-text-soft)", background: "rgba(255,255,255,.04)", border: "1px solid var(--color-hairline)", borderRadius: 99, padding: "7px 13px", cursor: "pointer" }}
+            style={{ fontSize: 12, fontWeight: 700, color: "var(--color-text-soft)", background: "var(--surface-04)", border: "1px solid var(--color-hairline)", borderRadius: 99, padding: "7px 13px", cursor: "pointer" }}
           >
             ← Мастерская
           </button>
@@ -216,7 +216,7 @@ export function WorkshopPanel({
           <button
             onClick={() => setShowAllRequests(true)}
             className="press"
-            style={{ fontSize: 12, fontWeight: 700, color: "var(--color-text-soft)", background: "rgba(255,255,255,.04)", border: "1px solid var(--color-hairline)", borderRadius: 99, padding: "8px 15px", cursor: "pointer", flexShrink: 0, whiteSpace: "nowrap" }}
+            style={{ fontSize: 12, fontWeight: 700, color: "var(--color-text-soft)", background: "var(--surface-04)", border: "1px solid var(--color-hairline)", borderRadius: 99, padding: "8px 15px", cursor: "pointer", flexShrink: 0, whiteSpace: "nowrap" }}
           >
             Все справки →
           </button>
@@ -228,7 +228,7 @@ export function WorkshopPanel({
           value={query}
           onChange={(e) => { setQuery(e.target.value); if (!allClients) api.clients().then(setAllClients).catch(() => {}); }}
           placeholder="Добавить клиента в работу — имя или телефон…"
-          style={{ width: "100%", padding: "11px 14px", borderRadius: 12, background: "rgba(255,255,255,.04)", border: "1px solid var(--color-hairline)", color: "var(--color-text)", fontSize: 13 }}
+          style={{ width: "100%", padding: "11px 14px", borderRadius: 12, background: "var(--surface-04)", border: "1px solid var(--color-hairline)", color: "var(--color-text)", fontSize: 13 }}
         />
         {searchResults.length > 0 && (
           <div className="glass-panel" style={{ position: "absolute", top: "100%", left: 0, right: 0, marginTop: 6, zIndex: 10, padding: 6 }}>
@@ -352,7 +352,7 @@ export function WorkshopPanel({
                     value={linkQuery}
                     onChange={(e) => setLinkQuery(e.target.value)}
                     placeholder="Имя или телефон существующего клиента…"
-                    style={{ width: "100%", padding: "9px 12px", borderRadius: 9, background: "rgba(255,255,255,.04)", border: "1px solid var(--color-hairline)", color: "var(--color-text)", fontSize: 13, marginBottom: 10 }}
+                    style={{ width: "100%", padding: "9px 12px", borderRadius: 9, background: "var(--surface-04)", border: "1px solid var(--color-hairline)", color: "var(--color-text)", fontSize: 13, marginBottom: 10 }}
                   />
                   {linkQuery.trim() && (allClients || [])
                     .filter((cl) => (cl.name || "").toLowerCase().includes(linkQuery.trim().toLowerCase()) || cl.phone.includes(linkQuery.trim()))
@@ -396,13 +396,13 @@ export function WorkshopPanel({
                     value={newClientName}
                     onChange={(e) => setNewClientName(e.target.value)}
                     placeholder="Имя клиента"
-                    style={{ width: "100%", padding: "9px 12px", borderRadius: 9, background: "rgba(255,255,255,.04)", border: "1px solid var(--color-hairline)", color: "var(--color-text)", fontSize: 13, marginBottom: 8 }}
+                    style={{ width: "100%", padding: "9px 12px", borderRadius: 9, background: "var(--surface-04)", border: "1px solid var(--color-hairline)", color: "var(--color-text)", fontSize: 13, marginBottom: 8 }}
                   />
                   <input
                     value={newClientPhone}
                     onChange={(e) => setNewClientPhone(e.target.value)}
                     placeholder="Телефон (обязательно)"
-                    style={{ width: "100%", padding: "9px 12px", borderRadius: 9, background: "rgba(255,255,255,.04)", border: "1px solid var(--color-hairline)", color: "var(--color-text)", fontSize: 13, marginBottom: 10 }}
+                    style={{ width: "100%", padding: "9px 12px", borderRadius: 9, background: "var(--surface-04)", border: "1px solid var(--color-hairline)", color: "var(--color-text)", fontSize: 13, marginBottom: 10 }}
                   />
                   <div style={{ display: "flex", gap: 8 }}>
                     <button
@@ -419,7 +419,7 @@ export function WorkshopPanel({
                     </button>
                     <button
                       onClick={() => { setCreatingNew(false); setLinkError(""); }}
-                      style={{ padding: "9px 13px", borderRadius: 8, fontSize: 13, fontWeight: 600, color: "var(--color-text-soft)", background: "rgba(255,255,255,.04)", border: "1px solid var(--color-hairline)", cursor: "pointer" }}
+                      style={{ padding: "9px 13px", borderRadius: 8, fontSize: 13, fontWeight: 600, color: "var(--color-text-soft)", background: "var(--surface-04)", border: "1px solid var(--color-hairline)", cursor: "pointer" }}
                     >
                       Назад
                     </button>
@@ -471,7 +471,7 @@ function AllSpravkaTable({
   return (
     <div style={{ flex: 1, minHeight: 0, overflowY: "auto", display: "flex", flexDirection: "column", gap: 16 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-        <button onClick={onBack} style={{ fontSize: 12, fontWeight: 700, color: "var(--color-text-soft)", background: "rgba(255,255,255,.04)", border: "1px solid var(--color-hairline)", borderRadius: 99, padding: "7px 13px", cursor: "pointer" }}>
+        <button onClick={onBack} style={{ fontSize: 12, fontWeight: 700, color: "var(--color-text-soft)", background: "var(--surface-04)", border: "1px solid var(--color-hairline)", borderRadius: 99, padding: "7px 13px", cursor: "pointer" }}>
           ← Мастерская
         </button>
         <h1 style={{ fontFamily: "var(--font-heading)", fontSize: 19, fontWeight: 700, margin: 0, color: "var(--color-text)" }}>Все справки</h1>

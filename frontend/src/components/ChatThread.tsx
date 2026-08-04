@@ -139,7 +139,7 @@ export function ChatThread({
               <div style={{ maxWidth: "76%", display: "flex", flexDirection: "column", gap: 10 }}>
                 <div
                   style={{
-                    background: m.role === "bot" ? "rgba(255,255,255,.05)" : "var(--v-accent)",
+                    background: m.role === "bot" ? "var(--surface-05)" : "var(--v-accent)",
                     color: m.role === "bot" ? "var(--color-text)" : "var(--v-text-on-accent)",
                     border: m.role === "bot" ? "1px solid var(--color-hairline-soft)" : "none",
                     borderRadius: m.role === "bot" ? "4px 15px 15px 15px" : "15px 15px 4px 15px",
@@ -159,7 +159,7 @@ export function ChatThread({
                         style={{
                           fontSize: 10.5, fontWeight: 600, display: "inline-flex", alignItems: "center", gap: 4,
                           color: e.ok ? "var(--color-text-faint)" : "var(--danger)",
-                          background: "rgba(255,255,255,.04)", border: "1px solid var(--color-hairline-soft)",
+                          background: "var(--surface-04)", border: "1px solid var(--color-hairline-soft)",
                           borderRadius: 99, padding: "3px 9px",
                         }}
                       >
@@ -192,7 +192,7 @@ export function ChatThread({
                   <path d="M2 12s3.5-6.5 10-6.5S22 12 22 12s-3.5 6.5-10 6.5S2 12 2 12Z" />
                 </svg>
               </span>
-              <div style={{ display: "flex", gap: 4, padding: "12px 15px", background: "rgba(255,255,255,.05)", border: "1px solid var(--color-hairline-soft)", borderRadius: "4px 15px 15px 15px" }}>
+              <div style={{ display: "flex", gap: 4, padding: "12px 15px", background: "var(--surface-05)", border: "1px solid var(--color-hairline-soft)", borderRadius: "4px 15px 15px 15px" }}>
                 {[0, 0.2, 0.4].map((d) => (
                   <span key={d} style={{ width: 6, height: 6, borderRadius: 99, background: "var(--color-text-soft)", animation: `argDot 1.2s infinite ${d}s` }} />
                 ))}
@@ -204,7 +204,7 @@ export function ChatThread({
 
       <div style={{ paddingTop: 12 }}>
         <div style={{
-          display: "flex", gap: 10, alignItems: "center", background: "rgba(255,255,255,.04)", borderRadius: 15,
+          display: "flex", gap: 10, alignItems: "center", background: "var(--surface-04)", borderRadius: 15,
           padding: "6px 6px 6px 16px", border: `1px solid ${spravkaMode ? "var(--v-accent)" : "var(--color-hairline)"}`,
         }}>
           <input
@@ -258,7 +258,7 @@ function SpravkaCard({ event, onPreview }: { event: SpravkaCreatedEvent; onPrevi
         </button>
         <a
           href={api.spravkaDownloadUrl(event.request_id)}
-          style={{ flex: 1, textAlign: "center", padding: "8px 0", borderRadius: 99, background: "rgba(255,255,255,.05)", border: "1px solid var(--color-hairline)", color: "var(--color-text-soft)", fontSize: 11.5, fontWeight: 700 }}
+          style={{ flex: 1, textAlign: "center", padding: "8px 0", borderRadius: 99, background: "var(--surface-05)", border: "1px solid var(--color-hairline)", color: "var(--color-text-soft)", fontSize: 11.5, fontWeight: 700 }}
         >
           Скачать
         </a>

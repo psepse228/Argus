@@ -210,7 +210,7 @@ export function ClientsPanel({
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Поиск по имени или телефону…"
-              style={{ flex: "1 1 240px", maxWidth: 320, padding: "10px 14px", borderRadius: 12, background: "rgba(255,255,255,.04)", border: "1px solid var(--color-hairline)", color: "var(--color-text)", fontSize: 13 }}
+              style={{ flex: "1 1 240px", maxWidth: 320, padding: "10px 14px", borderRadius: 12, background: "var(--surface-04)", border: "1px solid var(--color-hairline)", color: "var(--color-text)", fontSize: 13 }}
             />
             <Dropdown
               value={buildingFilter} onChange={setBuildingFilter} placeholder="Все здания" style={{ width: 160 }}
@@ -306,7 +306,7 @@ export function ClientsPanel({
                   onClick={() => setSelectedId(c.id)}
                   className="press"
                   style={{
-                    fontSize: 12, color: "var(--color-text-faint)", background: "rgba(255,255,255,.03)",
+                    fontSize: 12, color: "var(--color-text-faint)", background: "var(--surface-03)",
                     border: "1px solid var(--color-hairline-soft)", borderRadius: 99, padding: "6px 13px", cursor: "pointer",
                   }}
                 >
@@ -361,7 +361,7 @@ function ClientCard({ client: c, index, onOpen }: { client: Client; index: numbe
             fontWeight: 800, fontSize: 14, color: "#fff",
             background: active
               ? "linear-gradient(150deg, var(--v-violet-strong, #7a5cff), var(--v-violet, #5b3fc4))"
-              : "rgba(255,255,255,.08)",
+              : "var(--surface-08)",
           }}>
             {initial}
           </div>
@@ -400,12 +400,12 @@ function ClientCard({ client: c, index, onOpen }: { client: Client; index: numbe
       </div>
 
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-        <span style={{ fontSize: 10.5, fontWeight: 700, color: "var(--color-text-soft)", background: "rgba(255,255,255,.05)", padding: "3px 9px", borderRadius: 99 }}>{c.leads_count} лидов</span>
+        <span style={{ fontSize: 10.5, fontWeight: 700, color: "var(--color-text-soft)", background: "var(--surface-05)", padding: "3px 9px", borderRadius: 99 }}>{c.leads_count} лидов</span>
         {c.spravka_count > 0 && (
           <span style={{ fontSize: 10.5, fontWeight: 700, color: "var(--v-accent)", background: "var(--v-accent-tint)", padding: "3px 9px", borderRadius: 99 }}>{c.spravka_count} справок</span>
         )}
         {c.assigned_manager && (
-          <span style={{ fontSize: 10.5, fontWeight: 600, color: "var(--color-text-faint)", background: "rgba(255,255,255,.05)", padding: "3px 9px", borderRadius: 99 }}>{c.assigned_manager}</span>
+          <span style={{ fontSize: 10.5, fontWeight: 600, color: "var(--color-text-faint)", background: "var(--surface-05)", padding: "3px 9px", borderRadius: 99 }}>{c.assigned_manager}</span>
         )}
       </div>
     </div>

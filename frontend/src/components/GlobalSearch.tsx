@@ -83,7 +83,7 @@ export function GlobalSearch({
             placeholder="Юнит, лид по телефону, клиент по имени…"
             style={{ flex: 1, background: "transparent", border: "none", outline: "none", color: "var(--color-text)", fontSize: 14.5 }}
           />
-          <span style={{ fontSize: 10.5, fontWeight: 700, color: "var(--color-text-faint)", background: "rgba(255,255,255,.05)", borderRadius: 6, padding: "2px 6px", flexShrink: 0 }}>ESC</span>
+          <span style={{ fontSize: 10.5, fontWeight: 700, color: "var(--color-text-faint)", background: "var(--surface-05)", borderRadius: 6, padding: "2px 6px", flexShrink: 0 }}>ESC</span>
         </div>
         <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "8px" }}>
           {!q && <div style={{ padding: "22px 12px", fontSize: 12.5, color: "var(--color-text-faint)", textAlign: "center" }}>Начните вводить, чтобы искать по юнитам, лидам и клиентам</div>}

@@ -159,7 +159,7 @@ export function LeadsPanel({ onOpenClient }: { onOpenClient: (clientId: string) 
                           className="press"
                           style={{
                             width: 16, height: 16, borderRadius: "50%", cursor: "pointer",
-                            background: active ? c.fg : "rgba(255,255,255,.06)",
+                            background: active ? c.fg : "var(--surface-06)",
                             border: active ? "none" : "1px solid var(--color-hairline)",
                           }}
                         />

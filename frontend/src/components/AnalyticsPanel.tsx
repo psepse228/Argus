@@ -175,7 +175,7 @@ export function AnalyticsPanel() {
           ) : (
             <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
               {exchangeRates.map((r) => (
-                <label key={r.building_id} style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 12.5, background: "rgba(255,255,255,.04)", border: "1px solid var(--color-hairline)", borderRadius: 10, padding: "7px 11px" }}>
+                <label key={r.building_id} style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 12.5, background: "var(--surface-04)", border: "1px solid var(--color-hairline)", borderRadius: 10, padding: "7px 11px" }}>
                   <span style={{ color: "var(--color-text-soft)", fontWeight: 600 }}>{r.buildings?.name}</span>
                   <input
                     type="number" step={10} min={0} defaultValue={r.exchange_rate_sum}
@@ -183,7 +183,7 @@ export function AnalyticsPanel() {
                       const v = parseFloat(e.target.value);
                       if (!isNaN(v) && v !== r.exchange_rate_sum) saveExchangeRate(r.building_id, v);
                     }}
-                    style={{ width: 76, background: "rgba(255,255,255,.04)", border: "1px solid var(--color-hairline)", borderRadius: 7, color: "var(--color-text)", fontSize: 12.5, padding: "3px 6px", textAlign: "right", opacity: savingRateFor === r.building_id ? 0.5 : 1 }}
+                    style={{ width: 76, background: "var(--surface-04)", border: "1px solid var(--color-hairline)", borderRadius: 7, color: "var(--color-text)", fontSize: 12.5, padding: "3px 6px", textAlign: "right", opacity: savingRateFor === r.building_id ? 0.5 : 1 }}
                   />
                 </label>
               ))}
@@ -211,7 +211,7 @@ export function AnalyticsPanel() {
                         const v = parseFloat(e.target.value);
                         if (!isNaN(v) && v !== c.commission_pct) saveRate(c.id, v);
                       }}
-                      style={{ width: 46, background: "rgba(255,255,255,.04)", border: "1px solid var(--color-hairline)", borderRadius: 8, color: "var(--color-text)", fontSize: 12.5, padding: "4px 6px", textAlign: "right" }}
+                      style={{ width: 46, background: "var(--surface-04)", border: "1px solid var(--color-hairline)", borderRadius: 8, color: "var(--color-text)", fontSize: 12.5, padding: "4px 6px", textAlign: "right" }}
                     />
                     %
                   </label>

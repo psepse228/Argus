@@ -82,7 +82,7 @@ export function Dropdown({
         onClick={() => !disabled && setOpen((v) => !v)}
         style={{
           width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8,
-          padding: "10px 13px", borderRadius: 11, background: "rgba(255,255,255,.04)",
+          padding: "10px 13px", borderRadius: 11, background: "var(--surface-04)",
           border: `1px solid ${open ? "var(--v-accent)" : "var(--color-hairline-soft)"}`,
           color: selected ? "var(--color-text)" : "var(--color-text-faint)",
           fontSize: 13, fontFamily: "var(--font-body)", cursor: disabled ? "not-allowed" : "pointer",
@@ -120,7 +120,7 @@ export function Dropdown({
                 color: o.value === value ? "var(--v-accent)" : "var(--color-text)",
                 fontWeight: o.value === value ? 600 : 400,
               }}
-              onMouseEnter={(e) => { if (o.value !== value) e.currentTarget.style.background = "rgba(255,255,255,.05)"; }}
+              onMouseEnter={(e) => { if (o.value !== value) e.currentTarget.style.background = "var(--surface-05)"; }}
               onMouseLeave={(e) => { if (o.value !== value) e.currentTarget.style.background = "transparent"; }}
             >
               {o.label}
