@@ -1,26 +1,28 @@
 "use client";
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
-import { Client, Lead, SpravkaRequest } from "@/lib/types";
+import { CalendarEvent, Client, Lead, SpravkaRequest } from "@/lib/types";
 
 type QueueItem = { label: string; detail: string; color: string; sortKey: number };
 
 /** Pulls the "something needs attention" signals already scattered across
- * the app (stale leads, pending справки, overdue follow-ups) into one ranked
- * list -- the same consolidation instinct as the Клиенты workspace, applied
- * to "what should I work on today" instead of "everything about one
- * client". Payment due/overdue reminders were dropped when the Платежи
- * section was cut -- there's no screen left to act on them from. */
+ * the app (stale leads, pending справки, overdue follow-ups, today's
+ * calendar events) into one ranked list -- the same consolidation instinct
+ * as the Клиенты workspace, applied to "what should I work on today" instead
+ * of "everything about one client". Payment due/overdue reminders were
+ * dropped when the Платежи section was cut -- there's no screen left to act
+ * on them from. */
 export function TodayQueue({ isBoss }: { isBoss: boolean }) {
   const [items, setItems] = useState<QueueItem[] | null>(null);
 
   useEffect(() => {
     (async () => {
       try {
-        const [leads, spravki, clients]: [Lead[], SpravkaRequest[], Client[]] = await Promise.all([
-          api.leads(), api.spravkaRequests(), api.clients(),
+        const [leads, spravki, clients, events]: [Lead[], SpravkaRequest[], Client[], CalendarEvent[]] = await Promise.all([
+          api.leads(), api.spravkaRequests(), api.clients(), api.calendarEvents(),
         ]);
-        const today = new Date().toISOString().slice(0, 10);
+        const now = new Date();
+        const today = now.toISOString().slice(0, 10);
         const out: QueueItem[] = [];
 
         for (const c of clients) {
@@ -57,6 +59,26 @@ export function TodayQueue({ isBoss }: { isBoss: boolean }) {
           }
         }
 
+        for (const e of events) {
+          const who = e.clients?.name || e.clients?.phone;
+          if (e.status === "confirmed" && e.event_at.slice(0, 10) === today) {
+            const time = new Date(e.event_at).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
+            out.push({
+              label: `Событие сегодня в ${time}: ${e.title}`,
+              detail: who ? who : e.note || "—",
+              color: "var(--v-accent)",
+              sortKey: 0,
+            });
+          } else if (e.status === "proposed") {
+            out.push({
+              label: `Событие ждёт подтверждения: ${e.title}`,
+              detail: who ? who : "Найдено в переписке — см. Календарь",
+              color: "var(--warning)",
+              sortKey: 1,
+            });
+          }
+        }
+
         out.sort((a, b) => a.sortKey - b.sortKey);
         setItems(out);
       } catch {
@@ -78,7 +100,7 @@ export function TodayQueue({ isBoss }: { isBoss: boolean }) {
         )}
       </div>
       <p style={{ fontSize: 11, color: "var(--color-text-faint)", margin: "0 0 12px" }}>
-        Просроченные контакты, справки и простаивающие лиды в одном списке — вместо трёх разных значков.
+        Просроченные контакты, справки, события и простаивающие лиды в одном списке — вместо разных значков по разделам.
       </p>
       {items.length === 0 ? (
         <div style={{ fontSize: 12.5, color: "var(--color-text-faint)" }}>Пусто — ничего срочного нет.</div>
