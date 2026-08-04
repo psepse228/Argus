@@ -44,6 +44,13 @@ _SYSTEM_PROMPT = """Ты помогаешь агенту по недвижимо
 клиент спросил о чём-то конкретном, чего нет в истории переписки, в черновике предложи агенту
 уточнить это лично, а не придумывай цифры.
 
+Дополнительно дай короткий тактический совет агенту по продаже (coaching_tip, 1 предложение), если он
+уместен — не "что сделать дальше" (это next_step), а КАК вести разговор прямо сейчас: тактический приём
+или реакция на то, что только что написал клиент (например "клиент упомянул бюджет — подчеркни гибкость
+рассрочки, а не называй финальную цену сразу" или "клиент долго не отвечал — тон должен быть мягким, без
+давления"). Если сообщение слишком короткое или нейтральное, чтобы дать содержательный совет (например
+просто "ок" или "спасибо") — верни coaching_tip=null, не выдумывай совет ради совета.
+
 Дополнительно: определи, назвал ли клиент КОНКРЕТНУЮ дату/время визита или встречи (например "приеду
 в среду", "могу в субботу после обеда", "давайте завтра в 15:00"). Если да — верни has_event=true,
 короткий title (например "Визит клиента" или "Встреча — уточнить квартиру") и event_at в формате
@@ -69,13 +76,14 @@ _SCHEMA = {
                 "summary": {"type": "string"},
                 "next_step": {"type": "string"},
                 "draft_reply": {"type": "string"},
+                "coaching_tip": {"type": ["string", "null"]},
                 "has_event": {"type": "boolean"},
                 "event_title": {"type": ["string", "null"]},
                 "event_at": {"type": ["string", "null"]},
                 "event_note": {"type": ["string", "null"]},
             },
             "required": [
-                "summary", "next_step", "draft_reply",
+                "summary", "next_step", "draft_reply", "coaching_tip",
                 "has_event", "event_title", "event_at", "event_note",
             ],
             "additionalProperties": False,
@@ -90,8 +98,8 @@ def evaluate_conversation(history: list[dict], inventory_context: dict | None = 
     message first. `inventory_context` (optional): {"units": [...], "rates":
     [...]} from app.ai.functions.get_units/get_payment_plan_rates -- plain
     Python calls the caller makes beforehand, not a second OpenAI round-trip.
-    Returns {"summary", "next_step", "draft_reply", "has_event",
-    "event_title", "event_at", "event_note"}.
+    Returns {"summary", "next_step", "draft_reply", "coaching_tip",
+    "has_event", "event_title", "event_at", "event_note"}.
 
     This function makes no attempt to catch or wrap errors itself -- any
     OpenAI API failure or malformed-response JSON error is logged and then

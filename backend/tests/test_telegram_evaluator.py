@@ -3,7 +3,7 @@ import pytest
 
 def test_evaluate_conversation_parses_response_and_maps_roles(monkeypatch):
     class FakeMessage:
-        content = '{"summary": "s", "next_step": "n", "draft_reply": "d"}'
+        content = '{"summary": "s", "next_step": "n", "draft_reply": "d", "coaching_tip": "t"}'
 
     class FakeChoice:
         message = FakeMessage()
@@ -32,7 +32,7 @@ def test_evaluate_conversation_parses_response_and_maps_roles(monkeypatch):
         {"role": "manager", "content": "Добрый день! Уточните бюджет?"},
     ])
 
-    assert result == {"summary": "s", "next_step": "n", "draft_reply": "d"}
+    assert result == {"summary": "s", "next_step": "n", "draft_reply": "d", "coaching_tip": "t"}
     assert captured["model"] == "gpt-4o"
     assert captured["messages"][1] == {"role": "user", "content": "Здравствуйте, интересует юнит в Milano"}
     assert captured["messages"][2] == {"role": "assistant", "content": "Добрый день! Уточните бюджет?"}
