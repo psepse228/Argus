@@ -15,6 +15,7 @@ from pydantic import BaseModel
 from app.db import get_service_client
 from app.deps import get_current_user, require_boss
 from app.ai.chat import ChatUnavailableError, run_chat
+from app.ai.brain import gather_client_context
 from app.ai.prompts import BOSS_SYSTEM_PROMPT, AGENT_SYSTEM_PROMPT, SPRAVKA_MODE_SUFFIX, client_context_prompt
 from app.ai.functions import FUNCTION_SCHEMAS, FUNCTION_SCHEMAS_BOSS_ONLY
 from app.routers.conversations import touch_conversation
@@ -56,15 +57,11 @@ def _persist(client, conversation_id: str, role: str, content: str, events: list
 def _client_context_suffix(client, tenant_id: str, client_id: str | None) -> str:
     if not client_id:
         return ""
-    row = client.table("clients").select("name, phone").eq("id", client_id).eq("tenant_id", tenant_id).execute().data
-    if not row:
+    ctx = gather_client_context(client, tenant_id, client_id)
+    if not ctx:
         return ""
-    leads = client.table("leads").select("stage, source").eq("client_id", client_id).execute().data
-    spravki = (
-        client.table("spravka_requests").select("status, units(unit_number, buildings(name))")
-        .eq("client_id", client_id).execute().data
-    )
-    return client_context_prompt(row[0]["name"], row[0]["phone"], leads, spravki)
+    telegram_summary = ctx["telegram_summary"]["summary"] if ctx["telegram_summary"] else None
+    return client_context_prompt(ctx["name"], ctx["phone"], ctx["leads"], ctx["spravka_requests"], telegram_summary)
 
 
 @router.post("/boss/chat")

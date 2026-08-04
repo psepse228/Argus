@@ -70,11 +70,19 @@ SPRAVKA_MODE_SUFFIX = """
 """
 
 
-def client_context_prompt(name: str | None, phone: str, leads: list[dict], spravki: list[dict]) -> str:
+def client_context_prompt(
+    name: str | None, phone: str, leads: list[dict], spravki: list[dict],
+    telegram_summary: str | None = None,
+) -> str:
     """Appended to the system prompt only inside a client's own profile-chat
     (conversations.client_id set) -- gives the model that person's real
     history instead of generic advice, so "посоветуй, как продать" actually
-    reasons over their real stage/справки rather than made-up context."""
+    reasons over their real stage/справки/live Telegram conversation rather
+    than made-up context. `telegram_summary` was added so this chat can see
+    what's actually being discussed with the client right now, not just
+    formal leads/справки records (previously the chat had no view of the
+    Telegram thread at all -- flagged directly during the 2026-08-05
+    brainstorm as one AI voice not seeing what another already knew)."""
     lines = [f"\n\nКОНТЕКСТ КЛИЕНТА: этот разговор целиком про одного клиента — {name or phone} ({phone})."]
     if leads:
         lines.append("Лиды: " + "; ".join(
@@ -87,6 +95,8 @@ def client_context_prompt(name: str | None, phone: str, leads: list[dict], sprav
         ))
     if not leads and not spravki:
         lines.append("Пока нет ни лидов, ни справок на этого клиента в базе.")
+    if telegram_summary:
+        lines.append(f"Текущая переписка в Telegram: {telegram_summary}")
     lines.append(
         "Используй эту историю для конкретных советов по продаже именно этому "
         "клиенту, а не общих фраз. Все обычные функции (get_units, "
