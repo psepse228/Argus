@@ -258,6 +258,7 @@ export type TelegramConversation = {
   summary: string | null;
   next_step_suggestion: string | null;
   draft_reply: string | null;
+  coaching_tip: string | null;
   draft_generated_at: string | null;
   last_message_at: string;
   created_at: string;
