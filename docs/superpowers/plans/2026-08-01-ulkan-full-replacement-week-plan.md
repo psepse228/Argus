@@ -97,15 +97,36 @@ Per the user's own sequencing ("close every day, then improve carefully, then st
 - [x] Migrated the ~60-place hardcoded `rgba(255,255,255,.0N)` light-theme gap (flagged 2026-08-03, Day 3) to a `--surface-02` … `--surface-11` CSS variable scale in `globals.css`, redefined dark-on-white under the `*-light` themes. All light-theme cards/chips/inputs/hover-states now render correctly instead of going near-invisible on white.
 - [x] Re-verified AI-сводка (Клиенты) and Контекст для передачи now that OpenAI billing is funded — no more `insufficient_quota` errors in production logs.
 
-## Day 7 — Sat Aug 8: Testing & stress-testing
+## Re-sequenced 2026-08-05: development is done, what's left is testing + go-to-market
+Resolved with the user directly: the three remaining open dev items (Спецпредложение pricing on the PDF, PDF pages 2-4, Категория/resale/Планировки Шахматка filters — see Day 1/Day 6 above) all need a client answer or client-supplied assets, not more code. Reclassified as **presentation discussion points for next week**, not blockers to chase today. That makes today (Wed Aug 5) a wrap-up day, not a dev day — everything buildable without the client is already shipped.
+- [x] Wed Aug 5 (today): final full-app verification pass — confirm nothing regressed from today's fixes (PDF, light theme, TodayQueue), no open dev work otherwise. Verified via local dev server (fresh restart, absolute `.venv` python path) + Playwright: zero console/page errors across Обзор/Юниты/Клиенты; TodayQueue's new calendar item rendered live ("Событие сегодня в 16:30: Встреча по рассрочке"); unit detail panel shows ceiling height + PDF button; PDF endpoint independently confirmed via direct authenticated request — `200`, `content-type: application/pdf`, real `%PDF-1.3` bytes (47KB), not just "didn't crash." Started Day 7 early the same day since nothing's blocking it.
+- Thu Aug 6 – Fri Aug 7: testing/security/polish (Day 7 + Day 8 below).
+- Sat Aug 8 – Sun Aug 9: Argus go-to-market push (new section below) — this is promoting Argus itself to other real-estate developers, separate from the Ulkan engagement.
+- Week of Aug 10: presentation to Ulkan Development, including the 3 reclassified open questions above.
+
+## Day 7 — Thu Aug 6: Testing & security
 - [ ] Live-test with realistic volume assumptions (40 leads/day, 2 managers) rather than the ~5-demo-client scale the original build was verified against.
 - [ ] Adversarial pass on the AI monitor/confirm flows — try to get it to over-trigger or mis-parse, confirm nothing writes without a human confirm click.
 - [ ] Re-verify tenant scoping on every new/changed query touched this week (new Calendar tables, lead-distribution logic, any payments-router split).
+- [ ] Security pass: IDOR probe on every `/{id}` endpoint (try another tenant's real ids), confirm every handler actually filters by `tenant_id` and not just `id`; confirm no secrets leak into the frontend bundle or client-visible responses; confirm the Google-OAuth/dev-bypass login path can't be reached with `ENVIRONMENT=production`; sanity-check for unescaped user input rendered anywhere (XSS surface — client names/notes/Telegram message text all flow into the UI raw today).
+- [ ] Cost-abuse check on the OpenAI-backed endpoints (AI-сводка, Контекст для передачи, Telegram evaluator) — is there anything stopping a compromised/leaked token from hammering these and running up a bill, given the OpenAI account is shared with other work?
 
-## Day 8 — Sun Aug 9: Polish
+## Day 8 — Fri Aug 7: Polish
 - [ ] Visual pass across all new/changed screens — this is a client-facing product now, both staff and walk-in clients will see it.
 - [ ] Update `PLANNING.md` and the vault requirements page with anything that changed from plan to reality during the week.
 - [ ] Decide next steps: deploy timing, whether a Cowork audit pass (like Cortège's pre-launch one) is warranted before going live with the full replacement.
+- [ ] Prep the Ulkan presentation itself: demo script/flow, and the 3 reclassified open questions framed as decisions for the client to make, not apologies for gaps.
+
+## Argus go-to-market — Sat Aug 8 – Sun Aug 9
+New scope, separate from the Ulkan engagement: promoting Argus as a product to other real-estate developers, not just finishing this one client's build.
+- [ ] Build a real target list of real-estate companies (Uzbekistan market first, comparable profile to Ulkan — multi-building residential developers running their own sales floor) as outreach prospects.
+- [ ] Positioning/pitch materials: what Argus actually replaces (a Macro-CRM-style legacy system), grounded in real before/after from the Ulkan build rather than generic claims.
+- [ ] Approach strategy per prospect: which channel (direct outreach, warm intro, local real-estate industry events/associations), who the right contact is (sales director vs owner), and what the actual ask is (demo, pilot, intro call).
+
+## Week of Aug 10: Ulkan Development presentation
+- [ ] Full walkthrough of everything built this week, live on the deployed site.
+- [ ] Raise the 3 reclassified open questions as real decisions: Спецпредложение display logic on the PDF, what assets/text they can supply for PDF pages 2-4, and how Категория/resale/Планировки filters should map onto Argus's data model.
+- [ ] Confirm go-live timing for the full Macro replacement.
 
 ---
 
