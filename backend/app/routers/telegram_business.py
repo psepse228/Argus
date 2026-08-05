@@ -16,6 +16,7 @@ from app.telegram.bot_client import TelegramSendError, send_message, verify_webh
 from app.telegram.matching import find_client_by_phone
 from app.ai.telegram_evaluator import evaluate_conversation
 from app.ai.functions import get_units, get_payment_plan_rates
+from app.services.ai_events import log_ai_event
 
 router = APIRouter()
 api_router = APIRouter(prefix="/api/telegram-business")
@@ -184,6 +185,15 @@ def telegram_business_webhook(update: dict, request: Request):
                 "draft_generated_at": datetime.now(timezone.utc).isoformat(),
             }).eq("id", conversation["id"]).execute()
 
+            if evaluation.get("coaching_tip"):
+                try:
+                    log_ai_event(
+                        client, connection["tenant_id"], "coaching_tip", evaluation["coaching_tip"],
+                        client_id=conversation.get("client_id"), manager_email=connection["manager_email"],
+                    )
+                except Exception:
+                    pass  # best-effort -- a failed journal write must not break message evaluation
+
             # AI "monitor" (Day 4): propose, never auto-confirm -- same
             # review-after posture as spravka_requests. One pending proposal
             # per conversation at a time (skip re-proposing every message
@@ -197,7 +207,7 @@ def telegram_business_webhook(update: dict, request: Request):
                         .execute().data
                     )
                     if not existing_proposal:
-                        client.table("calendar_events").insert({
+                        inserted_event = client.table("calendar_events").insert({
                             "tenant_id": connection["tenant_id"],
                             "client_id": conversation.get("client_id"),
                             "telegram_conversation_id": conversation["id"],
@@ -205,7 +215,16 @@ def telegram_business_webhook(update: dict, request: Request):
                             "event_at": event_at.isoformat(),
                             "note": evaluation.get("event_note"),
                             "source": "monitor", "status": "proposed",
-                        }).execute()
+                        }).execute().data[0]
+                        try:
+                            log_ai_event(
+                                client, connection["tenant_id"], "event_proposed",
+                                f"Предложено событие: {inserted_event['title']}",
+                                client_id=conversation.get("client_id"), manager_email=connection["manager_email"],
+                                related_id=inserted_event["id"],
+                            )
+                        except Exception:
+                            pass  # best-effort -- a failed journal write must not break the proposal itself
                 except (ValueError, KeyError):
                     pass  # unparseable event_at -- skip the proposal rather than guess
         except Exception:
