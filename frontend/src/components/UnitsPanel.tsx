@@ -292,6 +292,10 @@ export function UnitsPanel({
                   <div style={{ marginTop: 4, display: "flex", alignItems: "center", gap: 6 }}>
                     Клиент: <b style={{ color: "var(--color-text)" }}>{selected.client_name}</b>
                     {selected.client_phone && (
+                      // No leadId/clientId here, deliberately -- Unit only carries
+                      // client_name/client_phone strings, not an id. Logging an
+                      // outcome from this spot will show CallButton's error state
+                      // (see CallButton.tsx's logOutcome), not silently no-op.
                       <CallButton phone={selected.client_phone} size={18} />
                     )}
                   </div>
