@@ -32,11 +32,16 @@ class CalendarEventUpdate(BaseModel):
 @router.get("")
 def list_events(user=Depends(get_current_user)):
     client = get_service_client()
-    return (
+    events = (
         client.table("calendar_events").select("*, clients(name, phone)")
         .eq("tenant_id", user.tenant_id).neq("status", "dismissed")
         .order("event_at").execute().data
     )
+    notes = client.table("meeting_notes").select("calendar_event_id").eq("tenant_id", user.tenant_id).execute().data
+    noted_ids = {n["calendar_event_id"] for n in notes}
+    for e in events:
+        e["has_meeting_note"] = e["id"] in noted_ids
+    return events
 
 
 @router.post("")
@@ -110,3 +115,23 @@ def dismiss_event(event_id: str, user=Depends(get_current_user)):
     except Exception:
         pass  # best-effort -- the event is already dismissed regardless of the journal update
     return updated[0]
+
+
+class MeetingNoteCreate(BaseModel):
+    note: str
+
+
+@router.post("/{event_id}/meeting-note")
+def add_meeting_note(event_id: str, body: MeetingNoteCreate, user=Depends(get_current_user)):
+    client = get_service_client()
+    event = (
+        client.table("calendar_events").select("id, client_id")
+        .eq("id", event_id).eq("tenant_id", user.tenant_id).execute().data
+    )
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found")
+    inserted = client.table("meeting_notes").insert({
+        "tenant_id": user.tenant_id, "calendar_event_id": event_id,
+        "client_id": event[0].get("client_id"), "note": body.note, "logged_by": user.email,
+    }).execute().data
+    return inserted[0]
