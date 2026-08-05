@@ -260,6 +260,13 @@ def send_reply(conversation_id: str, body: SendBody, user=Depends(get_current_us
     client.table("telegram_conversations").update({
         "draft_reply": None, "coaching_tip": None, "last_message_at": datetime.now(timezone.utc).isoformat(),
     }).eq("id", conversation_id).execute()
+    try:
+        log_ai_event(
+            client, user.tenant_id, "draft_sent", "Отправлен черновик ответа клиенту",
+            client_id=conversation.get("client_id"), manager_email=user.email,
+        )
+    except Exception:
+        pass  # best-effort -- the message is already sent regardless of whether logging succeeds
     return {"ok": True}
 
 
