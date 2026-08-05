@@ -5,6 +5,7 @@ import { Unit, Building, STATUS_LABELS, STATUS_COLORS, UnitInterest } from "@/li
 import { StatusChip } from "./StatusChip";
 import { Dropdown } from "./Dropdown";
 import { Skeleton } from "./Skeleton";
+import { CallButton } from "./CallButton";
 
 const SORTS = {
   default: { label: "По умолчанию", fn: null },
@@ -291,19 +292,7 @@ export function UnitsPanel({
                   <div style={{ marginTop: 4, display: "flex", alignItems: "center", gap: 6 }}>
                     Клиент: <b style={{ color: "var(--color-text)" }}>{selected.client_name}</b>
                     {selected.client_phone && (
-                      <a
-                        href={`tel:${selected.client_phone}`}
-                        title="Позвонить"
-                        className="press"
-                        style={{
-                          width: 18, height: 18, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center",
-                          background: "var(--success-tint)", color: "var(--success)", flexShrink: 0,
-                        }}
-                      >
-                        <svg viewBox="0 0 24 24" width={10} height={10} fill="none" stroke="currentColor" strokeWidth={2.5}>
-                          <path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2Z" />
-                        </svg>
-                      </a>
+                      <CallButton phone={selected.client_phone} size={18} />
                     )}
                   </div>
                 )}
