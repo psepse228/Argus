@@ -30,6 +30,8 @@ export const api = {
     request(`/api/leads/${id}/client`, { method: "POST" }),
   updateLeadPriority: (id: string, priority: string | null) =>
     request(`/api/leads/${id}/priority`, { method: "PATCH", body: JSON.stringify({ priority }) }),
+  logCallOutcome: (body: { outcome: "answered" | "no_answer" | "postponed"; lead_id?: string; client_id?: string }) =>
+    request("/api/call-logs", { method: "POST", body: JSON.stringify(body) }),
   spravkaRequests: () => request("/api/spravka-requests"),
   createSpravka: (body: {
     unit_id: string; client_name: string; client_phone: string;
