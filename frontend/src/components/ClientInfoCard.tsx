@@ -5,6 +5,7 @@ import { api } from "@/lib/api";
 import { ClientDetail, PRIORITY_COLORS, PRIORITY_LABELS, Priority, STAGE_COLORS, STATUS_LABELS, PLAN_LABELS } from "@/lib/types";
 import { DealTimeline } from "./DealTimeline";
 import { Skeleton } from "./Skeleton";
+import { CallButton } from "./CallButton";
 
 function clientStage(detail: ClientDetail): { label: string; color: string } {
   if (detail.spravka_requests.some((s) => s.status === "approved" || s.status === "auto_approved")) {
@@ -112,19 +113,7 @@ export function ClientInfoCard({
               <>
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                   <span style={{ fontSize: 12.5, color: "var(--color-text-faint)" }}>{selected.phone}</span>
-                  <a
-                    href={`tel:${selected.phone}`}
-                    title="Позвонить"
-                    className="press"
-                    style={{
-                      width: 22, height: 22, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center",
-                      background: "var(--success-tint)", color: "var(--success)", flexShrink: 0,
-                    }}
-                  >
-                    <svg viewBox="0 0 24 24" width={12} height={12} fill="none" stroke="currentColor" strokeWidth={2.3}>
-                      <path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2Z" />
-                    </svg>
-                  </a>
+                  <CallButton phone={selected.phone} size={22} clientId={selected.id} />
                 </div>
 
                 {(() => {
