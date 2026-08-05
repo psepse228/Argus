@@ -71,6 +71,7 @@ export type Lead = {
   assigned_manager: string | null;
   priority?: Priority | null;
   is_stale?: boolean;
+  reserved_at?: string | null;
   created_at: string;
 };
 
