@@ -1,4 +1,4 @@
-import { CalendarEvent, Client, ClientSegment, TelegramConversation, TelegramMessage } from "./types";
+import { AiEvent, CalendarEvent, Client, ClientSegment, TelegramConversation, TelegramMessage } from "./types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8010";
 
@@ -103,4 +103,12 @@ export const api = {
     body: { client_id?: string; new_client_name?: string; new_client_phone?: string }
   ): Promise<TelegramConversation> =>
     request(`/api/telegram-business/conversations/${conversationId}/link`, { method: "PATCH", body: JSON.stringify(body) }),
+
+  aiEvents: (params?: { kind?: string; client_id?: string }): Promise<AiEvent[]> => {
+    const query = new URLSearchParams();
+    if (params?.kind) query.set("kind", params.kind);
+    if (params?.client_id) query.set("client_id", params.client_id);
+    const qs = query.toString();
+    return request(`/api/ai-events${qs ? `?${qs}` : ""}`);
+  },
 };
