@@ -10,7 +10,10 @@ from app.services.client_service import get_or_create_client
 
 router = APIRouter(prefix="/api/leads")
 
-STAGES = ["unsorted", "matching", "meeting_scheduled", "meeting_held", "reserved", "paid_reservation"]
+STAGES = [
+    "unsorted", "matching", "meeting_scheduled", "meeting_held",
+    "reserved", "paid_reservation", "deal_in_progress", "contract_signed",
+]
 
 # A lead sitting untouched in an early stage this long is a missed follow-up,
 # not just "not yet worked" -- flagged for the boss/rep to notice, not auto-acted on.
@@ -79,9 +82,21 @@ def update_lead_stage(lead_id: str, body: LeadStageUpdate, user=Depends(get_curr
     if body.stage not in STAGES:
         raise HTTPException(status_code=400, detail=f"stage must be one of {STAGES}")
     client = get_service_client()
+    updates = {"stage": body.stage, "updated_at": datetime.now(timezone.utc).isoformat()}
+    if body.stage == "reserved":
+        # Anchor for the 3-day reservation-expiry reminder (Phase 2b) --
+        # only set the first time a lead enters this stage, not every time
+        # (a lead bouncing in and out of 'reserved' shouldn't keep pushing
+        # its deadline back).
+        current = (
+            client.table("leads").select("stage")
+            .eq("id", lead_id).eq("tenant_id", user.tenant_id).execute().data
+        )
+        if current and current[0]["stage"] != "reserved":
+            updates["reserved_at"] = datetime.now(timezone.utc).isoformat()
     res = (
         client.table("leads")
-        .update({"stage": body.stage, "updated_at": datetime.now(timezone.utc).isoformat()})
+        .update(updates)
         .eq("id", lead_id)
         .eq("tenant_id", user.tenant_id)  # tenant-scoped even though single-tenant today
         .execute()
