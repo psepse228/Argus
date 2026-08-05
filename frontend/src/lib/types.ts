@@ -274,3 +274,16 @@ export type TelegramMessage = {
   sent_by: string | null;
   created_at: string;
 };
+
+export type AiEvent = {
+  id: string;
+  tenant_id: string;
+  kind: "coaching_tip" | "event_proposed" | "draft_sent" | "context_summary" | "client_segments";
+  client_id: string | null;
+  manager_email: string | null;
+  summary: string;
+  outcome: "confirmed" | "dismissed" | null;
+  related_id: string | null;
+  created_at: string;
+  clients?: { name: string | null; phone: string } | null;
+};
