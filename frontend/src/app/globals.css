@@ -48,6 +48,8 @@
   --success-tint: rgba(90, 209, 154, 0.14);
   --warning: #e0b34a;
   --warning-tint: rgba(212, 167, 44, 0.16);
+  --stage-progress: #f0954a;
+  --stage-signed: #34d399;
   --danger: #f19a9a;
   --danger-tint: rgba(248, 113, 113, 0.15);
 
@@ -108,6 +110,8 @@
      own darker/more saturated set rather than reusing them as-is. */
   --success: #15803d; --success-tint: rgba(21, 128, 61, 0.12);
   --warning: #a15c07; --warning-tint: rgba(161, 92, 7, 0.13);
+  --stage-progress: #b3540c;
+  --stage-signed: #0f7a52;
   --danger: #dc2626; --danger-tint: rgba(220, 38, 38, 0.11);
 
   /* Dark-on-white, ~1.4x the dark values (matches the hairline conversion

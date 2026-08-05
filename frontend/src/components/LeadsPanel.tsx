@@ -21,6 +21,8 @@ const STAGES = [
   { key: "meeting_held", label: "Встреча проведена", color: "var(--warning)" },
   { key: "reserved", label: "Бронь", color: "var(--v-accent)" },
   { key: "paid_reservation", label: "Платная бронь", color: "var(--success)" },
+  { key: "deal_in_progress", label: "Сделка в процессе", color: "var(--stage-progress)" },
+  { key: "contract_signed", label: "Договор подписан", color: "var(--stage-signed)" },
 ];
 
 export function LeadsPanel({ onOpenClient }: { onOpenClient: (clientId: string) => void }) {
@@ -94,8 +96,9 @@ export function LeadsPanel({ onOpenClient }: { onOpenClient: (clientId: string) 
           Пока нет лидов в базе — реальные лиды из Facebook-рекламы ещё не загружены.
         </div>
       )}
-      <div style={{ display: "grid", gridTemplateColumns: `repeat(${STAGES.length}, minmax(180px, 1fr))`, gap: 0, alignItems: "start" }}>
-        {STAGES.map((st, colIdx) => {
+      <div style={{ overflowX: "auto" }}>
+        <div style={{ display: "grid", gridTemplateColumns: `repeat(${STAGES.length}, minmax(180px, 1fr))`, gap: 0, alignItems: "start" }}>
+          {STAGES.map((st, colIdx) => {
           const inStage = leads.filter((l) => l.stage === st.key);
           return (
             <div
@@ -178,6 +181,7 @@ export function LeadsPanel({ onOpenClient }: { onOpenClient: (clientId: string) 
             </div>
           );
         })}
+        </div>
       </div>
     </div>
   );
