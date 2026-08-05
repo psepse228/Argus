@@ -28,6 +28,7 @@ export function CallButton({
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
   const [logging, setLogging] = useState(false);
   const [logged, setLogged] = useState(false);
+  const [error, setError] = useState(false);
   const triggerRef = useRef<HTMLAnchorElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
 
@@ -76,12 +77,18 @@ export function CallButton({
 
   async function logOutcome(outcome: "answered" | "no_answer" | "postponed") {
     setLogging(true);
+    setError(false);
     try {
       await api.logCallOutcome({ outcome, lead_id: leadId, client_id: clientId });
       setLogged(true);
       setTimeout(() => { setOpen(false); setLogged(false); }, 1200);
     } catch {
-      /* best-effort -- the call itself already happened regardless of whether logging succeeds */
+      // The call itself already happened regardless of whether logging
+      // succeeds -- but the manager still needs to know logging failed,
+      // rather than a silently inert popover they can't tell worked or not
+      // (this is guaranteed to happen at the one call site that has neither
+      // a lead_id nor client_id in scope -- Юниты's client-phone display).
+      setError(true);
     } finally {
       setLogging(false);
     }
@@ -93,7 +100,7 @@ export function CallButton({
         ref={triggerRef}
         href={`tel:${phone}`}
         title="Позвонить"
-        onClick={(e) => { e.stopPropagation(); setOpen(true); }}
+        onClick={(e) => { e.stopPropagation(); setOpen(true); setError(false); }}
         className="press"
         style={{
           width: size, height: size, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center",
@@ -116,6 +123,8 @@ export function CallButton({
         >
           {logged ? (
             <div style={{ fontSize: 11.5, color: "var(--success)", fontWeight: 700, textAlign: "center" }}>Записано ✓</div>
+          ) : error ? (
+            <div style={{ fontSize: 11.5, color: "var(--danger)", fontWeight: 700, textAlign: "center" }}>Не удалось записать</div>
           ) : (
             <>
               <div style={{ fontSize: 10.5, textTransform: "uppercase", letterSpacing: ".04em", color: "var(--color-text-faint)" }}>
