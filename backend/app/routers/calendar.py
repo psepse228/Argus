@@ -11,6 +11,7 @@ from pydantic import BaseModel
 
 from app.db import get_service_client
 from app.deps import get_current_user
+from app.services.ai_events import mark_event_outcome
 
 router = APIRouter(prefix="/api/calendar")
 
@@ -87,6 +88,10 @@ def confirm_event(event_id: str, user=Depends(get_current_user)):
     )
     if not updated:
         raise HTTPException(status_code=404, detail="Event not found")
+    try:
+        mark_event_outcome(client, user.tenant_id, event_id, "confirmed")
+    except Exception:
+        pass  # best-effort -- the event is already confirmed regardless of the journal update
     return updated[0]
 
 
@@ -100,4 +105,8 @@ def dismiss_event(event_id: str, user=Depends(get_current_user)):
     )
     if not updated:
         raise HTTPException(status_code=404, detail="Event not found")
+    try:
+        mark_event_outcome(client, user.tenant_id, event_id, "dismissed")
+    except Exception:
+        pass  # best-effort -- the event is already dismissed regardless of the journal update
     return updated[0]
