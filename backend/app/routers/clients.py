@@ -15,6 +15,7 @@ from app.ai.client_context import summarize_client_context
 from app.ai.client_segmentation import segment_clients
 from app.db import get_service_client
 from app.deps import get_current_user
+from app.services.ai_events import log_ai_event
 
 router = APIRouter(prefix="/api/clients")
 
@@ -125,9 +126,19 @@ def ai_segment_clients(body: AISegmentsRequest, user=Depends(get_current_user)):
     if not summaries:
         return {"segments": []}
     try:
-        return segment_clients(summaries)
+        result = segment_clients(summaries)
     except Exception:
         raise HTTPException(status_code=503, detail="Не удалось получить AI-сегменты — попробуйте ещё раз")
+    try:
+        segment_count = len(result.get("segments", []))
+        log_ai_event(
+            client, user.tenant_id, "client_segments",
+            f"AI-сводка клиентов: {segment_count} сегмент(ов) по {len(summaries)} клиентам",
+            manager_email=user.email,
+        )
+    except Exception:
+        pass  # best-effort -- the segments are already computed regardless of the journal write
+    return result
 
 
 @router.get("/{client_id}")
@@ -176,6 +187,13 @@ def refresh_context_summary(client_id: str, user=Depends(get_current_user)):
     updated = client.table("clients").update({
         "ai_context_summary": summary, "ai_context_generated_at": datetime.now(timezone.utc).isoformat(),
     }).eq("id", client_id).eq("tenant_id", user.tenant_id).execute().data
+    try:
+        log_ai_event(
+            client, user.tenant_id, "context_summary", "Обновлён контекст для передачи",
+            client_id=client_id, manager_email=user.email,
+        )
+    except Exception:
+        pass  # best-effort -- the summary is already saved regardless of the journal write
     return updated[0]
 
 
