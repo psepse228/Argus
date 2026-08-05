@@ -17,7 +17,14 @@ class _FakeQuery:
         self._rows = [r for r in self._rows if r.get(column) == value]
         return self
 
+    def neq(self, column, value):
+        self._rows = [r for r in self._rows if r.get(column) != value]
+        return self
+
     def order(self, *a, **k):
+        return self
+
+    def limit(self, *a, **k):
         return self
 
     def execute(self):
@@ -103,3 +110,86 @@ def test_gather_client_context_only_returns_leads_for_this_client():
     ctx = brain.gather_client_context(fake, "tenant-1", "client-1")
     assert len(ctx["leads"]) == 1
     assert ctx["leads"][0]["stage"] == "matching"
+
+
+def test_gather_manager_context_resolves_name_from_email():
+    fake = _FakeClient({
+        "tenant_users": [{"tenant_id": "tenant-1", "email": "a@x.com", "name": "Азиз"}],
+        "leads": [{"tenant_id": "tenant-1", "assigned_manager": "Азиз", "client_id": "c1", "stage": "matching"}],
+        "calendar_events": [], "meeting_notes": [], "spravka_requests": [], "call_logs": [],
+    })
+    ctx = brain.gather_manager_context(fake, "tenant-1", "a@x.com")
+    assert ctx["manager_name"] == "Азиз"
+    assert len(ctx["leads"]) == 1
+
+
+def test_gather_manager_context_unknown_email_returns_empty_shape():
+    fake = _FakeClient({"tenant_users": []})
+    ctx = brain.gather_manager_context(fake, "tenant-1", "nobody@x.com")
+    assert ctx == {
+        "manager_name": None, "leads": [], "calendar_events": [],
+        "events_missing_notes": [], "pending_spravki": [], "recent_calls": [],
+    }
+
+
+def test_gather_manager_context_only_includes_events_for_this_managers_clients():
+    fake = _FakeClient({
+        "tenant_users": [{"tenant_id": "tenant-1", "email": "a@x.com", "name": "Азиз"}],
+        "leads": [{"tenant_id": "tenant-1", "assigned_manager": "Азиз", "client_id": "c1", "stage": "matching"}],
+        "calendar_events": [
+            {"tenant_id": "tenant-1", "id": "e1", "client_id": "c1", "status": "confirmed", "event_at": "2026-08-10T10:00:00+00:00"},
+            {"tenant_id": "tenant-1", "id": "e2", "client_id": "c2", "status": "confirmed", "event_at": "2026-08-10T10:00:00+00:00"},
+        ],
+        "meeting_notes": [], "spravka_requests": [], "call_logs": [],
+    })
+    ctx = brain.gather_manager_context(fake, "tenant-1", "a@x.com")
+    assert len(ctx["calendar_events"]) == 1
+    assert ctx["calendar_events"][0]["id"] == "e1"
+
+
+def test_gather_manager_context_flags_past_confirmed_events_missing_notes():
+    fake = _FakeClient({
+        "tenant_users": [{"tenant_id": "tenant-1", "email": "a@x.com", "name": "Азиз"}],
+        "leads": [{"tenant_id": "tenant-1", "assigned_manager": "Азиз", "client_id": "c1", "stage": "matching"}],
+        "calendar_events": [
+            {"tenant_id": "tenant-1", "id": "past-noted", "client_id": "c1", "status": "confirmed", "event_at": "2020-01-01T10:00:00+00:00"},
+            {"tenant_id": "tenant-1", "id": "past-unnoted", "client_id": "c1", "status": "confirmed", "event_at": "2020-01-01T10:00:00+00:00"},
+            {"tenant_id": "tenant-1", "id": "future", "client_id": "c1", "status": "confirmed", "event_at": "2099-01-01T10:00:00+00:00"},
+        ],
+        "meeting_notes": [{"tenant_id": "tenant-1", "calendar_event_id": "past-noted"}],
+        "spravka_requests": [], "call_logs": [],
+    })
+    ctx = brain.gather_manager_context(fake, "tenant-1", "a@x.com")
+    missing_ids = {e["id"] for e in ctx["events_missing_notes"]}
+    assert missing_ids == {"past-unnoted"}
+
+
+def test_gather_manager_context_pending_spravki_scoped_by_requested_by():
+    fake = _FakeClient({
+        "tenant_users": [{"tenant_id": "tenant-1", "email": "a@x.com", "name": "Азиз"}],
+        "leads": [],
+        "calendar_events": [], "meeting_notes": [],
+        "spravka_requests": [
+            {"tenant_id": "tenant-1", "requested_by": "Азиз", "status": "pending", "id": "s1"},
+            {"tenant_id": "tenant-1", "requested_by": "Азиз", "status": "approved", "id": "s2"},
+            {"tenant_id": "tenant-1", "requested_by": "Другой", "status": "pending", "id": "s3"},
+        ],
+        "call_logs": [],
+    })
+    ctx = brain.gather_manager_context(fake, "tenant-1", "a@x.com")
+    assert len(ctx["pending_spravki"]) == 1
+    assert ctx["pending_spravki"][0]["id"] == "s1"
+
+
+def test_gather_manager_context_recent_calls_scoped_by_logged_by():
+    fake = _FakeClient({
+        "tenant_users": [{"tenant_id": "tenant-1", "email": "a@x.com", "name": "Азиз"}],
+        "leads": [], "calendar_events": [], "meeting_notes": [], "spravka_requests": [],
+        "call_logs": [
+            {"tenant_id": "tenant-1", "logged_by": "a@x.com", "outcome": "no_answer", "created_at": "2026-08-05T00:00:00+00:00"},
+            {"tenant_id": "tenant-1", "logged_by": "b@x.com", "outcome": "answered", "created_at": "2026-08-05T00:00:00+00:00"},
+        ],
+    })
+    ctx = brain.gather_manager_context(fake, "tenant-1", "a@x.com")
+    assert len(ctx["recent_calls"]) == 1
+    assert ctx["recent_calls"][0]["logged_by"] == "a@x.com"
