@@ -2,7 +2,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { api, CurrentUser } from "@/lib/api";
-import { SpravkaRequest } from "@/lib/types";
+import { CompanySummary, SpravkaRequest } from "@/lib/types";
 import { SpravkaApprovalTable } from "./SpravkaApprovalTable";
 import { TodayQueue } from "./TodayQueue";
 import { WorkshopPanel } from "./WorkshopPanel";
@@ -225,6 +225,33 @@ function OverviewContent({
   onOpenClient: (clientId: string) => void;
   onDecided: () => void;
 }) {
+  // Argus Brain Phase 3: on-demand owner narrative for Сводка -- read on
+  // click, never cached, so this state lives here (not in a hook shared
+  // with the daily-briefing cache) and resets whenever the tab is closed.
+  const [companySummary, setCompanySummary] = useState<CompanySummary | null>(null);
+  const [summaryLoading, setSummaryLoading] = useState(false);
+  const [summaryError, setSummaryError] = useState("");
+
+  async function askAi() {
+    if (summaryLoading) return; // guards a fast double-click into a second in-flight request
+    setSummaryLoading(true);
+    setSummaryError("");
+    try {
+      setCompanySummary(await api.companySummary());
+    } catch (e: any) {
+      setSummaryError(`Не удалось построить сводку: ${e.message}`);
+    } finally {
+      setSummaryLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    if (tab !== "summary") {
+      setCompanySummary(null);
+      setSummaryError("");
+    }
+  }, [tab]);
+
   return (
     <div style={{ overflowY: "auto", display: "flex", flexDirection: "column", gap: 18 }}>
       {tab !== "home" && (
@@ -263,6 +290,79 @@ function OverviewContent({
                   ))}
                 </div>
               )}
+              <div style={{ borderTop: "1px solid var(--color-hairline-soft)", paddingTop: 16 }}>
+                {!companySummary && !summaryLoading && !summaryError && (
+                  <button
+                    onClick={askAi}
+                    className="press"
+                    aria-label="Спросить AI"
+                    style={{
+                      fontSize: 12.5, fontWeight: 700, color: "#fff", background: "var(--v-accent)",
+                      border: "none", borderRadius: 99, padding: "9px 18px", cursor: "pointer",
+                    }}
+                  >
+                    Спросить AI
+                  </button>
+                )}
+                {summaryLoading && (
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <div style={{ display: "flex", gap: 4, padding: "9px 13px", background: "var(--v-accent-tint)", borderRadius: 99 }}>
+                      {[0, 0.2, 0.4].map((d) => (
+                        <span key={d} style={{ width: 6, height: 6, borderRadius: 99, background: "var(--v-accent)", animation: `argDot 1.2s infinite ${d}s` }} />
+                      ))}
+                    </div>
+                    <span style={{ fontSize: 12.5, fontWeight: 700, color: "var(--color-text-soft)" }}>Строю сводку…</span>
+                  </div>
+                )}
+                {summaryError && !summaryLoading && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    <div style={{ fontSize: 12.5, color: "var(--danger)" }}>{summaryError}</div>
+                    <button
+                      onClick={askAi}
+                      className="press"
+                      aria-label="Повторить построение сводки"
+                      style={{
+                        fontSize: 12, fontWeight: 700, color: "var(--v-accent)", background: "none",
+                        border: "1px solid var(--color-hairline)", borderRadius: 99, padding: "6px 14px",
+                        cursor: "pointer", alignSelf: "flex-start",
+                      }}
+                    >
+                      Повторить
+                    </button>
+                  </div>
+                )}
+                {companySummary && !summaryLoading && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                    <p style={{ fontSize: 13, color: "var(--color-text-soft)", lineHeight: 1.6, margin: 0 }}>
+                      {companySummary.narrative}
+                    </p>
+                    {companySummary.highlights.length > 0 && (
+                      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                        {companySummary.highlights.map((h, i) => (
+                          <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 9 }}>
+                            <span style={{ width: 7, height: 7, borderRadius: 99, background: "var(--v-accent)", flexShrink: 0, marginTop: 5 }} />
+                            <div>
+                              <div style={{ fontSize: 12.5, fontWeight: 700, color: "var(--color-text)" }}>{h.label}</div>
+                              <div style={{ fontSize: 11.5, color: "var(--color-text-faint)" }}>{h.detail}</div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    <button
+                      onClick={askAi}
+                      className="press"
+                      aria-label="Обновить сводку"
+                      style={{
+                        fontSize: 11.5, fontWeight: 700, color: "var(--color-text-faint)", background: "none",
+                        border: "none", cursor: "pointer", alignSelf: "flex-start", padding: 0,
+                      }}
+                    >
+                      Обновить сводку
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           )}
           {tab === "discount" && digest && (
