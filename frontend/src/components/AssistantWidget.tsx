@@ -8,9 +8,24 @@ import { ChatThread } from "./ChatThread";
  * as Cortège's launcher. Shares real conversations with the main Ассистент
  * inbox (picks up the most recent one, or starts one), so a message sent
  * here shows up there too instead of forking a separate hidden history. */
-export function AssistantWidget({ user }: { user: CurrentUser }) {
+export function AssistantWidget({
+  user, forceClose, onOpen,
+}: {
+  user: CurrentUser;
+  /** Bumped by the parent (page.tsx) whenever another floating panel (e.g.
+   * HelpChatWidget) opens, so the two never visibly overlap -- see
+   * HelpChatWidget.tsx for the mirror image of this (parent-controlled open). */
+  forceClose?: number;
+  /** Fired when this widget's launcher opens it, so the parent can close any
+   * other floating panel (HelpChatWidget) in turn. */
+  onOpen?: () => void;
+}) {
   const [open, setOpen] = useState(false);
   const [conversationId, setConversationId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (forceClose) setOpen(false);
+  }, [forceClose]);
 
   useEffect(() => {
     if (!open || conversationId) return;
@@ -62,7 +77,11 @@ export function AssistantWidget({ user }: { user: CurrentUser }) {
         </div>
       )}
       <div
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => setOpen((v) => {
+          const next = !v;
+          if (next) onOpen?.();
+          return next;
+        })}
         role="button" aria-label="Ассистент"
         className="press"
         style={{

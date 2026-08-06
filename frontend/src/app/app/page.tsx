@@ -40,6 +40,11 @@ export default function AppPage() {
   const [pendingUnitId, setPendingUnitId] = useState<string | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
+  // Bumped whenever Help opens, so AssistantWidget (which owns its own
+  // open state) can watch this and force itself closed -- keeps the two
+  // floating panels (top-right Help, bottom-right Assistant) mutually
+  // exclusive instead of visibly overlapping.
+  const [assistantForceClose, setAssistantForceClose] = useState(0);
   const [pendingWorkspaceClientId, setPendingWorkspaceClientId] = useState<string | null>(null);
   const [assistantPending, setAssistantPending] = useState(0);
   // Adjacent moves (arrow keys / swipe) animate; this locks out re-triggers
@@ -152,7 +157,7 @@ export default function AppPage() {
         previewRole={canPreviewRole ? (previewRole || "boss") : undefined}
         onPreviewRoleChange={canPreviewRole ? changePreviewRole : undefined}
         onOpenSearch={() => setSearchOpen(true)}
-        onOpenHelp={() => setHelpOpen(true)}
+        onOpenHelp={() => { setHelpOpen(true); setAssistantForceClose((c) => c + 1); }}
         presentationMode={presentationMode}
         onTogglePresentation={() => setPresentationMode((v) => !v)}
       />
@@ -218,7 +223,13 @@ export default function AppPage() {
         ))}
       </div>
 
-      {!isAssistant && <AssistantWidget user={effectiveUser} />}
+      {!isAssistant && (
+        <AssistantWidget
+          user={effectiveUser}
+          forceClose={assistantForceClose}
+          onOpen={() => setHelpOpen(false)}
+        />
+      )}
     </div>
   );
 }

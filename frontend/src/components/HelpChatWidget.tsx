@@ -24,6 +24,15 @@ export function HelpChatWidget({
     api.helpConversation().then((conv) => setConversationId(conv.id)).catch(() => {});
   }, [open, conversationId]);
 
+  useEffect(() => {
+    if (!open) return;
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") onClose();
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [open, onClose]);
+
   if (!open) return null;
 
   return (
@@ -37,15 +46,20 @@ export function HelpChatWidget({
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, flexShrink: 0 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
           <span style={{ width: 26, height: 26, borderRadius: 8, background: "var(--v-accent)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <svg viewBox="0 0 24 24" width={14} height={14} fill="none" stroke="var(--v-text-on-accent)" strokeWidth={2.2}>
+            <svg viewBox="0 0 24 24" width={14} height={14} fill="none" stroke="var(--v-text-on-accent)" strokeWidth={2.2} strokeLinecap="round">
               <circle cx="12" cy="12" r="9" /><path d="M9.5 9a2.5 2.5 0 0 1 5 0c0 1.5-2 1.8-2 3.3" /><path d="M12 17h.01" />
             </svg>
           </span>
           <span style={{ fontFamily: "var(--font-heading)", fontSize: 13.5, fontWeight: 800, color: "var(--color-text)" }}>Как всё работает</span>
         </div>
-        <div onClick={onClose} role="button" aria-label="Закрыть помощь" className="press" style={{ cursor: "pointer", color: "var(--color-text-faint)", padding: 4 }}>
+        <button
+          onClick={onClose}
+          aria-label="Закрыть помощь"
+          className="press"
+          style={{ cursor: "pointer", color: "var(--color-text-faint)", padding: 4, background: "transparent", border: "none" }}
+        >
           <svg viewBox="0 0 24 24" width={15} height={15} fill="none" stroke="currentColor" strokeWidth={2.2}><path d="M6 6l12 12M18 6 6 18" /></svg>
-        </div>
+        </button>
       </div>
       <div style={{ flex: 1, minHeight: 0 }}>
         {conversationId ? (

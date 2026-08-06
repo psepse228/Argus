@@ -101,7 +101,7 @@ export function HudToolbar({
           className="press"
           style={{ width: 32, height: 32, borderRadius: 10, border: "1px solid var(--color-hairline-soft)", background: "var(--surface-03)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
         >
-          <svg viewBox="0 0 24 24" width={15} height={15} fill="none" stroke="var(--color-text-soft)" strokeWidth={2}>
+          <svg viewBox="0 0 24 24" width={15} height={15} fill="none" stroke="var(--color-text-soft)" strokeWidth={2} strokeLinecap="round">
             <circle cx="12" cy="12" r="9" /><path d="M9.5 9a2.5 2.5 0 0 1 5 0c0 1.5-2 1.8-2 3.3" /><path d="M12 17h.01" />
           </svg>
         </button>
