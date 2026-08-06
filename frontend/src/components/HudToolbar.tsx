@@ -9,12 +9,13 @@ import { ThemeSwitcher } from "./ThemeSwitcher";
  * there's no more rail to anchor them to once navigation is space-based (see
  * page.tsx), so they float top-right like a real HUD corner readout. */
 export function HudToolbar({
-  user, previewRole, onPreviewRoleChange, onOpenSearch, presentationMode, onTogglePresentation,
+  user, previewRole, onPreviewRoleChange, onOpenSearch, onOpenHelp, presentationMode, onTogglePresentation,
 }: {
   user: CurrentUser;
   previewRole?: "boss" | "sales_agent";
   onPreviewRoleChange?: (r: "boss" | "sales_agent") => void;
   onOpenSearch?: () => void;
+  onOpenHelp?: () => void;
   /** Client is looking at the screen right now -- hides internal-only
    * fields (manager, client name/phone, who's-interested) on the Юниты
    * screen. See UnitsPanel.tsx. */
@@ -89,6 +90,19 @@ export function HudToolbar({
         >
           <svg viewBox="0 0 24 24" width={15} height={15} fill="none" stroke="var(--color-text-soft)" strokeWidth={2}>
             <circle cx="11" cy="11" r="7" /><path d="M21 21l-4.3-4.3" />
+          </svg>
+        </button>
+      )}
+      {onOpenHelp && (
+        <button
+          onClick={onOpenHelp}
+          title="Как всё работает"
+          aria-label="Как всё работает"
+          className="press"
+          style={{ width: 32, height: 32, borderRadius: 10, border: "1px solid var(--color-hairline-soft)", background: "var(--surface-03)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
+        >
+          <svg viewBox="0 0 24 24" width={15} height={15} fill="none" stroke="var(--color-text-soft)" strokeWidth={2}>
+            <circle cx="12" cy="12" r="9" /><path d="M9.5 9a2.5 2.5 0 0 1 5 0c0 1.5-2 1.8-2 3.3" /><path d="M12 17h.01" />
           </svg>
         </button>
       )}

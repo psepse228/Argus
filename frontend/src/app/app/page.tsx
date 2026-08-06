@@ -13,6 +13,7 @@ import { CalendarPanel } from "@/components/CalendarPanel";
 import { AiJournalPanel } from "@/components/AiJournalPanel";
 import { AssistantWidget } from "@/components/AssistantWidget";
 import { GlobalSearch } from "@/components/GlobalSearch";
+import { HelpChatWidget } from "@/components/HelpChatWidget";
 
 const TITLES: Record<Section, string> = {
   assistant: "Ассистент",
@@ -38,6 +39,7 @@ export default function AppPage() {
   const [pendingClientId, setPendingClientId] = useState<string | null>(null);
   const [pendingUnitId, setPendingUnitId] = useState<string | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
   const [pendingWorkspaceClientId, setPendingWorkspaceClientId] = useState<string | null>(null);
   const [assistantPending, setAssistantPending] = useState(0);
   // Adjacent moves (arrow keys / swipe) animate; this locks out re-triggers
@@ -150,6 +152,7 @@ export default function AppPage() {
         previewRole={canPreviewRole ? (previewRole || "boss") : undefined}
         onPreviewRoleChange={canPreviewRole ? changePreviewRole : undefined}
         onOpenSearch={() => setSearchOpen(true)}
+        onOpenHelp={() => setHelpOpen(true)}
         presentationMode={presentationMode}
         onTogglePresentation={() => setPresentationMode((v) => !v)}
       />
@@ -157,6 +160,7 @@ export default function AppPage() {
         open={searchOpen} onOpenChange={setSearchOpen} onGoTo={goToSection}
         onOpenUnit={openUnitFromSearch} onOpenClient={openClientFromLead}
       />
+      <HelpChatWidget open={helpOpen} onClose={() => setHelpOpen(false)} user={effectiveUser} />
       <SpaceIndicator
         user={effectiveUser} activeIndex={activeIndex} onJump={jumpTo}
         badges={{ assistant: assistantPending }}
