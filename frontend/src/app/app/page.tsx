@@ -22,7 +22,7 @@ const TITLES: Record<Section, string> = {
   clients: "Клиенты",
   analytics: "Аналитика",
   calendar: "Календарь",
-  ai_journal: "Журнал AI",
+  ai_journal: "Argus Brain",
 };
 
 /** Вариант А: no persistent rail -- every section is a full-screen HUD

@@ -49,7 +49,7 @@ export const SPACES: { key: Section; label: string; icon: JSX.Element; bossOnly?
     ),
   },
   {
-    key: "ai_journal", label: "Журнал AI", icon: (
+    key: "ai_journal", label: "Argus Brain", icon: (
       <svg viewBox="0 0 24 24" width={18} height={18} fill="none" stroke="currentColor" strokeWidth={1.8}>
         <path d="M6 3h9l5 5v13a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z" />
         <path d="M14 3v5h5" /><path d="M8 12h8M8 16h5" />
