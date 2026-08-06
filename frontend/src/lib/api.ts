@@ -1,4 +1,4 @@
-import { AiEvent, CalendarEvent, Client, ClientSegment, TelegramConversation, TelegramMessage } from "./types";
+import { AiEvent, CalendarEvent, Client, ClientSegment, DailyBriefingItem, TelegramConversation, TelegramMessage } from "./types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8010";
 
@@ -111,4 +111,10 @@ export const api = {
     const qs = query.toString();
     return request(`/api/ai-events${qs ? `?${qs}` : ""}`);
   },
+
+  dailyBriefing: (): Promise<DailyBriefingItem[]> => request("/api/brain/daily-briefing"),
+  refreshDailyBriefing: (): Promise<DailyBriefingItem[]> =>
+    request("/api/brain/daily-briefing/refresh", { method: "POST" }),
+  addMeetingNote: (eventId: string, note: string) =>
+    request(`/api/calendar/${eventId}/meeting-note`, { method: "POST", body: JSON.stringify({ note }) }),
 };
