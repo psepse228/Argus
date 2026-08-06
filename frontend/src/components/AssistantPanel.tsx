@@ -231,22 +231,34 @@ function OverviewContent({
   const [companySummary, setCompanySummary] = useState<CompanySummary | null>(null);
   const [summaryLoading, setSummaryLoading] = useState(false);
   const [summaryError, setSummaryError] = useState("");
+  // Ignore-flag for stale requests: bumped each time askAi starts a fresh
+  // request (either a manual retry/refresh or a tab-switch-then-back), so a
+  // response that resolves after being superseded -- by a newer askAi call
+  // or by the tab !== "summary" reset effect below -- never repopulates
+  // state for a request nobody's waiting on anymore.
+  const requestIdRef = useRef(0);
 
   async function askAi() {
     if (summaryLoading) return; // guards a fast double-click into a second in-flight request
+    const requestId = ++requestIdRef.current;
     setSummaryLoading(true);
     setSummaryError("");
     try {
-      setCompanySummary(await api.companySummary());
+      const result = await api.companySummary();
+      if (requestIdRef.current !== requestId) return; // superseded while in flight
+      setCompanySummary(result);
     } catch (e: any) {
+      if (requestIdRef.current !== requestId) return; // superseded while in flight
       setSummaryError(`Не удалось построить сводку: ${e.message}`);
+      setCompanySummary(null); // failure fully replaces any prior success, never stacks with it
     } finally {
-      setSummaryLoading(false);
+      if (requestIdRef.current === requestId) setSummaryLoading(false);
     }
   }
 
   useEffect(() => {
     if (tab !== "summary") {
+      requestIdRef.current++; // supersede any in-flight askAi so its resolution is a no-op
       setCompanySummary(null);
       setSummaryError("");
     }
@@ -297,7 +309,7 @@ function OverviewContent({
                     className="press"
                     aria-label="Спросить AI"
                     style={{
-                      fontSize: 12.5, fontWeight: 700, color: "#fff", background: "var(--v-accent)",
+                      fontSize: 12.5, fontWeight: 700, color: "var(--v-text-on-accent)", background: "var(--v-accent)",
                       border: "none", borderRadius: 99, padding: "9px 18px", cursor: "pointer",
                     }}
                   >
