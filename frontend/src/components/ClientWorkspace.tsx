@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
-import { Building, ClientDetail, PRIORITY_COLORS, PRIORITY_LABELS, Priority, STAGE_COLORS, STATUS_LABELS, PLAN_LABELS, PlanRate, TelegramConversation, TelegramMessage, Unit } from "@/lib/types";
+import { Building, BrainItem, ClientDetail, PRIORITY_COLORS, PRIORITY_LABELS, Priority, STAGE_COLORS, STATUS_LABELS, PLAN_LABELS, PlanRate, TelegramConversation, TelegramMessage, Unit } from "@/lib/types";
 import { ChatThread } from "./ChatThread";
 import { DealTimeline } from "./DealTimeline";
 import { Dropdown } from "./Dropdown";
@@ -47,6 +47,7 @@ export function ClientWorkspace({
   const [savingFollowup, setSavingFollowup] = useState(false);
   const [telegramConversation, setTelegramConversation] = useState<TelegramConversation | null>(null);
   const [telegramMessages, setTelegramMessages] = useState<TelegramMessage[]>([]);
+  const [clientBrainItems, setClientBrainItems] = useState<BrainItem[]>([]);
   const [actionError, setActionError] = useState("");
 
   // Manual справка form -- restores the old DocsPanel path (form → boss
@@ -87,6 +88,7 @@ export function ClientWorkspace({
     setRequestedPrice("");
     setTelegramConversation(null);
     setTelegramMessages([]);
+    setClientBrainItems([]);
     (async () => {
       const [detail, conv, tg] = await Promise.all([
         api.clientDetail(clientId), api.clientConversation(clientId), api.telegramByClient(clientId),
@@ -97,6 +99,10 @@ export function ClientWorkspace({
       setTelegramConversation(tg.conversation);
       setTelegramMessages(tg.messages);
     })();
+    api.brainItems().then((allItems) => {
+      if (activeClientIdRef.current !== clientId) return; // a newer client was selected meanwhile
+      setClientBrainItems(allItems.filter((it) => it.client_id === clientId));
+    }).catch(() => {});
   }, [clientId]);
 
   async function refreshTelegram() {
@@ -160,6 +166,15 @@ export function ClientWorkspace({
     }
   }
 
+  async function resolveClientBrainItem(id: string) {
+    try {
+      await api.confirmBrainItem(id);
+      setClientBrainItems((cur) => cur.filter((it) => it.id !== id));
+    } catch {
+      // best-effort -- if this fails, the item just stays in the list, no error banner needed for this small inline action
+    }
+  }
+
   async function decide(spravkaId: string, decision: "approve" | "reject") {
     setActionError("");
     try {
@@ -183,6 +198,11 @@ export function ClientWorkspace({
   const softBuildings = Array.from(
     new Set(selected.leads.map((l) => l.buildings?.name).filter((n): n is string => !!n && !spravkaBuildingNames.has(n)))
   );
+  const baseGreeting = `Что нужно по клиенту ${selected.name || selected.phone}? Могу оформить справку, посоветовать план оплаты или подсказать следующий шаг по сделке.`;
+  const topBrainItem = clientBrainItems[0];
+  const greeting = topBrainItem
+    ? `Я заметил: ${topBrainItem.summary}${topBrainItem.detail ? ` — ${topBrainItem.detail}` : ""}. ${baseGreeting}`
+    : baseGreeting;
 
   return (
     <div className="section-enter" style={{ flex: 1, minHeight: 0, display: "flex", gap: 16 }}>
@@ -427,11 +447,39 @@ export function ClientWorkspace({
         </div>
         <div style={{ flex: 1, minHeight: 0, paddingTop: 10, display: "flex", flexDirection: "column" }}>
           <TelegramSummaryCard conversation={telegramConversation} />
+          {clientBrainItems.length > 0 && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 10 }}>
+              {clientBrainItems.map((it) => (
+                <div
+                  key={it.id}
+                  style={{
+                    display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", borderRadius: 10,
+                    background: it.priority === "high" ? "var(--danger-tint)" : "var(--v-accent-tint)",
+                  }}
+                >
+                  <span style={{
+                    flex: 1, minWidth: 0, fontSize: 11.5, fontWeight: 600,
+                    color: it.priority === "high" ? "var(--danger)" : "var(--v-accent)",
+                  }}>
+                    {it.summary}
+                  </span>
+                  <span
+                    onClick={() => resolveClientBrainItem(it.id)}
+                    role="button" aria-label="Отметить как решённое" title="Отметить как решённое"
+                    className="press"
+                    style={{ cursor: "pointer", fontWeight: 700, fontSize: 12, color: "var(--color-text-faint)", flexShrink: 0 }}
+                  >
+                    ✓
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
           {conversationId ? (
             <ChatThread
               conversationId={conversationId} isBoss={isBoss} spravkaMode={spravkaMode}
               onSpravkaCreated={() => setSpravkaMode(false)}
-              greeting={`Что нужно по клиенту ${selected.name || selected.phone}? Могу оформить справку, посоветовать план оплаты или подсказать следующий шаг по сделке.`}
+              greeting={greeting}
             />
           ) : (
             <div style={{ color: "var(--color-text-faint)", fontSize: 13 }}>Загрузка чата…</div>

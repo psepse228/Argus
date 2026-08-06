@@ -22,6 +22,7 @@ export function AssistantWidget({
 }) {
   const [open, setOpen] = useState(false);
   const [conversationId, setConversationId] = useState<string | null>(null);
+  const [dynamicGreeting, setDynamicGreeting] = useState<string | null>(null);
 
   useEffect(() => {
     if (forceClose) setOpen(false);
@@ -40,9 +41,15 @@ export function AssistantWidget({
     })();
   }, [open, conversationId]);
 
-  const greeting = user.role === "boss"
+  useEffect(() => {
+    if (!open || dynamicGreeting) return;
+    api.brainGreeting().then((g) => setDynamicGreeting(g.text)).catch(() => {});
+  }, [open, dynamicGreeting]);
+
+  const staticGreeting = user.role === "boss"
     ? "Доброе утро. Я слежу за юнитами, лидами и справками Italiano Vero. Спросите что угодно."
     : "Привет! Помогу подобрать юниты, оформить справку, согласовать условия и разобрать лидов.";
+  const greeting = dynamicGreeting || staticGreeting;
 
   return (
     <>
