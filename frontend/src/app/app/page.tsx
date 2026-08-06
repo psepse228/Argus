@@ -47,6 +47,7 @@ export default function AppPage() {
   const [assistantForceClose, setAssistantForceClose] = useState(0);
   const [pendingWorkspaceClientId, setPendingWorkspaceClientId] = useState<string | null>(null);
   const [assistantPending, setAssistantPending] = useState(0);
+  const [brainItemsPending, setBrainItemsPending] = useState(0);
   // Adjacent moves (arrow keys / swipe) animate; this locks out re-triggers
   // faster than the animation itself, since unlocked rapid-fire (key-repeat,
   // a fast trackpad swipe) used to queue several index changes inside one
@@ -160,6 +161,8 @@ export default function AppPage() {
         onOpenHelp={() => { setHelpOpen(true); setAssistantForceClose((c) => c + 1); }}
         presentationMode={presentationMode}
         onTogglePresentation={() => setPresentationMode((v) => !v)}
+        onOpenBrain={() => goToSection("ai_journal")}
+        onBrainCountChange={setBrainItemsPending}
       />
       <GlobalSearch
         open={searchOpen} onOpenChange={setSearchOpen} onGoTo={goToSection}
@@ -168,7 +171,7 @@ export default function AppPage() {
       <HelpChatWidget open={helpOpen} onClose={() => setHelpOpen(false)} user={effectiveUser} />
       <SpaceIndicator
         user={effectiveUser} activeIndex={activeIndex} onJump={jumpTo}
-        badges={{ assistant: assistantPending }}
+        badges={{ assistant: assistantPending, ai_journal: brainItemsPending }}
       />
 
       <div

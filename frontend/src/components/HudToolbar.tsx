@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { CurrentUser } from "@/lib/api";
+import { api, CurrentUser } from "@/lib/api";
 import { ThemeSwitcher } from "./ThemeSwitcher";
 
 /** The old persistent rail's utility controls (search, role-preview, theme,
@@ -10,6 +10,7 @@ import { ThemeSwitcher } from "./ThemeSwitcher";
  * page.tsx), so they float top-right like a real HUD corner readout. */
 export function HudToolbar({
   user, previewRole, onPreviewRoleChange, onOpenSearch, onOpenHelp, presentationMode, onTogglePresentation,
+  onOpenBrain, onBrainCountChange,
 }: {
   user: CurrentUser;
   previewRole?: "boss" | "sales_agent";
@@ -21,11 +22,26 @@ export function HudToolbar({
    * screen. See UnitsPanel.tsx. */
   presentationMode?: boolean;
   onTogglePresentation?: () => void;
+  onOpenBrain?: () => void;
+  onBrainCountChange?: (n: number) => void;
 }) {
   const [themeOpen, setThemeOpen] = useState(false);
   const [themePos, setThemePos] = useState<{ left: number; top: number } | null>(null);
   const themeBtnRef = useRef<HTMLButtonElement>(null);
   const themePopoverRef = useRef<HTMLDivElement>(null);
+
+  const [brainCount, setBrainCount] = useState(0);
+  useEffect(() => {
+    // Single fetch on mount only -- no polling interval. This avoids
+    // triggering the backend's brain_items sync (which does a real GPT
+    // call) on any kind of timer; the count refreshes naturally on the
+    // next full page load/navigation instead.
+    api.brainItems().then((items) => {
+      setBrainCount(items.length);
+      onBrainCountChange?.(items.length);
+    }).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const [roleOpen, setRoleOpen] = useState(false);
   const [rolePos, setRolePos] = useState<{ left: number; top: number } | null>(null);
@@ -104,6 +120,31 @@ export function HudToolbar({
           <svg viewBox="0 0 24 24" width={15} height={15} fill="none" stroke="var(--color-text-soft)" strokeWidth={2} strokeLinecap="round">
             <circle cx="12" cy="12" r="9" /><path d="M9.5 9a2.5 2.5 0 0 1 5 0c0 1.5-2 1.8-2 3.3" /><path d="M12 17h.01" />
           </svg>
+        </button>
+      )}
+      {onOpenBrain && (
+        <button
+          onClick={onOpenBrain}
+          title={brainCount > 0 ? `Argus Brain — ${brainCount} открытых дел` : "Argus Brain — всё спокойно"}
+          aria-label="Argus Brain"
+          className="press"
+          style={{
+            width: 32, height: 32, borderRadius: 10, cursor: "pointer", position: "relative",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            border: brainCount > 0 ? "1px solid var(--v-accent)" : "1px solid var(--color-hairline-soft)",
+            background: brainCount > 0 ? "var(--v-accent-tint)" : "var(--surface-03)",
+            color: brainCount > 0 ? "var(--v-accent)" : "var(--color-text-soft)",
+          }}
+        >
+          <svg viewBox="0 0 24 24" width={15} height={15} fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+            <path d="M3 12h4l2-7 4 14 2-7h4" />
+          </svg>
+          {brainCount > 0 && (
+            <span style={{
+              position: "absolute", top: -4, right: -4, width: 8, height: 8, borderRadius: 99,
+              background: "var(--v-accent)", animation: "argPulse 2s ease-in-out infinite",
+            }} />
+          )}
         </button>
       )}
       {onTogglePresentation && (

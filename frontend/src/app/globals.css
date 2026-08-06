@@ -191,6 +191,7 @@ input::placeholder, textarea::placeholder { color: var(--color-text-faint); }
 @keyframes argIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 @keyframes argDot { 0%, 60%, 100% { opacity: .25; } 30% { opacity: 1; } }
 @keyframes argShimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+@keyframes argPulse { 0%, 100% { opacity: .5; transform: scale(0.85); } 50% { opacity: 1; transform: scale(1.15); } }
 
 /* Staggered list entrances -- same argIn keyframe as .section-enter, but per
    item with a delay derived from --i (set inline as the item's index), so a
