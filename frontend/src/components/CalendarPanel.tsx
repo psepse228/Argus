@@ -65,6 +65,8 @@ export function CalendarPanel({ onOpenClient }: { onOpenClient?: (clientId: stri
   const [newAt, setNewAt] = useState("");
   const [viewDate, setViewDate] = useState(() => new Date());
   const [selectedDay, setSelectedDay] = useState(() => new Date());
+  const [noteEditingId, setNoteEditingId] = useState<string | null>(null);
+  const [noteText, setNoteText] = useState("");
 
   async function refresh() {
     const all = await api.calendarEvents();
@@ -114,6 +116,18 @@ export function CalendarPanel({ onOpenClient }: { onOpenClient?: (clientId: stri
     try {
       await api.createCalendarEvent({ title: newTitle.trim(), event_at: new Date(newAt).toISOString() });
       setNewTitle(""); setNewAt(""); setShowAddForm(false);
+      await refresh();
+    } catch (e: any) {
+      setActionError(e.message);
+    }
+  }
+
+  async function saveMeetingNote(eventId: string) {
+    if (!noteText.trim()) return;
+    setActionError("");
+    try {
+      await api.addMeetingNote(eventId, noteText.trim());
+      setNoteEditingId(null); setNoteText("");
       await refresh();
     } catch (e: any) {
       setActionError(e.message);
@@ -218,7 +232,7 @@ export function CalendarPanel({ onOpenClient }: { onOpenClient?: (clientId: stri
             {viewDate.toLocaleDateString("ru-RU", { month: "long", year: "numeric" })}
           </span>
           <button onClick={() => setViewDate((d) => new Date(d.getFullYear(), d.getMonth() + 1, 1))} className="press" style={{ ...ghostBtnStyle, padding: "5px 10px" }}>›</button>
-          <button onClick={() => { const t = new Date(); setViewDate(t); setSelectedDay(t); }} className="press" style={ghostBtnStyle}>Сегодня</button>
+          <button onClick={() => { const t = new Date(); setViewDate(t); setSelectedDay(t); setNoteEditingId(null); setNoteText(""); }} className="press" style={ghostBtnStyle}>Сегодня</button>
         </div>
       </div>
 
@@ -236,7 +250,7 @@ export function CalendarPanel({ onOpenClient }: { onOpenClient?: (clientId: stri
           return (
             <div
               key={i}
-              onClick={() => setSelectedDay(date)}
+              onClick={() => { setSelectedDay(date); setNoteEditingId(null); setNoteText(""); }}
               onDoubleClick={() => openAddFormFor(date)}
               className="press"
               style={{
@@ -280,18 +294,42 @@ export function CalendarPanel({ onOpenClient }: { onOpenClient?: (clientId: stri
         }
         return (
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            {dayEvents.map((ev) => (
-              <div key={ev.id} className="glass-panel" style={{ padding: "13px 16px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <div>
-                  <div style={{ fontSize: 13.5, fontWeight: 700, color: "var(--color-text)" }}>{ev.title}</div>
-                  <div style={{ fontSize: 11.5, color: "var(--color-text-faint)", marginTop: 2 }}>
-                    {fmtTime(ev.event_at)}
-                    {ev.clients && <> · <span onClick={() => ev.client_id && onOpenClient?.(ev.client_id)} className={ev.client_id ? "press" : undefined} style={{ cursor: ev.client_id ? "pointer" : "default", color: ev.client_id ? "var(--v-accent)" : undefined }}>{ev.clients.name || ev.clients.phone}</span></>}
+            {dayEvents.map((ev) => {
+              const needsNote = ev.status === "confirmed" && new Date(ev.event_at) < new Date() && !ev.has_meeting_note;
+              return (
+                <div key={ev.id} className="glass-panel" style={{ padding: "13px 16px", display: "flex", flexDirection: "column", gap: 8 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <div>
+                      <div style={{ fontSize: 13.5, fontWeight: 700, color: "var(--color-text)" }}>{ev.title}</div>
+                      <div style={{ fontSize: 11.5, color: "var(--color-text-faint)", marginTop: 2 }}>
+                        {fmtTime(ev.event_at)}
+                        {ev.clients && <> · <span onClick={() => ev.client_id && onOpenClient?.(ev.client_id)} className={ev.client_id ? "press" : undefined} style={{ cursor: ev.client_id ? "pointer" : "default", color: ev.client_id ? "var(--v-accent)" : undefined }}>{ev.clients.name || ev.clients.phone}</span></>}
+                      </div>
+                    </div>
+                    <span style={{ fontSize: 10, color: "var(--color-text-faint)" }}>{ev.source === "monitor" ? "из переписки" : "вручную"}</span>
                   </div>
+                  {needsNote && (
+                    noteEditingId === ev.id ? (
+                      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                        <input
+                          value={noteText} onChange={(e) => setNoteText(e.target.value)} placeholder="Как прошло?"
+                          style={{ flex: 1, padding: "7px 10px", borderRadius: 8, background: "var(--surface-04)", border: "1px solid var(--color-hairline)", color: "var(--color-text)", fontSize: 12.5 }}
+                        />
+                        <button onClick={() => saveMeetingNote(ev.id)} className="press" style={primaryBtnStyle}>Сохранить</button>
+                        <button onClick={() => { setNoteEditingId(null); setNoteText(""); }} className="press" style={ghostBtnStyle}>Отмена</button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => { setNoteEditingId(ev.id); setNoteText(""); }}
+                        className="press" style={{ ...ghostBtnStyle, alignSelf: "flex-start" }}
+                      >
+                        Как прошло? →
+                      </button>
+                    )
+                  )}
                 </div>
-                <span style={{ fontSize: 10, color: "var(--color-text-faint)" }}>{ev.source === "monitor" ? "из переписки" : "вручную"}</span>
-              </div>
-            ))}
+              );
+            })}
           </div>
         );
       })()}
