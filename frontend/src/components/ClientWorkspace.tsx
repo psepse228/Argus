@@ -48,6 +48,7 @@ export function ClientWorkspace({
   const [telegramConversation, setTelegramConversation] = useState<TelegramConversation | null>(null);
   const [telegramMessages, setTelegramMessages] = useState<TelegramMessage[]>([]);
   const [clientBrainItems, setClientBrainItems] = useState<BrainItem[]>([]);
+  const [busyItemId, setBusyItemId] = useState<string | null>(null);
   const [actionError, setActionError] = useState("");
 
   // Manual справка form -- restores the old DocsPanel path (form → boss
@@ -101,7 +102,10 @@ export function ClientWorkspace({
     })();
     api.brainItems().then((allItems) => {
       if (activeClientIdRef.current !== clientId) return; // a newer client was selected meanwhile
-      setClientBrainItems(allItems.filter((it) => it.client_id === clientId));
+      // coaching_tip items already have a dedicated display spot in
+      // TelegramSummaryCard's 💡 line (and feed the greeting lead below) --
+      // surfacing them here too would put the same sentence on screen three times.
+      setClientBrainItems(allItems.filter((it) => it.client_id === clientId && it.kind !== "coaching_tip"));
     }).catch(() => {});
   }, [clientId]);
 
@@ -166,12 +170,15 @@ export function ClientWorkspace({
     }
   }
 
-  async function resolveClientBrainItem(id: string) {
+  async function resolveClientBrainItem(id: string, action: "confirm" | "dismiss") {
+    setBusyItemId(id);
     try {
-      await api.confirmBrainItem(id);
+      await (action === "confirm" ? api.confirmBrainItem(id) : api.dismissBrainItem(id));
       setClientBrainItems((cur) => cur.filter((it) => it.id !== id));
     } catch {
       // best-effort -- if this fails, the item just stays in the list, no error banner needed for this small inline action
+    } finally {
+      setBusyItemId(null);
     }
   }
 
@@ -455,6 +462,7 @@ export function ClientWorkspace({
                   style={{
                     display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", borderRadius: 10,
                     background: it.priority === "high" ? "var(--danger-tint)" : "var(--v-accent-tint)",
+                    opacity: busyItemId === it.id ? 0.6 : 1,
                   }}
                 >
                   <span style={{
@@ -463,14 +471,24 @@ export function ClientWorkspace({
                   }}>
                     {it.summary}
                   </span>
-                  <span
-                    onClick={() => resolveClientBrainItem(it.id)}
-                    role="button" aria-label="Отметить как решённое" title="Отметить как решённое"
+                  <button
+                    onClick={() => resolveClientBrainItem(it.id, "confirm")}
+                    disabled={busyItemId === it.id}
+                    aria-label="Отметить как решённое" title="Отметить как решённое"
                     className="press"
-                    style={{ cursor: "pointer", fontWeight: 700, fontSize: 12, color: "var(--color-text-faint)", flexShrink: 0 }}
+                    style={{ cursor: "pointer", fontWeight: 700, fontSize: 12, color: "var(--color-text-faint)", flexShrink: 0, background: "transparent", border: "none", padding: 2 }}
                   >
                     ✓
-                  </span>
+                  </button>
+                  <button
+                    onClick={() => resolveClientBrainItem(it.id, "dismiss")}
+                    disabled={busyItemId === it.id}
+                    aria-label="Скрыть" title="Скрыть -- не актуально"
+                    className="press"
+                    style={{ cursor: "pointer", fontWeight: 700, fontSize: 12, color: "var(--color-text-faint)", flexShrink: 0, background: "transparent", border: "none", padding: 2 }}
+                  >
+                    ✕
+                  </button>
                 </div>
               ))}
             </div>

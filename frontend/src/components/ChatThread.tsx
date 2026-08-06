@@ -71,19 +71,38 @@ export function ChatThread({
   const scrollRef = useRef<HTMLDivElement>(null);
   const prevSpravkaMode = useRef(spravkaMode);
   const firedInitialPrompt = useRef(false);
+  // Tracks whether `messages` currently holds exactly the synthesized
+  // fallback greeting (no real history, nothing typed yet) -- see the
+  // greeting-patch effect below for why this exists.
+  const isSynthesizedGreetingRef = useRef(false);
 
   useEffect(() => {
     setLoaded(false);
     firedInitialPrompt.current = false;
     api.conversationMessages(conversationId).then((rows: any[]) => {
-      setMessages(
-        rows.length
-          ? rows.map((r) => ({ role: r.role === "assistant" ? "bot" : "user", text: r.content, events: r.events || undefined }))
-          : [{ role: "bot", text: greeting }]
-      );
+      if (rows.length) {
+        isSynthesizedGreetingRef.current = false;
+        setMessages(rows.map((r) => ({ role: r.role === "assistant" ? "bot" : "user", text: r.content, events: r.events || undefined })));
+      } else {
+        isSynthesizedGreetingRef.current = true;
+        setMessages([{ role: "bot", text: greeting }]);
+      }
       setLoaded(true);
     }).catch(() => setLoaded(true));
   }, [conversationId]);
+
+  // A greeting computed from async data (e.g. the AI-generated Argus Brain
+  // greeting) can resolve after this component already mounted and rendered
+  // the synthesized fallback greeting as the first message. Patch it in
+  // place when that happens -- but only while we're still showing exactly
+  // that synthesized message and nothing else has happened yet (see the ref
+  // reset in send() below), so this never clobbers real history or
+  // something the user already typed.
+  useEffect(() => {
+    if (isSynthesizedGreetingRef.current) {
+      setMessages([{ role: "bot", text: greeting }]);
+    }
+  }, [greeting]);
 
   useEffect(() => {
     if (loaded && initialPrompt && !firedInitialPrompt.current) {
@@ -111,6 +130,7 @@ export function ChatThread({
     const v = (text ?? input).trim();
     if (!v) return;
     setInput("");
+    isSynthesizedGreetingRef.current = false;
     setMessages((cur) => [...cur, { role: "user", text: v }]);
     setTyping(true);
     try {
