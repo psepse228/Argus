@@ -280,7 +280,7 @@ function OverviewContent({
         </div>
       )}
 
-      {tab === "home" && <TodayQueue isBoss={isBoss} />}
+      {tab === "home" && <TodayQueue />}
 
       {tab === "home" && digest && (
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
