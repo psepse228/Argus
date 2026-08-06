@@ -8,7 +8,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from app.routers import auth_google, units, leads, spravka, assistant, pricing, analytics, clients, conversations, payments, workspace, telegram_business, calendar, call_logs, ai_events, daily_briefing, company_summary
+from app.routers import auth_google, units, leads, spravka, assistant, pricing, analytics, clients, conversations, payments, workspace, telegram_business, calendar, call_logs, ai_events, daily_briefing, company_summary, brain_items
 
 logger = logging.getLogger(__name__)
 
@@ -57,6 +57,7 @@ app.include_router(call_logs.router)
 app.include_router(ai_events.router)
 app.include_router(daily_briefing.router)
 app.include_router(company_summary.router)
+app.include_router(brain_items.router)
 
 
 @app.get("/health")
