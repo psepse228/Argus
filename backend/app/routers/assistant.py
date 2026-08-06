@@ -15,6 +15,7 @@ from pydantic import BaseModel
 from app.db import get_service_client
 from app.deps import get_current_user, require_boss
 from app.ai.chat import ChatUnavailableError, run_chat
+from app.ai.help_chat import run_help_chat
 from app.ai.brain import gather_client_context
 from app.ai.prompts import BOSS_SYSTEM_PROMPT, AGENT_SYSTEM_PROMPT, SPRAVKA_MODE_SUFFIX, client_context_prompt
 from app.ai.functions import FUNCTION_SCHEMAS, FUNCTION_SCHEMAS_BOSS_ONLY
@@ -100,3 +101,22 @@ def agent_chat(body: ChatRequest, user=Depends(get_current_user)):
         raise HTTPException(status_code=503, detail="Ассистент временно недоступен — попробуйте через минуту")
     _persist(client, body.conversation_id, "assistant", reply, events)
     return {"reply": reply, "events": events}
+
+
+class HelpChatRequest(BaseModel):
+    message: str
+    conversation_id: str
+
+
+@router.post("/help/chat")
+def help_chat(body: HelpChatRequest, user=Depends(get_current_user)):
+    client = get_service_client()
+    _load_conversation(client, body.conversation_id, user.tenant_id, user.email)  # 404s if not this user's own
+    history = _load_history(client, body.conversation_id)
+    _persist(client, body.conversation_id, "user", body.message)
+    try:
+        reply = run_help_chat(body.message, history)
+    except ChatUnavailableError:
+        raise HTTPException(status_code=503, detail="Ассистент временно недоступен — попробуйте через минуту")
+    _persist(client, body.conversation_id, "assistant", reply)
+    return {"reply": reply, "events": []}

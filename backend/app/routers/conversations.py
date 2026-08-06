@@ -21,7 +21,7 @@ def list_conversations(user=Depends(get_current_user)):
     res = (
         client.table("conversations").select("*")
         .eq("tenant_id", user.tenant_id).eq("user_email", user.email)
-        .is_("client_id", "null")
+        .is_("client_id", "null").eq("purpose", "chat")
         .order("updated_at", desc=True)
         .execute()
     )
@@ -85,6 +85,25 @@ def get_or_create_client_conversation(client_id: str, user=Depends(get_current_u
         return existing.data[0]
     row = client.table("conversations").insert({
         "tenant_id": user.tenant_id, "user_email": user.email, "client_id": client_id,
+    }).execute().data[0]
+    return row
+
+
+@router.post("/help")
+def get_or_create_help_conversation(user=Depends(get_current_user)):
+    """The help chatbot has exactly one running thread per user -- same
+    get-existing-or-create shape as get_or_create_client_conversation above,
+    keyed on purpose='help' instead of client_id."""
+    client = get_service_client()
+    existing = (
+        client.table("conversations").select("*")
+        .eq("tenant_id", user.tenant_id).eq("user_email", user.email).eq("purpose", "help")
+        .execute()
+    )
+    if existing.data:
+        return existing.data[0]
+    row = client.table("conversations").insert({
+        "tenant_id": user.tenant_id, "user_email": user.email, "purpose": "help",
     }).execute().data[0]
     return row
 
