@@ -137,6 +137,7 @@ export type CalendarEvent = {
   created_by: string | null;
   created_at: string;
   clients?: { name: string | null; phone: string } | null;
+  has_meeting_note?: boolean;
 };
 
 export type ClientDetail = Client & {
@@ -287,3 +288,5 @@ export type AiEvent = {
   created_at: string;
   clients?: { name: string | null; phone: string } | null;
 };
+
+export type DailyBriefingItem = { label: string; detail: string };
