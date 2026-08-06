@@ -51,6 +51,9 @@ export const api = {
     request("/api/assistant/boss/chat", { method: "POST", body: JSON.stringify({ message, conversation_id: conversationId, mode }) }),
   agentChat: (message: string, conversationId: string, mode?: string) =>
     request("/api/assistant/agent/chat", { method: "POST", body: JSON.stringify({ message, conversation_id: conversationId, mode }) }),
+  helpChat: (message: string, conversationId: string) =>
+    request("/api/assistant/help/chat", { method: "POST", body: JSON.stringify({ message, conversation_id: conversationId }) }),
+  helpConversation: () => request("/api/conversations/help", { method: "POST" }),
   analyticsSummary: () => request("/api/analytics/summary"),
   commissions: () => request("/api/analytics/commissions"),
   managerPerformance: () => request("/api/analytics/manager-performance"),

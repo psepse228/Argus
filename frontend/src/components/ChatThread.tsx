@@ -46,7 +46,7 @@ const CONFIDENCE: Record<ConfidenceEvent["level"], { label: string; fg: string; 
  * spravkaMode is a controlled prop (not owned here) because the parent's
  * "Справка" quick-action button needs to show/toggle it too. */
 export function ChatThread({
-  conversationId, isBoss, spravkaMode, onSpravkaCreated, greeting, initialPrompt, onInitialPromptSent,
+  conversationId, isBoss, spravkaMode, onSpravkaCreated, greeting, initialPrompt, onInitialPromptSent, mode = "assistant",
 }: {
   conversationId: string;
   isBoss: boolean;
@@ -58,6 +58,10 @@ export function ChatThread({
    * its canned prompt into it, instead of leaving an empty thread. */
   initialPrompt?: string;
   onInitialPromptSent?: () => void;
+  /** "help" routes through the isolated, no-function-calling help chatbot
+   * endpoint instead of the boss/agent assistant -- see help_chat.py.
+   * Defaults to "assistant" so every existing call site is unaffected. */
+  mode?: "assistant" | "help";
 }) {
   const [messages, setMessages] = useState<ChatMsg[]>([]);
   const [loaded, setLoaded] = useState(false);
@@ -110,8 +114,9 @@ export function ChatThread({
     setMessages((cur) => [...cur, { role: "user", text: v }]);
     setTyping(true);
     try {
-      const call = isBoss ? api.bossChat : api.agentChat;
-      const { reply, events } = await call(v, conversationId, spravkaMode ? "spravka" : undefined);
+      const { reply, events } = mode === "help"
+        ? await api.helpChat(v, conversationId)
+        : await (isBoss ? api.bossChat : api.agentChat)(v, conversationId, spravkaMode ? "spravka" : undefined);
       const allEvents: ChatEvent[] = events || [];
       setMessages((cur) => [...cur, { role: "bot", text: reply, events: allEvents.length ? allEvents : undefined }]);
       if (allEvents.some(isSpravkaCreated)) onSpravkaCreated?.();
