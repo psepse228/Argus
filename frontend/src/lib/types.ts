@@ -289,6 +289,25 @@ export type AiEvent = {
   clients?: { name: string | null; phone: string } | null;
 };
 
+export type BrainItem = {
+  id: string;
+  tenant_id: string;
+  assigned_to: string;
+  client_id: string | null;
+  kind: "stale_lead" | "missing_note" | "pending_spravka_aging" | "coaching_tip" | "event_proposed";
+  dedupe_key: string;
+  summary: string;
+  detail: string | null;
+  priority: "high" | "normal";
+  status: "open" | "done" | "dismissed" | "snoozed";
+  snoozed_until: string | null;
+  created_at: string;
+  resolved_at: string | null;
+  clients?: { name: string | null; phone: string } | null;
+};
+
+export type BrainGreeting = { text: string };
+
 export type DailyBriefingItem = { label: string; detail: string };
 
 export type CompanySummary = {
