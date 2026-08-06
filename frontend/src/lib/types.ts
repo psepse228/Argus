@@ -290,3 +290,8 @@ export type AiEvent = {
 };
 
 export type DailyBriefingItem = { label: string; detail: string };
+
+export type CompanySummary = {
+  narrative: string;
+  highlights: { label: string; detail: string }[];
+};

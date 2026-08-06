@@ -1,4 +1,4 @@
-import { AiEvent, CalendarEvent, Client, ClientSegment, DailyBriefingItem, TelegramConversation, TelegramMessage } from "./types";
+import { AiEvent, CalendarEvent, Client, ClientSegment, CompanySummary, DailyBriefingItem, TelegramConversation, TelegramMessage } from "./types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8010";
 
@@ -117,4 +117,6 @@ export const api = {
     request("/api/brain/daily-briefing/refresh", { method: "POST" }),
   addMeetingNote: (eventId: string, note: string) =>
     request(`/api/calendar/${eventId}/meeting-note`, { method: "POST", body: JSON.stringify({ note }) }),
+  companySummary: (): Promise<CompanySummary> =>
+    request("/api/brain/company-summary", { method: "POST" }),
 };
