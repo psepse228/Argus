@@ -9,7 +9,7 @@ docs/superpowers/specs/2026-08-05-argus-brain-design.md for the full
 rationale (the "two AI voices" confusion this was built to fix).
 """
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 
 def gather_client_context(client, tenant_id: str, client_id: str) -> dict:
@@ -114,4 +114,61 @@ def gather_manager_context(client, tenant_id: str, manager_email: str) -> dict:
         "events_missing_notes": events_missing_notes,
         "pending_spravki": pending_spravki,
         "recent_calls": recent_calls,
+    }
+
+
+def gather_company_context(client, tenant_id: str) -> dict:
+    """Cross-manager rollup for the boss's on-demand 'Сводка' AI narrative
+    (Phase 3): leads grouped by stage, a per-building units summary, every
+    pending справка tenant-wide, and today's calendar events across all
+    managers. Same pure data-assembly contract as gather_client_context/
+    gather_manager_context -- app/ai/company_summary.py owns the prompt.
+    """
+    leads = (
+        client.table("leads").select("stage")
+        .eq("tenant_id", tenant_id).execute().data
+    )
+    leads_by_stage: dict[str, int] = {}
+    for l in leads:
+        leads_by_stage[l["stage"]] = leads_by_stage.get(l["stage"], 0) + 1
+
+    buildings = (
+        client.table("buildings").select("id, name")
+        .eq("tenant_id", tenant_id).execute().data
+    )
+    units = (
+        client.table("units").select("building_id, status, price_per_m2_usd")
+        .eq("tenant_id", tenant_id).execute().data
+    )
+    building_stats = []
+    for b in buildings:
+        in_building = [u for u in units if u["building_id"] == b["id"]]
+        for_sale = [u for u in in_building if u["status"] == "for_sale"]
+        prices = [u["price_per_m2_usd"] for u in for_sale if u.get("price_per_m2_usd") is not None]
+        building_stats.append({
+            "name": b["name"],
+            "total_units": len(in_building),
+            "for_sale": len(for_sale),
+            "min_price_per_m2_usd": min(prices) if prices else None,
+        })
+
+    pending_spravki = (
+        client.table("spravka_requests")
+        .select("*, units(unit_number, buildings(name))")
+        .eq("tenant_id", tenant_id).eq("status", "pending").execute().data
+    )
+
+    today = datetime.now(timezone.utc).date().isoformat()
+    tomorrow = (datetime.now(timezone.utc).date() + timedelta(days=1)).isoformat()
+    all_events = (
+        client.table("calendar_events").select("*, clients(name, phone)")
+        .eq("tenant_id", tenant_id).neq("status", "dismissed").execute().data
+    )
+    today_events = [e for e in all_events if today <= e["event_at"][:10] < tomorrow]
+
+    return {
+        "leads_by_stage": leads_by_stage,
+        "buildings": building_stats,
+        "pending_spravki": pending_spravki,
+        "today_events": today_events,
     }

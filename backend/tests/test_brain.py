@@ -193,3 +193,74 @@ def test_gather_manager_context_recent_calls_scoped_by_logged_by():
     ctx = brain.gather_manager_context(fake, "tenant-1", "a@x.com")
     assert len(ctx["recent_calls"]) == 1
     assert ctx["recent_calls"][0]["logged_by"] == "a@x.com"
+
+
+def test_gather_company_context_groups_leads_by_stage():
+    fake = _FakeClient({
+        "leads": [
+            {"tenant_id": "tenant-1", "stage": "matching"},
+            {"tenant_id": "tenant-1", "stage": "matching"},
+            {"tenant_id": "tenant-1", "stage": "reserved"},
+            {"tenant_id": "tenant-2", "stage": "reserved"},
+        ],
+        "buildings": [], "units": [], "spravka_requests": [], "calendar_events": [],
+    })
+    ctx = brain.gather_company_context(fake, "tenant-1")
+    assert ctx["leads_by_stage"] == {"matching": 2, "reserved": 1}
+
+
+def test_gather_company_context_building_stats_scoped_to_tenant():
+    fake = _FakeClient({
+        "leads": [],
+        "buildings": [{"tenant_id": "tenant-1", "id": "b1", "name": "Milano"}],
+        "units": [
+            {"tenant_id": "tenant-1", "building_id": "b1", "status": "for_sale", "price_per_m2_usd": 1200},
+            {"tenant_id": "tenant-1", "building_id": "b1", "status": "for_sale", "price_per_m2_usd": 1500},
+            {"tenant_id": "tenant-1", "building_id": "b1", "status": "sold", "price_per_m2_usd": 1100},
+        ],
+        "spravka_requests": [], "calendar_events": [],
+    })
+    ctx = brain.gather_company_context(fake, "tenant-1")
+    assert ctx["buildings"] == [{"name": "Milano", "total_units": 3, "for_sale": 2, "min_price_per_m2_usd": 1200}]
+
+
+def test_gather_company_context_building_with_no_units_for_sale_has_null_price():
+    fake = _FakeClient({
+        "leads": [],
+        "buildings": [{"tenant_id": "tenant-1", "id": "b1", "name": "Milano"}],
+        "units": [{"tenant_id": "tenant-1", "building_id": "b1", "status": "sold", "price_per_m2_usd": 1100}],
+        "spravka_requests": [], "calendar_events": [],
+    })
+    ctx = brain.gather_company_context(fake, "tenant-1")
+    assert ctx["buildings"][0]["min_price_per_m2_usd"] is None
+
+
+def test_gather_company_context_pending_spravki_tenant_wide_not_manager_scoped():
+    fake = _FakeClient({
+        "leads": [], "buildings": [], "units": [],
+        "spravka_requests": [
+            {"tenant_id": "tenant-1", "requested_by": "Азиз", "status": "pending", "id": "s1"},
+            {"tenant_id": "tenant-1", "requested_by": "Другой", "status": "pending", "id": "s2"},
+            {"tenant_id": "tenant-1", "requested_by": "Азиз", "status": "approved", "id": "s3"},
+            {"tenant_id": "tenant-2", "requested_by": "Азиз", "status": "pending", "id": "s4"},
+        ],
+        "calendar_events": [],
+    })
+    ctx = brain.gather_company_context(fake, "tenant-1")
+    assert {s["id"] for s in ctx["pending_spravki"]} == {"s1", "s2"}
+
+
+def test_gather_company_context_today_events_excludes_past_and_future():
+    from datetime import datetime, timezone
+    today_iso = datetime.now(timezone.utc).date().isoformat()
+    fake = _FakeClient({
+        "leads": [], "buildings": [], "units": [], "spravka_requests": [],
+        "calendar_events": [
+            {"tenant_id": "tenant-1", "id": "today", "status": "confirmed", "event_at": f"{today_iso}T10:00:00+00:00"},
+            {"tenant_id": "tenant-1", "id": "past", "status": "confirmed", "event_at": "2020-01-01T10:00:00+00:00"},
+            {"tenant_id": "tenant-1", "id": "future", "status": "confirmed", "event_at": "2099-01-01T10:00:00+00:00"},
+            {"tenant_id": "tenant-1", "id": "today-dismissed", "status": "dismissed", "event_at": f"{today_iso}T11:00:00+00:00"},
+        ],
+    })
+    ctx = brain.gather_company_context(fake, "tenant-1")
+    assert {e["id"] for e in ctx["today_events"]} == {"today"}
