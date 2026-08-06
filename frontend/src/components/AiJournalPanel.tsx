@@ -69,6 +69,7 @@ export function AiJournalPanel({ onOpenClient }: { onOpenClient: (clientId: stri
   }, [tab, kindFilter, clientFilter]);
 
   async function act(id: string, action: "confirm" | "dismiss" | "snooze") {
+    setItemsError("");
     setBusyId(id);
     try {
       if (action === "confirm") await api.confirmBrainItem(id);
@@ -117,42 +118,44 @@ export function AiJournalPanel({ onOpenClient }: { onOpenClient: (clientId: stri
           )}
           {items === null && !itemsError ? (
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              {[1, 2, 3].map((i) => <Skeleton key={i} height={68} />)}
+              {[1, 2, 3].map((i) => <Skeleton key={i} height={88} />)}
             </div>
           ) : items && items.length === 0 && !itemsError ? (
             <div style={{ color: "var(--color-text-faint)", fontSize: 13 }}>Открытых дел нет — Argus Brain ничего срочного не видит.</div>
           ) : items ? (
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               {items.map((it) => (
-                <div key={it.id} className="glass-panel" style={{ padding: "14px 16px", display: "flex", alignItems: "flex-start", gap: 12, opacity: busyId === it.id ? 0.6 : 1 }}>
-                  <span style={{
-                    width: 8, height: 8, borderRadius: 99, flexShrink: 0, marginTop: 5,
-                    background: it.priority === "high" ? "var(--danger)" : "var(--v-accent)",
-                  }} />
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                      <span style={{
-                        fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".03em",
-                        color: it.priority === "high" ? "var(--danger)" : "var(--v-accent)",
-                      }}>
-                        {ITEM_KIND_LABELS[it.kind]}
-                      </span>
-                    </div>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: "var(--color-text)", marginTop: 4 }}>{it.summary}</div>
-                    {it.detail && <div style={{ fontSize: 12, color: "var(--color-text-faint)", marginTop: 2 }}>{it.detail}</div>}
-                    <div style={{ fontSize: 11, color: "var(--color-text-faint)", marginTop: 6, display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-                      <span>{new Date(it.created_at).toLocaleString("ru-RU", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</span>
-                      {it.clients && it.client_id && (
-                        <span onClick={() => onOpenClient(it.client_id!)} style={{ color: "var(--v-accent)", cursor: "pointer", fontWeight: 600 }}>
-                          {it.clients.name || it.clients.phone} →
+                <div key={it.id} className="glass-panel" style={{ padding: "14px 16px", display: "flex", flexDirection: "column", gap: 10, opacity: busyId === it.id ? 0.6 : 1 }}>
+                  <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+                    <span style={{
+                      width: 8, height: 8, borderRadius: 99, flexShrink: 0, marginTop: 5,
+                      background: it.priority === "high" ? "var(--danger)" : "var(--v-accent)",
+                    }} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                        <span style={{
+                          fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".03em",
+                          color: it.priority === "high" ? "var(--danger)" : "var(--v-accent)",
+                        }}>
+                          {ITEM_KIND_LABELS[it.kind]}
                         </span>
-                      )}
+                      </div>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: "var(--color-text)", marginTop: 4 }}>{it.summary}</div>
+                      {it.detail && <div style={{ fontSize: 12, color: "var(--color-text-faint)", marginTop: 2 }}>{it.detail}</div>}
+                      <div style={{ fontSize: 11, color: "var(--color-text-faint)", marginTop: 6, display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+                        <span>{new Date(it.created_at).toLocaleString("ru-RU", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</span>
+                        {it.clients && it.client_id && (
+                          <span onClick={() => onOpenClient(it.client_id!)} style={{ color: "var(--v-accent)", cursor: "pointer", fontWeight: 600 }}>
+                            {it.clients.name || it.clients.phone} →
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
-                  <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                  <div style={{ display: "flex", gap: 7 }}>
                     <button onClick={() => act(it.id, "confirm")} disabled={busyId === it.id} className="press" style={{ fontSize: 10.5, fontWeight: 700, color: "var(--v-text-on-accent)", background: "var(--v-accent)", border: "none", borderRadius: 8, padding: "6px 11px", cursor: "pointer" }}>Сделано</button>
-                    <button onClick={() => act(it.id, "snooze")} disabled={busyId === it.id} className="press" style={{ fontSize: 10.5, fontWeight: 700, color: "var(--color-text-soft)", background: "transparent", border: "1px solid var(--color-hairline)", borderRadius: 8, padding: "6px 11px", cursor: "pointer" }}>Отложить</button>
-                    <button onClick={() => act(it.id, "dismiss")} disabled={busyId === it.id} className="press" style={{ fontSize: 10.5, fontWeight: 700, color: "var(--color-text-faint)", background: "transparent", border: "none", borderRadius: 8, padding: "6px 11px", cursor: "pointer" }}>Скрыть</button>
+                    <button onClick={() => act(it.id, "snooze")} disabled={busyId === it.id} className="press" title="Отложить на 1 день" style={{ fontSize: 10.5, fontWeight: 700, color: "var(--color-text-soft)", background: "transparent", border: "1px solid var(--color-hairline)", borderRadius: 8, padding: "6px 11px", cursor: "pointer" }}>Отложить</button>
+                    <button onClick={() => act(it.id, "dismiss")} disabled={busyId === it.id} className="press" style={{ fontSize: 10.5, fontWeight: 700, color: "var(--color-text-faint)", background: "transparent", border: "none", borderRadius: 8, padding: "6px 11px", cursor: "pointer", marginLeft: "auto" }}>Скрыть</button>
                   </div>
                 </div>
               ))}
