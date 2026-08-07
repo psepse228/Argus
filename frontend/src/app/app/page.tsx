@@ -190,8 +190,18 @@ export default function AppPage() {
                   <div style={{ fontSize: 11.5, color: "var(--color-text-faint)", marginTop: 2 }}>Italiano Vero — Milano · Roma · Neapol · Venice · Florencia</div>
                 </div>
                 <div style={{ fontSize: 11.5, color: "var(--color-text-faint)", textAlign: "right", flexShrink: 0 }}>
-                  {effectiveUser.email}<br />{effectiveUser.role === "boss" ? "Босс" : "Агент"}
-                  {previewRole && <div style={{ color: "var(--v-accent)", fontWeight: 700 }}>Предпросмотр</div>}
+                  {effectiveUser.email}<br />
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                    {effectiveUser.role === "boss" ? "Босс" : "Агент"}
+                    {previewRole && (
+                      <span style={{
+                        color: "var(--v-accent)", fontWeight: 700, fontSize: 10, lineHeight: 1.5,
+                        background: "var(--v-accent-tint)", borderRadius: 99, padding: "2px 8px",
+                      }}>
+                        Предпросмотр
+                      </span>
+                    )}
+                  </span>
                 </div>
               </div>
             )}

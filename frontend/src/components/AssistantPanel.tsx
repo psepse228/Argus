@@ -42,10 +42,10 @@ export function AssistantPanel({
   const isBoss = user.role === "boss";
   const [digest, setDigest] = useState<Digest | null>(null);
   const [view, setView] = useState<View>("overview");
-  // Which inline panel is open within Обзор (approvals/summary/discount) --
+  // Which inline panel is open within Обзор (approvals/summary) --
   // lifted up here (used to live inside OverviewContent) because the pills
   // that drive it now live in the shared top row, not a child component.
-  const [tab, setTab] = useState<"home" | "approvals" | "summary" | "discount">("home");
+  const [tab, setTab] = useState<"home" | "approvals" | "summary">("home");
 
   useEffect(() => {
     if (openWorkspaceClientId) setView("workshop");
@@ -117,7 +117,6 @@ export function AssistantPanel({
     ? [
         { label: "Одобрения", panel: "approvals" as const, icon: <path d="M9 12l2 2 4-4M12 3l1.8 4.3L18 9l-4.2 1.7L12 15l-1.8-4.3L6 9l4.2-1.7L12 3Z" /> },
         { label: "Сводка", panel: "summary" as const, icon: <><path d="M3 3v18h18" /><path d="M7 15l4-5 3 3 5-7" /></> },
-        { label: "Дисконт", panel: "discount" as const, icon: <><path d="M19 5 5 19" /><circle cx="7.5" cy="7.5" r="1.7" /><circle cx="16.5" cy="16.5" r="1.7" /></> },
       ]
     : [];
 
@@ -220,7 +219,7 @@ function OverviewContent({
 }: {
   digest: Digest | null;
   isBoss: boolean;
-  tab: "home" | "approvals" | "summary" | "discount";
+  tab: "home" | "approvals" | "summary";
   onCloseTab: () => void;
   onOpenClient: (clientId: string) => void;
   onDecided: () => void;
@@ -270,7 +269,7 @@ function OverviewContent({
         <div className="glass-panel" style={{ padding: "20px 22px" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
             <div style={{ fontSize: 15, fontWeight: 800 }}>
-              {tab === "approvals" ? "Ждут одобрения" : tab === "summary" ? "Сводка" : "Средний одобренный дисконт"}
+              {tab === "approvals" ? "Ждут одобрения" : "Сводка"}
             </div>
             <div onClick={onCloseTab} style={{ fontSize: 12, fontWeight: 700, color: "var(--color-text-faint)", cursor: "pointer" }}>Закрыть ✕</div>
           </div>
@@ -279,7 +278,7 @@ function OverviewContent({
           )}
           {tab === "summary" && digest && (
             <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 12 }}>
                 <div className="glass-panel" style={{ padding: "14px 15px" }}>
                   <div style={{ fontFamily: "var(--font-heading)", fontSize: 24, fontWeight: 800, color: "var(--v-accent)", lineHeight: 1 }}>{digest.leadsCount}</div>
                   <div style={{ fontSize: 11, color: "var(--color-text-faint)", marginTop: 5 }}>Лидов в работе</div>
@@ -291,6 +290,10 @@ function OverviewContent({
                 <div className="glass-panel" style={{ padding: "14px 15px" }}>
                   <div style={{ fontFamily: "var(--font-heading)", fontSize: 24, fontWeight: 800, color: "var(--success)", lineHeight: 1 }}>{digest.approvedTotal ?? "—"}</div>
                   <div style={{ fontSize: 11, color: "var(--color-text-faint)", marginTop: 5 }}>Одобрено всего</div>
+                </div>
+                <div className="glass-panel" style={{ padding: "14px 15px" }}>
+                  <div style={{ fontFamily: "var(--font-heading)", fontSize: 24, fontWeight: 800, color: "var(--color-text)", lineHeight: 1 }}>{digest.avgDiscount ?? 0}%</div>
+                  <div style={{ fontSize: 11, color: "var(--color-text-faint)", marginTop: 5 }}>Средний дисконт</div>
                 </div>
               </div>
               {digest.buildingStats.length > 0 && (
@@ -377,18 +380,6 @@ function OverviewContent({
               </div>
             </div>
           )}
-          {tab === "discount" && digest && (
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-              <div className="glass-panel" style={{ padding: "17px 18px" }}>
-                <div style={{ fontFamily: "var(--font-heading)", fontSize: 34, fontWeight: 800, color: "var(--v-accent)", lineHeight: 1 }}>{digest.avgDiscount ?? 0}%</div>
-                <div style={{ fontSize: 12, color: "var(--color-text-faint)", marginTop: 6 }}>Средний одобренный дисконт</div>
-              </div>
-              <div className="glass-panel" style={{ padding: "17px 18px" }}>
-                <div style={{ fontFamily: "var(--font-heading)", fontSize: 34, fontWeight: 800, color: "var(--color-text)", lineHeight: 1 }}>{digest.approvedTotal ?? 0}</div>
-                <div style={{ fontSize: 12, color: "var(--color-text-faint)", marginTop: 6 }}>Одобренных справок всего</div>
-              </div>
-            </div>
-          )}
         </div>
       )}
 
@@ -436,43 +427,6 @@ function OverviewContent({
           ))}
         </div>
       )}
-
-      {isBoss && tab === "home" && <CortegeTeaserCard />}
-    </div>
-  );
-}
-
-/** Cross-sell placeholder, not a real integration yet -- Argus and Cortège
- * are separate Solura products today. This just plants the idea in front of
- * the one person (the boss) who'd actually buy it, once it's real. */
-function CortegeTeaserCard() {
-  return (
-    <div
-      className="glass-panel"
-      style={{
-        padding: "18px 20px", display: "flex", alignItems: "center", gap: 16,
-        border: "1px solid color-mix(in srgb, #22d3ee 30%, transparent)",
-      }}
-    >
-      <div
-        style={{
-          width: 42, height: 42, borderRadius: 12, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center",
-          background: "linear-gradient(150deg, #22d3ee, #6366f1)",
-        }}
-      >
-        <svg viewBox="0 0 24 24" width={22} height={22} fill="none" stroke="#fff" strokeWidth={1.9}>
-          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-        </svg>
-      </div>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 13.5, fontWeight: 800, color: "var(--color-text)" }}>Cortège для Italiano Vero</div>
-        <div style={{ fontSize: 12, color: "var(--color-text-faint)", marginTop: 2, lineHeight: 1.5 }}>
-          AI, который сам отвечает клиентам в Instagram и Telegram — те же лиды, без ожидания менеджера.
-        </div>
-      </div>
-      <span style={{ fontSize: 10.5, fontWeight: 800, color: "#22d3ee", background: "rgba(34,211,238,.12)", padding: "5px 12px", borderRadius: 99, flexShrink: 0, whiteSpace: "nowrap" }}>
-        Скоро
-      </span>
     </div>
   );
 }

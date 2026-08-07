@@ -236,7 +236,13 @@ export function ChatThread({
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && send()}
-            placeholder={spravkaMode ? "Юнит, имя и телефон клиента, план оплаты…" : "Спросите про юниты, условия сделки или дайте задачу…"}
+            placeholder={
+              mode === "help"
+                ? "Спросите, как пользоваться разделом Argus — Юниты, Лиды, Справки…"
+                : spravkaMode
+                ? "Юнит, имя и телефон клиента, план оплаты…"
+                : "Спросите про юниты, условия сделки или дайте задачу…"
+            }
             style={{ flex: 1, background: "transparent", border: "none", outline: "none", color: "var(--color-text)", fontSize: 13.5, padding: "9px 0" }}
           />
           <button
