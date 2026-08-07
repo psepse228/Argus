@@ -69,6 +69,8 @@ export function TelegramBusinessThread({
     );
   }
 
+  const isUneditedDraft = !!conversation.draft_reply && draftText === conversation.draft_reply;
+
   return (
     <div className="glass-panel" style={{ padding: "16px 18px", display: "flex", flexDirection: "column", gap: 12 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -98,6 +100,14 @@ export function TelegramBusinessThread({
       {error && <div style={{ fontSize: 12, color: "var(--danger)" }}>{error}</div>}
 
       <div style={{ display: "flex", flexDirection: "column", gap: 8, paddingTop: 8, borderTop: "1px solid var(--color-hairline-soft)" }}>
+        {isUneditedDraft && (
+          <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 10.5, fontWeight: 700, color: "var(--v-accent)", textTransform: "uppercase", letterSpacing: ".04em" }}>
+            <svg viewBox="0 0 24 24" width={11} height={11} fill="none" stroke="currentColor" strokeWidth={2.2}>
+              <path d="M12 3l1.8 4.3L18 9l-4.2 1.7L12 15l-1.8-4.3L6 9l4.2-1.7L12 3Z" /><path d="M19 14l.9 2.1L22 17l-2.1.9L19 20l-.9-2.1L16 17l2.1-.9L19 14Z" />
+            </svg>
+            Черновик Argus — проверьте перед отправкой
+          </div>
+        )}
         <textarea
           value={draftText}
           onChange={(e) => { isDirtyRef.current = true; setDraftText(e.target.value); }}
@@ -105,7 +115,11 @@ export function TelegramBusinessThread({
           rows={3}
           disabled={sending}
           aria-label="Ответ клиенту"
-          style={{ width: "100%", resize: "vertical", background: "var(--surface-04)", border: "1px solid var(--color-hairline)", borderRadius: 10, color: "var(--color-text)", fontSize: 13, padding: "9px 12px", fontFamily: "inherit" }}
+          style={{
+            width: "100%", resize: "vertical", color: "var(--color-text)", fontSize: 13, padding: "9px 12px", fontFamily: "inherit", borderRadius: 10,
+            background: isUneditedDraft ? "var(--v-accent-tint)" : "var(--surface-04)",
+            border: isUneditedDraft ? "1px solid var(--v-accent)" : "1px solid var(--color-hairline)",
+          }}
         />
         <div style={{ display: "flex", gap: 8 }}>
           <button
@@ -114,7 +128,7 @@ export function TelegramBusinessThread({
           >
             {sending ? "Отправляю…" : "Отправить"}
           </button>
-          {conversation.draft_reply && draftText === conversation.draft_reply && (
+          {isUneditedDraft && (
             <button
               className="press" onClick={() => { isDirtyRef.current = true; setDraftText(""); }}
               style={{ padding: "8px 16px", borderRadius: 99, background: "transparent", color: "var(--color-text-soft)", fontSize: 12.5, fontWeight: 600, border: "1px solid var(--color-hairline)", cursor: "pointer" }}
