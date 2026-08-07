@@ -31,7 +31,7 @@ export function TodayQueue() {
     setRefreshing(true);
     setError("");
     try {
-      setItems(await api.brainItems());
+      setItems(await api.brainItems(true));
     } catch (e: any) {
       setError(`Не удалось обновить: ${e.message}`);
     } finally {
@@ -79,7 +79,7 @@ export function TodayQueue() {
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           {!error && visible.length > 0 && (
             <span style={{ fontSize: 11, fontWeight: 700, color: "var(--v-accent)", background: "var(--v-accent-tint)", borderRadius: 99, padding: "2px 9px" }}>
-              {visible.length}
+              {items?.length ?? 0}
             </span>
           )}
           <button
@@ -103,6 +103,7 @@ export function TodayQueue() {
       ) : visible.length === 0 ? (
         <div style={{ fontSize: 12.5, color: "var(--color-text-faint)" }}>Пусто — ничего срочного нет.</div>
       ) : (
+        <>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(280px,1fr))", gap: "12px 20px" }}>
           {visible.map((it) => (
             <div key={it.id} style={{ display: "flex", alignItems: "flex-start", gap: 9, paddingBottom: 10, borderBottom: "1px solid var(--color-hairline-soft)", minWidth: 0, opacity: busyId === it.id ? 0.5 : 1 }}>
@@ -118,13 +119,13 @@ export function TodayQueue() {
                 <div style={{ display: "flex", gap: 12, marginTop: 5 }}>
                   <button
                     onClick={() => act(it.id, "confirm")} disabled={busyId === it.id} className="press"
-                    style={{ fontSize: 10.5, fontWeight: 700, color: "var(--v-accent)", background: "none", border: "none", padding: 0, cursor: "pointer" }}
+                    style={{ fontSize: 10.5, fontWeight: 700, color: "var(--v-accent)", background: "none", border: "none", padding: "2px 4px", marginLeft: -4, cursor: "pointer" }}
                   >
                     Сделано
                   </button>
                   <button
                     onClick={() => act(it.id, "dismiss")} disabled={busyId === it.id} className="press"
-                    style={{ fontSize: 10.5, fontWeight: 700, color: "var(--color-text-faint)", background: "none", border: "none", padding: 0, cursor: "pointer" }}
+                    style={{ fontSize: 10.5, fontWeight: 700, color: "var(--color-text-faint)", background: "none", border: "none", padding: "2px 4px", marginLeft: -4, cursor: "pointer" }}
                   >
                     Скрыть
                   </button>
@@ -133,6 +134,12 @@ export function TodayQueue() {
             </div>
           ))}
         </div>
+        {items && items.length > MAX_ITEMS && (
+          <div style={{ fontSize: 11, color: "var(--color-text-faint)", marginTop: 10 }}>
+            Ещё {items.length - MAX_ITEMS} — смотрите полный список в разделе Argus Brain
+          </div>
+        )}
+        </>
       )}
     </div>
   );

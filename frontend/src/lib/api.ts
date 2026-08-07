@@ -17,6 +17,27 @@ async function request(path: string, options: RequestInit = {}) {
 
 export type CurrentUser = { email: string; role: "boss" | "sales_agent"; tenant_id: string };
 
+// GET /api/brain/items triggers a real GPT-backed sync on the backend with
+// no server-side staleness check -- multiple components on the same page
+// (TodayQueue, HudToolbar's presence indicator, the Argus Brain screen)
+// each mounting and fetching independently would otherwise mean 2-3 full
+// resyncs per page load. This dedupes concurrent/rapid calls into one
+// shared in-flight request; `force: true` (an explicit user-initiated
+// refresh) bypasses it and always fetches fresh.
+let brainItemsCache: { promise: Promise<BrainItem[]>; timestamp: number } | null = null;
+const BRAIN_ITEMS_CACHE_MS = 60_000;
+
+function fetchBrainItems(force?: boolean): Promise<BrainItem[]> {
+  const now = Date.now();
+  if (!force && brainItemsCache && now - brainItemsCache.timestamp < BRAIN_ITEMS_CACHE_MS) {
+    return brainItemsCache.promise;
+  }
+  const promise = request("/api/brain/items") as Promise<BrainItem[]>;
+  brainItemsCache = { promise, timestamp: now };
+  promise.catch(() => { brainItemsCache = null; }); // don't cache a failed request
+  return promise;
+}
+
 export const api = {
   me: (): Promise<CurrentUser | null> => request("/api/auth/me").catch(() => null),
   buildings: () => request("/api/units/buildings"),
@@ -123,7 +144,7 @@ export const api = {
   companySummary: (): Promise<CompanySummary> =>
     request("/api/brain/company-summary", { method: "POST" }),
 
-  brainItems: (): Promise<BrainItem[]> => request("/api/brain/items"),
+  brainItems: (force?: boolean): Promise<BrainItem[]> => fetchBrainItems(force),
   dismissBrainItem: (id: string) => request(`/api/brain/items/${id}/dismiss`, { method: "POST" }),
   confirmBrainItem: (id: string) => request(`/api/brain/items/${id}/confirm`, { method: "POST" }),
   snoozeBrainItem: (id: string, days?: number) =>
