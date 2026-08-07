@@ -1,26 +1,28 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useState, useEffect } from "react";
 import { api } from "@/lib/api";
-import { DailyBriefingItem } from "@/lib/types";
+import { BrainItem } from "@/lib/types";
 import { Skeleton } from "./Skeleton";
 
 const MAX_ITEMS = 8;
 
-/** Argus Brain Phase 2b: this used to build its own list from four raw
- * endpoints (leads/справки/clients/calendar) with fixed client-side rules.
- * Now it's a thin fetch-and-render of the cached, AI-prioritized
- * daily-briefing endpoint (backend/app/routers/daily_briefing.py) --
- * gather_manager_context supplies the deterministic facts, generate_daily_briefing
- * ranks/phrases them, cached per manager per day so this never triggers a
- * fresh OpenAI call on every page load. */
+/** Argus Brain unification (2026-08 UI audit): this used to read its own
+ * cached daily-briefing ranking (backend/app/routers/daily_briefing.py) --
+ * a separate AI pass that could silently disagree with the Argus Brain
+ * screen's own open-items count (a UI audit caught exactly this: both could
+ * show "nothing urgent" at once while real approvals sat open). Now it's a
+ * thin fetch-and-render of the SAME brain_items feed the Argus Brain screen
+ * and topbar indicator read -- one source of truth, and items are now real
+ * (confirm/snooze/dismiss), not just a read-only suggestion list. */
 export function TodayQueue() {
-  const [items, setItems] = useState<DailyBriefingItem[] | null>(null);
+  const [items, setItems] = useState<BrainItem[] | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
+  const [busyId, setBusyId] = useState<string | null>(null);
 
   function load() {
     setError("");
-    api.dailyBriefing().then(setItems).catch((e: any) => setError(`Не удалось загрузить список: ${e.message}`));
+    api.brainItems().then(setItems).catch((e: any) => setError(`Не удалось загрузить список: ${e.message}`));
   }
 
   useEffect(() => { load(); }, []);
@@ -29,11 +31,26 @@ export function TodayQueue() {
     setRefreshing(true);
     setError("");
     try {
-      setItems(await api.refreshDailyBriefing());
+      setItems(await api.brainItems());
     } catch (e: any) {
       setError(`Не удалось обновить: ${e.message}`);
     } finally {
       setRefreshing(false);
+    }
+  }
+
+  async function act(id: string, action: "confirm" | "dismiss" | "snooze") {
+    setBusyId(id);
+    setError("");
+    try {
+      if (action === "confirm") await api.confirmBrainItem(id);
+      else if (action === "dismiss") await api.dismissBrainItem(id);
+      else await api.snoozeBrainItem(id, 1);
+      setItems((cur) => cur && cur.filter((it) => it.id !== id));
+    } catch (e: any) {
+      setError(`Не удалось обновить: ${e.message}`);
+    } finally {
+      setBusyId(null);
     }
   }
 
@@ -44,7 +61,7 @@ export function TodayQueue() {
           <div style={{ fontSize: 14, fontWeight: 800, color: "var(--color-text)" }}>На сегодня</div>
         </div>
         <p style={{ fontSize: 11, color: "var(--color-text-faint)", margin: "0 0 12px" }}>
-          AI-приоритеты на сегодня — из лидов, справок, календаря и звонков.
+          Argus Brain — те же открытые дела, что и в разделе Argus Brain.
         </p>
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           {[0, 1, 2].map((i) => <Skeleton key={i} height={32} />)}
@@ -74,7 +91,7 @@ export function TodayQueue() {
         </div>
       </div>
       <p style={{ fontSize: 11, color: "var(--color-text-faint)", margin: "0 0 12px" }}>
-        AI-приоритеты на сегодня — из лидов, справок, календаря и звонков.
+        Argus Brain — те же открытые дела, что и в разделе Argus Brain.
       </p>
       {error ? (
         <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
@@ -86,13 +103,32 @@ export function TodayQueue() {
       ) : visible.length === 0 ? (
         <div style={{ fontSize: 12.5, color: "var(--color-text-faint)" }}>Пусто — ничего срочного нет.</div>
       ) : (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(260px,1fr))", gap: "12px 20px" }}>
-          {visible.map((it, i) => (
-            <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 9, paddingBottom: 10, borderBottom: "1px solid var(--color-hairline-soft)", minWidth: 0 }}>
-              <span style={{ width: 7, height: 7, borderRadius: 99, background: "var(--v-accent)", flexShrink: 0, marginTop: 5 }} />
-              <div style={{ minWidth: 0 }}>
-                <div style={{ fontSize: 12.5, fontWeight: 700, color: "var(--color-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{it.label}</div>
-                <div style={{ fontSize: 11.5, color: "var(--color-text-faint)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{it.detail}</div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(280px,1fr))", gap: "12px 20px" }}>
+          {visible.map((it) => (
+            <div key={it.id} style={{ display: "flex", alignItems: "flex-start", gap: 9, paddingBottom: 10, borderBottom: "1px solid var(--color-hairline-soft)", minWidth: 0, opacity: busyId === it.id ? 0.5 : 1 }}>
+              <span style={{
+                width: 7, height: 7, borderRadius: 99, flexShrink: 0, marginTop: 5,
+                background: it.priority === "high" ? "var(--danger)" : "var(--v-accent)",
+              }} />
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <div style={{ fontSize: 12.5, fontWeight: 700, color: "var(--color-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{it.summary}</div>
+                {it.detail && (
+                  <div style={{ fontSize: 11.5, color: "var(--color-text-faint)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{it.detail}</div>
+                )}
+                <div style={{ display: "flex", gap: 12, marginTop: 5 }}>
+                  <button
+                    onClick={() => act(it.id, "confirm")} disabled={busyId === it.id} className="press"
+                    style={{ fontSize: 10.5, fontWeight: 700, color: "var(--v-accent)", background: "none", border: "none", padding: 0, cursor: "pointer" }}
+                  >
+                    Сделано
+                  </button>
+                  <button
+                    onClick={() => act(it.id, "dismiss")} disabled={busyId === it.id} className="press"
+                    style={{ fontSize: 10.5, fontWeight: 700, color: "var(--color-text-faint)", background: "none", border: "none", padding: 0, cursor: "pointer" }}
+                  >
+                    Скрыть
+                  </button>
+                </div>
               </div>
             </div>
           ))}
