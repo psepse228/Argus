@@ -2,7 +2,6 @@
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { PLAN_LABELS, SpravkaRequest } from "@/lib/types";
-import { ExcelPreviewModal } from "./ExcelPreviewModal";
 import { Skeleton } from "./Skeleton";
 import { StatusChip } from "./StatusChip";
 
@@ -25,7 +24,6 @@ export function SpravkaApprovalTable({
 }) {
   const [requests, setRequests] = useState<SpravkaRequest[] | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [previewId, setPreviewId] = useState<string | null>(null);
   const [actionError, setActionError] = useState("");
 
   async function refresh() {
@@ -80,7 +78,7 @@ export function SpravkaApprovalTable({
                 {r.generated_file_url && (
                   <>
                     <button
-                      onClick={() => setPreviewId(r.id)}
+                      onClick={() => setExpandedId(isOpen ? null : r.id)}
                       style={{ padding: "6px 12px", borderRadius: 99, background: "var(--v-accent-tint)", border: "1px solid transparent", color: "var(--v-accent)", fontSize: 11.5, fontWeight: 600, cursor: "pointer" }}
                     >
                       Просмотр
@@ -132,7 +130,6 @@ export function SpravkaApprovalTable({
         );
       })}
       {requests.length === 0 && <div style={{ padding: "30px 0", textAlign: "center", color: "var(--color-text-faint)", fontSize: 13 }}>Пока нет сгенерированных справок</div>}
-      {previewId && <ExcelPreviewModal requestId={previewId} onClose={() => setPreviewId(null)} />}
     </div>
   );
 }
