@@ -16,7 +16,7 @@ const SORTS = {
 } as const;
 
 export function UnitsPanel({
-  openUnitId, onOpenUnitHandled, onOpenClient, presentationMode,
+  openUnitId, onOpenUnitHandled, onOpenClient, presentationMode, onTogglePresentation,
 }: {
   /** Set from outside (e.g. global search) to drill straight into a unit. */
   openUnitId?: string | null;
@@ -26,6 +26,9 @@ export function UnitsPanel({
   /** Client is looking at the screen -- hide manager/client identity and the
    * "Кто интересуется" list, keep everything else (unit facts, PDF export). */
   presentationMode?: boolean;
+  /** Toggles presentationMode -- same setter HudToolbar's own presentation
+   * button drives, so either control flips the one shared state. */
+  onTogglePresentation?: () => void;
 } = {}) {
   const [buildings, setBuildings] = useState<Building[]>([]);
   const [units, setUnits] = useState<Unit[]>([]);
@@ -133,26 +136,58 @@ export function UnitsPanel({
   return (
     <div style={{ flex: 1, minHeight: 0, display: "flex", gap: 16 }}>
       <div style={{ flex: 1, minWidth: 0, overflowY: "auto" }}>
+        {presentationMode && (
+          <div style={{
+            display: "flex", alignItems: "center", gap: 10, padding: "10px 16px", borderRadius: 12, marginBottom: 14,
+            background: "var(--v-accent-tint)", border: "1px solid var(--v-accent)", color: "var(--v-accent)",
+            fontSize: 12.5, fontWeight: 700,
+          }}>
+            <svg viewBox="0 0 24 24" width={15} height={15} fill="none" stroke="currentColor" strokeWidth={2.2}>
+              <rect x="3" y="4" width="18" height="13" rx="2" /><path d="M8 21h8M12 17v4" />
+            </svg>
+            Показ клиенту включён — имена менеджеров, клиентов и телефоны скрыты
+          </div>
+        )}
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
           <div>
             <h1 style={{ fontFamily: "var(--font-heading)", fontSize: 23, fontWeight: 700, margin: "0 0 6px", color: "var(--color-text)" }}>Юниты</h1>
             <p style={{ color: "var(--color-text-soft)", fontSize: 13, margin: 0 }}>{filtered.length} из {units.length} юнитов</p>
           </div>
-          <div style={{ display: "flex", gap: 4, background: "var(--surface-04)", borderRadius: 10, padding: 3, flexShrink: 0 }}>
-            {(["grid", "list"] as const).map((v) => (
-              <div
-                key={v}
-                onClick={() => setView(v)}
+          <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", flexShrink: 0, justifyContent: "flex-end" }}>
+            <div style={{ display: "flex", gap: 4, background: "var(--surface-04)", borderRadius: 10, padding: 3, flexShrink: 0 }}>
+              {(["grid", "list"] as const).map((v) => (
+                <div
+                  key={v}
+                  onClick={() => setView(v)}
+                  className="press"
+                  style={{
+                    padding: "6px 13px", borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: "pointer",
+                    background: view === v ? "var(--v-accent)" : "transparent",
+                    color: view === v ? "var(--v-text-on-accent)" : "var(--color-text-soft)",
+                  }}
+                >
+                  {v === "grid" ? "Сетка" : "Список"}
+                </div>
+              ))}
+            </div>
+            {onTogglePresentation && (
+              <button
+                onClick={onTogglePresentation}
                 className="press"
                 style={{
-                  padding: "6px 13px", borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: "pointer",
-                  background: view === v ? "var(--v-accent)" : "transparent",
-                  color: view === v ? "var(--v-text-on-accent)" : "var(--color-text-soft)",
+                  display: "flex", alignItems: "center", gap: 7, padding: "8px 14px", borderRadius: 10,
+                  fontSize: 12, fontWeight: 700, cursor: "pointer", flexShrink: 0,
+                  border: presentationMode ? "1px solid var(--v-accent)" : "1px solid var(--color-hairline-soft)",
+                  background: presentationMode ? "var(--v-accent-tint)" : "var(--surface-04)",
+                  color: presentationMode ? "var(--v-accent)" : "var(--color-text-soft)",
                 }}
               >
-                {v === "grid" ? "Сетка" : "Список"}
-              </div>
-            ))}
+                <svg viewBox="0 0 24 24" width={14} height={14} fill="none" stroke="currentColor" strokeWidth={2}>
+                  <rect x="3" y="4" width="18" height="13" rx="2" /><path d="M8 21h8M12 17v4" />
+                </svg>
+                {presentationMode ? "Показ клиенту: включён" : "Режим показа клиенту"}
+              </button>
+            )}
           </div>
         </div>
         {units.length > 0 && (

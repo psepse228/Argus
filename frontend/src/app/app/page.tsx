@@ -227,6 +227,7 @@ export default function AppPage() {
                 <UnitsPanel
                   openUnitId={pendingUnitId} onOpenUnitHandled={() => setPendingUnitId(null)} onOpenClient={openClientFromLead}
                   presentationMode={presentationMode}
+                  onTogglePresentation={() => setPresentationMode((v) => !v)}
                 />
               )}
               {s.key === "leads" && <LeadsPanel onOpenClient={openClientFromLead} />}
