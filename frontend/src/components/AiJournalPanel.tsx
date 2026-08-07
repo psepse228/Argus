@@ -192,37 +192,42 @@ export function AiJournalPanel({ onOpenClient }: { onOpenClient: (clientId: stri
           ) : events && events.length === 0 ? (
             <div style={{ color: "var(--color-text-faint)", fontSize: 13 }}>Пока нет записей — журнал наполняется по мере работы AI.</div>
           ) : events ? (
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              {events.map((e) => (
-                <div key={e.id} className="glass-panel" style={{ padding: "12px 16px", display: "flex", alignItems: "flex-start", gap: 10 }}>
-                  <span style={{ width: 8, height: 8, borderRadius: 99, background: EVENT_KIND_COLORS[e.kind], flexShrink: 0, marginTop: 5 }} />
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                      <span style={{ fontSize: 11, fontWeight: 700, color: EVENT_KIND_COLORS[e.kind], textTransform: "uppercase", letterSpacing: ".03em" }}>
-                        {EVENT_KIND_LABELS[e.kind]}
-                      </span>
-                      {e.outcome && (
-                        <span style={{
-                          fontSize: 10, fontWeight: 700, borderRadius: 99, padding: "2px 8px",
-                          background: e.outcome === "confirmed" ? "var(--success-tint)" : "var(--surface-05)",
-                          color: e.outcome === "confirmed" ? "var(--success)" : "var(--color-text-faint)",
-                        }}>
-                          {e.outcome === "confirmed" ? "Подтверждено" : "Отклонено"}
-                        </span>
-                      )}
+            <div className="glass-panel" style={{ padding: "16px 18px" }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                {events.map((e, i) => (
+                  <div key={e.id} style={{ display: "flex", gap: 10 }}>
+                    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", flexShrink: 0, paddingTop: 3 }}>
+                      <span style={{ width: 8, height: 8, borderRadius: 99, background: EVENT_KIND_COLORS[e.kind], flexShrink: 0 }} />
+                      {i < events.length - 1 && <span style={{ width: 1, flex: 1, minHeight: 14, background: "var(--color-hairline-soft)", marginTop: 4 }} />}
                     </div>
-                    <div style={{ fontSize: 13, color: "var(--color-text)", marginTop: 4 }}>{e.summary}</div>
-                    <div style={{ fontSize: 11, color: "var(--color-text-faint)", marginTop: 4, display: "flex", gap: 10 }}>
-                      <span>{new Date(e.created_at).toLocaleString("ru-RU", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</span>
-                      {e.clients && (
-                        <span onClick={() => onOpenClient(e.client_id!)} style={{ color: "var(--v-accent)", cursor: "pointer", fontWeight: 600 }}>
-                          {e.clients.name || e.clients.phone} →
+                    <div style={{ paddingBottom: 2, flex: 1, minWidth: 0 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                        <span style={{ fontSize: 11, fontWeight: 700, color: EVENT_KIND_COLORS[e.kind], textTransform: "uppercase", letterSpacing: ".03em" }}>
+                          {EVENT_KIND_LABELS[e.kind]}
                         </span>
-                      )}
+                        {e.outcome && (
+                          <span style={{
+                            fontSize: 10, fontWeight: 700, borderRadius: 99, padding: "2px 8px",
+                            background: e.outcome === "confirmed" ? "var(--success-tint)" : "var(--surface-05)",
+                            color: e.outcome === "confirmed" ? "var(--success)" : "var(--color-text-faint)",
+                          }}>
+                            {e.outcome === "confirmed" ? "Подтверждено" : "Отклонено"}
+                          </span>
+                        )}
+                      </div>
+                      <div style={{ fontSize: 13, color: "var(--color-text)", marginTop: 4 }}>{e.summary}</div>
+                      <div style={{ fontSize: 11, color: "var(--color-text-faint)", marginTop: 4, display: "flex", gap: 10 }}>
+                        <span>{new Date(e.created_at).toLocaleString("ru-RU", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</span>
+                        {e.clients && (
+                          <span onClick={() => onOpenClient(e.client_id!)} style={{ color: "var(--v-accent)", cursor: "pointer", fontWeight: 600 }}>
+                            {e.clients.name || e.clients.phone} →
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
           ) : null}
         </>
