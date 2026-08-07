@@ -167,6 +167,27 @@ def test_sync_and_list_boss_view_sorts_high_priority_first(monkeypatch):
     assert all(p == "normal" for p in priorities[first_normal_idx:])
 
 
+def test_sync_and_list_boss_also_includes_boss_only_items(monkeypatch):
+    fake = _FakeClient(_base_tables(tenant_users=[]))
+    boss_calls = []
+
+    def fake_sync(client, tenant_id, manager_email):
+        return []
+
+    def fake_sync_boss(client, tenant_id, boss_email):
+        boss_calls.append((tenant_id, boss_email))
+        return [{"id": "boss-item-1", "priority": "high", "created_at": "2026-01-01T00:00:00+00:00"}]
+
+    monkeypatch.setattr(router_mod, "sync_brain_items", fake_sync)
+    monkeypatch.setattr(router_mod, "sync_boss_brain_items", fake_sync_boss)
+
+    result = router_mod._sync_and_list(fake, "t1", "boss", "boss@x.com")
+
+    ids = {it["id"] for it in result}
+    assert "boss-item-1" in ids
+    assert boss_calls == [("t1", "boss@x.com")]
+
+
 # ---- _load_item ----
 
 

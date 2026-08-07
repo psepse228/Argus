@@ -156,28 +156,56 @@ def _promoted_ai_event_candidates(client, tenant_id: str, manager_email: str) ->
     ]
 
 
-def sync_brain_items(client, tenant_id: str, manager_email: str) -> list[dict]:
-    """Diffs current candidates against existing brain_items rows and
-    returns this manager's open items, priority-then-recency sorted
-    (ascending order puts "high" before "normal" alphabetically -- don't
-    flip to desc, that would invert it)."""
-    facts = gather_manager_context(client, tenant_id, manager_email)
-    candidates = _generate_candidates(facts) + _promoted_ai_event_candidates(client, tenant_id, manager_email)
+def _unconfirmed_event_candidates(facts: dict) -> list[dict]:
+    """Deterministic, no GPT judgment needed -- an AI-proposed calendar
+    event still sitting at status='proposed' unambiguously needs the
+    manager's confirm/decline. Same list Calendar's own "Требуют
+    подтверждения" section shows, with NO age cutoff (unlike the 7-day
+    window on promoted ai_events above) -- an old unconfirmed meeting is
+    exactly as urgent as a new one, and Calendar itself never hides one for
+    being old."""
+    out = []
+    for e in facts.get("calendar_events", []):
+        if e.get("status") != "proposed":
+            continue
+        when_label = e.get("event_at", "")
+        try:
+            dt = datetime.fromisoformat(when_label.replace("Z", "+00:00"))
+            when_label = dt.strftime("%d.%m %H:%M")
+        except (ValueError, AttributeError):
+            pass
+        client_info = e.get("clients") or {}
+        who = client_info.get("name") or client_info.get("phone")
+        out.append({
+            "kind": "unconfirmed_event", "ref_table": "calendar_events", "ref_id": e["id"],
+            "client_id": e.get("client_id"),
+            "summary": f"Подтвердить встречу — {who}" if who else "Подтвердить встречу",
+            "detail": when_label or None,
+            "priority": "high",
+        })
+    return out
 
+
+def _upsert_and_resolve(client, tenant_id: str, assigned_to: str, candidates: list[dict]) -> list[dict]:
+    """Shared diff-and-upsert core behind every sync_*_brain_items function:
+    upserts each candidate unless an existing row for the same (kind,
+    dedupe_key) has already been decided (dismissed/snoozed/done), auto-
+    resolves any open row whose candidate disappeared, returns the
+    resulting open items, priority-then-recency sorted."""
     seen_keys: set[tuple[str, str]] = set()
     for c in candidates:
         dedupe_key = f"{c['ref_table']}:{c['ref_id']}"
         seen_keys.add((c["kind"], dedupe_key))
         existing = (
             client.table("brain_items").select("id, status")
-            .eq("tenant_id", tenant_id).eq("assigned_to", manager_email)
+            .eq("tenant_id", tenant_id).eq("assigned_to", assigned_to)
             .eq("kind", c["kind"]).eq("dedupe_key", dedupe_key)
             .execute().data
         )
         if existing and existing[0]["status"] != "open":
             continue  # dismissed/snoozed/done -- a decision, leave it alone
         payload = {
-            "tenant_id": tenant_id, "assigned_to": manager_email, "kind": c["kind"],
+            "tenant_id": tenant_id, "assigned_to": assigned_to, "kind": c["kind"],
             "dedupe_key": dedupe_key, "client_id": c["client_id"],
             "summary": c["summary"], "detail": c["detail"], "priority": c["priority"],
         }
@@ -188,7 +216,7 @@ def sync_brain_items(client, tenant_id: str, manager_email: str) -> list[dict]:
 
     open_rows = (
         client.table("brain_items").select("id, kind, dedupe_key")
-        .eq("tenant_id", tenant_id).eq("assigned_to", manager_email).eq("status", "open")
+        .eq("tenant_id", tenant_id).eq("assigned_to", assigned_to).eq("status", "open")
         .execute().data
     )
     now = datetime.now(timezone.utc).isoformat()
@@ -198,7 +226,47 @@ def sync_brain_items(client, tenant_id: str, manager_email: str) -> list[dict]:
 
     return (
         client.table("brain_items").select("*, clients(name, phone)")
-        .eq("tenant_id", tenant_id).eq("assigned_to", manager_email).eq("status", "open")
+        .eq("tenant_id", tenant_id).eq("assigned_to", assigned_to).eq("status", "open")
         .order("priority").order("created_at")
         .execute().data
     )
+
+
+def sync_brain_items(client, tenant_id: str, manager_email: str) -> list[dict]:
+    """Diffs current candidates against existing brain_items rows and
+    returns this manager's open items, priority-then-recency sorted."""
+    facts = gather_manager_context(client, tenant_id, manager_email)
+    candidates = (
+        _generate_candidates(facts)
+        + _promoted_ai_event_candidates(client, tenant_id, manager_email)
+        + _unconfirmed_event_candidates(facts)
+    )
+    return _upsert_and_resolve(client, tenant_id, manager_email, candidates)
+
+
+def sync_boss_brain_items(client, tenant_id: str, boss_email: str) -> list[dict]:
+    """Deterministic, boss-only candidates -- no GPT judgment needed, a
+    pending справка unambiguously needs the boss's decision regardless of
+    how long it's been sitting. Distinct from pending_spravka_aging above,
+    which nudges the REQUESTING manager to follow up only after 2+ days --
+    this covers every pending справка tenant-wide, immediately, for the
+    person who actually approves them."""
+    pending = (
+        client.table("spravka_requests")
+        .select("id, client_id, units(unit_number, buildings(name))")
+        .eq("tenant_id", tenant_id).eq("status", "pending")
+        .execute().data
+    )
+    candidates = []
+    for s in pending:
+        unit = s.get("units") or {}
+        unit_label = f"№{unit['unit_number']}" if unit.get("unit_number") else None
+        building = (unit.get("buildings") or {}).get("name")
+        candidates.append({
+            "kind": "pending_spravka_approval", "ref_table": "spravka_requests", "ref_id": s["id"],
+            "client_id": s.get("client_id"),
+            "summary": f"Одобрить справку — {unit_label}" if unit_label else "Одобрить справку",
+            "detail": building,
+            "priority": "high",
+        })
+    return _upsert_and_resolve(client, tenant_id, boss_email, candidates)

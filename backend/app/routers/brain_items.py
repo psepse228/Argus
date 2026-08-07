@@ -10,7 +10,7 @@ from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
-from app.ai.brain_items import sync_brain_items
+from app.ai.brain_items import sync_boss_brain_items, sync_brain_items
 from app.db import get_service_client
 from app.deps import get_current_user
 
@@ -46,6 +46,8 @@ def _sync_and_list(client, tenant_id: str, role: str, email: str) -> list[dict]:
     for m in managers:
         _wake_expired_snoozes(client, tenant_id, m["email"])
         items.extend(sync_brain_items(client, tenant_id, m["email"]))
+    _wake_expired_snoozes(client, tenant_id, email)
+    items.extend(sync_boss_brain_items(client, tenant_id, email))
     items.sort(key=lambda it: (0 if it["priority"] == "high" else 1, it["created_at"]))
     return items
 
