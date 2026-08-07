@@ -40,6 +40,25 @@ _SYSTEM_PROMPT = """Ты помогаешь руководителю отдел�
 - Если данных мало (например, лидов и событий почти нет), narrative может быть короче, но не
   выдумывай активность, которой не было."""
 
+# A UI audit caught the model echoing raw backend lead-stage codes (e.g.
+# "matching", "paid_reservation") verbatim into the owner-facing narrative
+# text, in quotes, as if they were meaningful labels. gather_company_context's
+# leads_by_stage dict is keyed by these internal snake_case values -- fine for
+# other consumers, but never meant for display. Translate to the same Russian
+# labels already shown on the Лиды Kanban board (see LeadsPanel.tsx's STAGES
+# constant, the single source of truth for lead-stage display names) before
+# the facts reach the prompt, so the model only ever sees human-readable text.
+_STAGE_LABELS = {
+    "unsorted": "Неразобранное",
+    "matching": "Подбор",
+    "meeting_scheduled": "Встреча назначена",
+    "meeting_held": "Встреча проведена",
+    "reserved": "Бронь",
+    "paid_reservation": "Платная бронь",
+    "deal_in_progress": "Сделка в процессе",
+    "contract_signed": "Договор подписан",
+}
+
 _SCHEMA = {
     "type": "json_schema",
     "json_schema": {
@@ -76,9 +95,16 @@ def generate_company_summary(facts: dict) -> dict:
     No try/except here, same reasoning as the other app/ai single-shot
     callers -- best-effort handling belongs to the caller (the
     company-summary router)."""
+    prompt_facts = {
+        **facts,
+        "leads_by_stage": {
+            _STAGE_LABELS.get(stage, stage): count
+            for stage, count in facts.get("leads_by_stage", {}).items()
+        },
+    }
     messages = [
         {"role": "system", "content": _SYSTEM_PROMPT},
-        {"role": "user", "content": json.dumps(facts, ensure_ascii=False, default=str)},
+        {"role": "user", "content": json.dumps(prompt_facts, ensure_ascii=False, default=str)},
     ]
     client = _get_client()
     try:
