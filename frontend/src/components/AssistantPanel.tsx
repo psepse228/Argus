@@ -5,6 +5,7 @@ import { api, CurrentUser } from "@/lib/api";
 import { CompanySummary, SpravkaRequest } from "@/lib/types";
 import { SpravkaApprovalTable } from "./SpravkaApprovalTable";
 import { TodayQueue } from "./TodayQueue";
+import { LiveConversationsCard } from "./LiveConversationsCard";
 import { WorkshopPanel } from "./WorkshopPanel";
 
 type Digest = {
@@ -384,6 +385,7 @@ function OverviewContent({
       )}
 
       {tab === "home" && <TodayQueue />}
+      {tab === "home" && <LiveConversationsCard onOpenClient={onOpenClient} />}
 
       {tab === "home" && digest && (
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
