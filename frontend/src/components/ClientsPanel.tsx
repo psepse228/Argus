@@ -332,6 +332,24 @@ function ClientCard({ client: c, index, onOpen }: { client: Client; index: numbe
   const initial = (c.name || c.phone).trim()[0]?.toUpperCase() || "?";
   const cardRef = useRef<HTMLDivElement>(null);
 
+  const [briefing, setBriefing] = useState<string | null>(c.ai_context_summary ?? null);
+  const [briefingLoading, setBriefingLoading] = useState(false);
+  const [briefingError, setBriefingError] = useState("");
+
+  async function loadBriefing(e: React.MouseEvent) {
+    e.stopPropagation(); // the whole card is clickable (onOpen) -- this must not also trigger that
+    setBriefingLoading(true);
+    setBriefingError("");
+    try {
+      const updated = await api.refreshClientContext(c.id);
+      setBriefing(updated.ai_context_summary);
+    } catch {
+      setBriefingError("Не удалось построить бриф");
+    } finally {
+      setBriefingLoading(false);
+    }
+  }
+
   function onMouseMove(e: React.MouseEvent<HTMLDivElement>) {
     const r = e.currentTarget.getBoundingClientRect();
     const rx = ((e.clientY - r.top) / r.height - 0.5) * -6;
@@ -395,6 +413,33 @@ function ClientCard({ client: c, index, onOpen }: { client: Client; index: numbe
         {c.assigned_manager && (
           <span style={{ fontSize: 10.5, fontWeight: 600, color: "var(--color-text-faint)", background: "var(--surface-05)", padding: "3px 9px", borderRadius: 99 }}>{c.assigned_manager}</span>
         )}
+      </div>
+
+      <div onClick={(e) => e.stopPropagation()} style={{ borderTop: "1px solid var(--color-hairline-soft)", paddingTop: 10 }}>
+        {briefing ? (
+          <div>
+            <div style={{
+              fontSize: 11, color: "var(--color-text-soft)", lineHeight: 1.5,
+              display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden",
+            }}>
+              ✨ {briefing}
+            </div>
+            <button
+              onClick={loadBriefing} disabled={briefingLoading} className="press"
+              style={{ fontSize: 10.5, fontWeight: 700, color: "var(--v-accent)", background: "none", border: "none", padding: "4px 0 0", cursor: "pointer" }}
+            >
+              {briefingLoading ? "…" : "Обновить бриф"}
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={loadBriefing} disabled={briefingLoading} className="press"
+            style={{ fontSize: 10.5, fontWeight: 700, color: "var(--v-accent)", background: "var(--v-accent-tint)", border: "none", borderRadius: 8, padding: "5px 10px", cursor: "pointer" }}
+          >
+            {briefingLoading ? "Строю бриф…" : "✨ Бриф для нового менеджера"}
+          </button>
+        )}
+        {briefingError && <div style={{ fontSize: 10.5, color: "var(--danger)", marginTop: 4 }}>{briefingError}</div>}
       </div>
     </div>
   );
