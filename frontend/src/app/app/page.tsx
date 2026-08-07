@@ -52,6 +52,9 @@ export default function AppPage() {
   // faster than the animation itself, since unlocked rapid-fire (key-repeat,
   // a fast trackpad swipe) used to queue several index changes inside one
   // transition and show overlapping/ghosted frames instead of settling.
+  // Shared by both step() and jumpTo() -- click-based navigation (dock icons,
+  // search/help/brain shortcuts) drives the same activeIndex/transitionEnabled
+  // state and could otherwise still race step() or itself mid-transition.
   const stepLockRef = useRef(false);
   // Distant dot-clicks cut straight there instead of visibly sliding past
   // every space in between -- toggled off just long enough for the index
@@ -87,13 +90,19 @@ export default function AppPage() {
   // every space in between (which read as slow and is where the transition
   // could get caught mid-flight, see stepLockRef above).
   function jumpTo(target: number) {
-    if (target === activeIndex) return;
-    if (Math.abs(target - activeIndex) <= 1) { setActiveIndex(target); return; }
+    if (target === activeIndex || stepLockRef.current) return;
+    stepLockRef.current = true;
+    if (Math.abs(target - activeIndex) <= 1) {
+      setActiveIndex(target);
+      setTimeout(() => { stepLockRef.current = false; }, 550);
+      return;
+    }
     setTransitionEnabled(false);
     requestAnimationFrame(() => {
       setActiveIndex(target);
       requestAnimationFrame(() => setTransitionEnabled(true));
     });
+    setTimeout(() => { stepLockRef.current = false; }, 550);
   }
 
   function goToSection(section: Section) {
