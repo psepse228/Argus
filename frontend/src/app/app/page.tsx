@@ -191,7 +191,7 @@ export default function AppPage() {
         }}
       >
         {visibleSpaces.map((s) => (
-          <div key={s.key} style={{ width: `${100 / visibleSpaces.length}%`, height: "100%", padding: 16, display: "flex", flexDirection: "column", gap: 16, minHeight: 0 }}>
+          <div key={s.key} style={{ width: `${100 / visibleSpaces.length}%`, height: "100%", padding: "72px 16px 16px", display: "flex", flexDirection: "column", gap: 16, minHeight: 0 }}>
             {s.key !== "assistant" && (
               <div className="glass-panel" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, padding: "12px 18px", flexShrink: 0 }}>
                 <div style={{ minWidth: 0 }}>
