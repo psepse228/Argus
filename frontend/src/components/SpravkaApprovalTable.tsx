@@ -2,16 +2,20 @@
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { PLAN_LABELS, SpravkaRequest } from "@/lib/types";
+import { ExcelPreviewModal } from "./ExcelPreviewModal";
 import { Skeleton } from "./Skeleton";
 import { StatusChip } from "./StatusChip";
 
 const primaryBtnStyle: React.CSSProperties = { padding: "6px 12px", borderRadius: 99, background: "var(--v-accent)", color: "var(--v-text-on-accent)", fontSize: 11.5, fontWeight: 700, border: "none", cursor: "pointer" };
 
-/** The real "see the actual Справка" table -- every row expands into a real
- * preview of the generated .xlsx (fonts/borders/merges, not a hand-built
- * summary), plus download and approve/reject. Shared by Обзор's Одобрения
- * quick-tab (onlyPending) and Мастерская's "Все справки" (every status) --
- * one implementation instead of two copies drifting apart. */
+/** The real "see the actual Справка" table -- every row offers two ways to
+ * look at it: "Просмотр" expands the row into a compact stat card (the
+ * numbers a boss checks in three seconds), "Excel" opens the real generated
+ * .xlsx rendered natively (fonts/borders/merges, not a hand-built summary)
+ * -- the actual document that gets sent, not just a paraphrase of it. Plus
+ * download and approve/reject. Shared by Обзор's Одобрения quick-tab
+ * (onlyPending) and Мастерская's "Все справки" (every status) -- one
+ * implementation instead of two copies drifting apart. */
 export function SpravkaApprovalTable({
   onlyPending, onOpenClient, onDecided,
 }: {
@@ -24,6 +28,7 @@ export function SpravkaApprovalTable({
 }) {
   const [requests, setRequests] = useState<SpravkaRequest[] | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [previewId, setPreviewId] = useState<string | null>(null);
   const [actionError, setActionError] = useState("");
 
   async function refresh() {
@@ -83,6 +88,13 @@ export function SpravkaApprovalTable({
                     >
                       Просмотр
                     </button>
+                    <button
+                      onClick={() => setPreviewId(r.id)}
+                      title="Открыть как настоящий Excel-файл"
+                      style={{ padding: "6px 12px", borderRadius: 99, background: "var(--surface-05)", border: "1px solid var(--color-hairline)", color: "var(--color-text-soft)", fontSize: 11.5, fontWeight: 600, cursor: "pointer" }}
+                    >
+                      Excel
+                    </button>
                     <a href={api.spravkaDownloadUrl(r.id)} style={{ padding: "6px 12px", borderRadius: 99, background: "var(--surface-05)", border: "1px solid var(--color-hairline)", color: "var(--color-text-soft)", fontSize: 11.5, fontWeight: 600 }}>
                       Скачать
                     </a>
@@ -130,6 +142,7 @@ export function SpravkaApprovalTable({
         );
       })}
       {requests.length === 0 && <div style={{ padding: "30px 0", textAlign: "center", color: "var(--color-text-faint)", fontSize: 13 }}>Пока нет сгенерированных справок</div>}
+      {previewId && <ExcelPreviewModal requestId={previewId} onClose={() => setPreviewId(null)} />}
     </div>
   );
 }
