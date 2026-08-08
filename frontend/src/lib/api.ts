@@ -150,4 +150,10 @@ export const api = {
   snoozeBrainItem: (id: string, days?: number) =>
     request(`/api/brain/items/${id}/snooze`, { method: "POST", body: JSON.stringify({ days }) }),
   brainGreeting: (): Promise<BrainGreeting> => request("/api/brain/greeting"),
+
+  telegramBrainStatus: (): Promise<{ connected: boolean }> => request("/api/telegram-brain/status"),
+  telegramBrainLinkCode: (): Promise<{ code: string; deep_link: string }> =>
+    request("/api/telegram-brain/link-code", { method: "POST" }),
+  telegramBrainSendNow: (): Promise<{ ok: boolean; text: string }> =>
+    request("/api/telegram-brain/send-now", { method: "POST" }),
 };

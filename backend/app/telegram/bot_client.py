@@ -48,3 +48,24 @@ def send_message(business_connection_id: str, chat_id: int, text: str) -> dict:
         logger.exception("Telegram sendMessage call failed")
         raise TelegramSendError(str(e)) from e
     return resp.json()
+
+
+def send_bot_message(chat_id: int, text: str) -> dict:
+    """Proactive Argus Brain (2026-08-08): sends as the bot's OWN identity
+    (@Argus_solurabot), not through a business connection -- this is the
+    bot talking directly to a manager/boss in their personal chat with it
+    (after they /start it themselves), completely unrelated to the
+    business-connection client-relay path send_message() above. Same bot
+    token, a different, much simpler Bot API call -- no business_connection_id."""
+    token = os.environ["TELEGRAM_BOT_TOKEN"]
+    try:
+        resp = httpx.post(
+            f"{TELEGRAM_API_BASE}/bot{token}/sendMessage",
+            json={"chat_id": chat_id, "text": text},
+            timeout=10.0,
+        )
+        resp.raise_for_status()
+    except httpx.HTTPError as e:
+        logger.exception("Telegram sendMessage (direct bot) call failed")
+        raise TelegramSendError(str(e)) from e
+    return resp.json()

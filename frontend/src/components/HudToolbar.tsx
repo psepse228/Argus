@@ -2,6 +2,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { api, CurrentUser } from "@/lib/api";
+import { TelegramBrainButton } from "./TelegramBrainButton";
 import { ThemeSwitcher } from "./ThemeSwitcher";
 
 /** The old persistent rail's utility controls (search, role-preview, theme,
@@ -147,6 +148,7 @@ export function HudToolbar({
           )}
         </button>
       )}
+      <TelegramBrainButton />
       {onTogglePresentation && (
         <button
           onClick={onTogglePresentation}
