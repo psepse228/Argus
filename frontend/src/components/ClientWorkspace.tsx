@@ -117,6 +117,18 @@ export function ClientWorkspace({
     setTelegramMessages(tg.messages);
   }
 
+  // A client's real inbound Telegram message arrives via the webhook while
+  // this workspace may already be open -- without this, a manager only
+  // ever sees it after manually reloading. Polling instead of a push
+  // channel (no websocket/SSE infra in this app yet) -- 6s is frequent
+  // enough to feel live without hammering the endpoint.
+  useEffect(() => {
+    const interval = setInterval(() => {
+      refreshTelegram().catch(() => {});
+    }, 6000);
+    return () => clearInterval(interval);
+  }, [clientId]);
+
   useEffect(() => {
     if (formOpen && buildings.length === 0) {
       api.buildings().then(setBuildings);
