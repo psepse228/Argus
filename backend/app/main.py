@@ -7,7 +7,11 @@ load_dotenv()  # unlike Next.js, plain uvicorn does not auto-load .env — must 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
 
+from app.rate_limit import limiter
 from app.routers import auth_google, units, leads, spravka, assistant, pricing, analytics, clients, conversations, payments, workspace, telegram_business, calendar, call_logs, ai_events, daily_briefing, company_summary, brain_items, brain_greeting, telegram_brain
 
 logger = logging.getLogger(__name__)
@@ -22,6 +26,14 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Added after CORSMiddleware above -- Starlette wraps middleware in reverse
+# insertion order, so this ends up INSIDE CORSMiddleware, meaning a 429
+# response still gets CORS headers attached on the way back out instead of
+# the browser reporting a confusing CORS error over the real rate-limit one.
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.add_middleware(SlowAPIMiddleware)
 
 
 @app.exception_handler(Exception)

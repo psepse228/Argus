@@ -9,11 +9,12 @@ client_id set is that client's own profile-chat (see routers/clients.py),
 which gets that client's real history injected into the system prompt so
 the assistant's sales advice is grounded, not generic.
 """
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 
 from app.db import get_service_client
 from app.deps import get_current_user, require_boss
+from app.rate_limit import limiter
 from app.ai.chat import ChatUnavailableError, run_chat
 from app.ai.help_chat import run_help_chat
 from app.ai.brain import gather_client_context
@@ -66,7 +67,8 @@ def _client_context_suffix(client, tenant_id: str, client_id: str | None) -> str
 
 
 @router.post("/boss/chat")
-def boss_chat(body: ChatRequest, user=Depends(require_boss)):
+@limiter.limit("20/minute")
+def boss_chat(request: Request, body: ChatRequest, user=Depends(require_boss)):
     client = get_service_client()
     conv = _load_conversation(client, body.conversation_id, user.tenant_id, user.email)
     prompt = (
@@ -85,7 +87,8 @@ def boss_chat(body: ChatRequest, user=Depends(require_boss)):
 
 
 @router.post("/agent/chat")
-def agent_chat(body: ChatRequest, user=Depends(get_current_user)):
+@limiter.limit("20/minute")
+def agent_chat(request: Request, body: ChatRequest, user=Depends(get_current_user)):
     client = get_service_client()
     conv = _load_conversation(client, body.conversation_id, user.tenant_id, user.email)
     prompt = (
@@ -109,7 +112,8 @@ class HelpChatRequest(BaseModel):
 
 
 @router.post("/help/chat")
-def help_chat(body: HelpChatRequest, user=Depends(get_current_user)):
+@limiter.limit("20/minute")
+def help_chat(request: Request, body: HelpChatRequest, user=Depends(get_current_user)):
     client = get_service_client()
     _load_conversation(client, body.conversation_id, user.tenant_id, user.email)  # 404s if not this user's own
     history = _load_history(client, body.conversation_id)

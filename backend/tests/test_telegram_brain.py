@@ -114,9 +114,10 @@ def test_create_link_code_overwrites_previous_unused_code(monkeypatch):
 def test_send_now_400s_when_not_connected(monkeypatch):
     fake = _FakeClient({"tenant_users": [{"id": "tu-1", "tenant_id": "t1", "email": "a@x.com", "telegram_chat_id": None}]})
     monkeypatch.setattr(router_mod, "get_service_client", lambda: fake)
+    monkeypatch.setattr(router_mod.limiter, "enabled", False)  # calling the handler directly, no real Request/app
 
     with pytest.raises(HTTPException) as exc_info:
-        router_mod.send_now(user=_user())
+        router_mod.send_now(request=None, user=_user())
 
     assert exc_info.value.status_code == 400
 
@@ -124,6 +125,7 @@ def test_send_now_400s_when_not_connected(monkeypatch):
 def test_send_now_sends_greeting_built_from_synced_items(monkeypatch):
     fake = _FakeClient({"tenant_users": [{"id": "tu-1", "tenant_id": "t1", "email": "a@x.com", "telegram_chat_id": 555}]})
     monkeypatch.setattr(router_mod, "get_service_client", lambda: fake)
+    monkeypatch.setattr(router_mod.limiter, "enabled", False)  # calling the handler directly, no real Request/app
     monkeypatch.setattr(router_mod, "_sync_and_list", lambda client, tenant_id, role, email: [{"summary": "Позвонить"}])
     monkeypatch.setattr(router_mod, "generate_greeting", lambda items: f"Привет, {len(items)} дел")
 
@@ -136,7 +138,7 @@ def test_send_now_sends_greeting_built_from_synced_items(monkeypatch):
 
     monkeypatch.setattr(router_mod, "send_bot_message", fake_send)
 
-    result = router_mod.send_now(user=_user())
+    result = router_mod.send_now(request=None, user=_user())
 
     assert result == {"ok": True, "text": "Привет, 1 дел"}
     assert captured == {"chat_id": 555, "text": "Привет, 1 дел"}
@@ -145,6 +147,7 @@ def test_send_now_sends_greeting_built_from_synced_items(monkeypatch):
 def test_send_now_503s_when_telegram_send_fails(monkeypatch):
     fake = _FakeClient({"tenant_users": [{"id": "tu-1", "tenant_id": "t1", "email": "a@x.com", "telegram_chat_id": 555}]})
     monkeypatch.setattr(router_mod, "get_service_client", lambda: fake)
+    monkeypatch.setattr(router_mod.limiter, "enabled", False)  # calling the handler directly, no real Request/app
     monkeypatch.setattr(router_mod, "_sync_and_list", lambda client, tenant_id, role, email: [])
     monkeypatch.setattr(router_mod, "generate_greeting", lambda items: "Всё спокойно")
 
@@ -154,6 +157,6 @@ def test_send_now_503s_when_telegram_send_fails(monkeypatch):
     monkeypatch.setattr(router_mod, "send_bot_message", fake_send)
 
     with pytest.raises(HTTPException) as exc_info:
-        router_mod.send_now(user=_user())
+        router_mod.send_now(request=None, user=_user())
 
     assert exc_info.value.status_code == 503

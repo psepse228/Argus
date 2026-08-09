@@ -9,11 +9,12 @@ just delivered somewhere a manager doesn't have to open Argus to see.
 """
 import secrets
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 
 from app.ai.brain_greeting import generate_greeting
 from app.db import get_service_client
 from app.deps import get_current_user
+from app.rate_limit import limiter
 from app.routers.brain_items import _sync_and_list
 from app.telegram.bot_client import TelegramSendError, send_bot_message
 
@@ -53,7 +54,8 @@ def create_link_code(user=Depends(get_current_user)):
 
 
 @router.post("/send-now")
-def send_now(user=Depends(get_current_user)):
+@limiter.limit("10/minute")
+def send_now(request: Request, user=Depends(get_current_user)):
     """On-demand send -- the reliable path a manager/boss can trigger
     themselves right now, rather than waiting on a schedule. Reuses the
     exact same role-scoped brain_items sync and greeting voice the in-app
