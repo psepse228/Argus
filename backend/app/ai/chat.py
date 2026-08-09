@@ -76,10 +76,16 @@ def run_chat(system_prompt: str, user_message: str, tenant_id: str, schemas: lis
                 result = call_function(tool_call.function.name, args, tenant_id, requester_email)
             except Exception as e:
                 result = {"error": str(e)}
-            ok = not result.get("error")
+            # Not every tool returns a dict -- get_units/get_pending_approvals/
+            # get_payment_plan_rates return a plain list (real bug found live,
+            # 2026-08-10: `result.get("error")` on a list crashed the whole
+            # request with a 500, so a chat message that triggered any of
+            # those three tools always failed silently from the user's side).
+            result_is_dict = isinstance(result, dict)
+            ok = not (result_is_dict and result.get("error"))
             had_error = had_error or not ok
             events.append({"type": "tool_call", "name": tool_call.function.name, "ok": ok})
-            if tool_call.function.name == "create_spravka_request" and result.get("ok"):
+            if tool_call.function.name == "create_spravka_request" and result_is_dict and result.get("ok"):
                 events.append({"type": "spravka_created", **result})
             messages.append({
                 "role": "tool", "tool_call_id": tool_call.id,
