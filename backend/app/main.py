@@ -75,5 +75,11 @@ app.include_router(telegram_brain.router)
 
 
 @app.get("/health")
+@limiter.exempt
 def health():
+    # Railway polls this on a fixed schedule to decide whether to keep the
+    # deployment alive -- exempt from rate limiting on purpose. A live
+    # concurrency test (2026-08-09) found the default limit rejecting a
+    # burst of concurrent health checks with 429; Railway would read that as
+    # "app is down" and could cycle a perfectly healthy deployment.
     return {"status": "ok"}

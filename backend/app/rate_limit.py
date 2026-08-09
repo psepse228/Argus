@@ -13,8 +13,13 @@ from slowapi import Limiter
 from slowapi.util import get_remote_address
 
 # Baseline applied to every route automatically (see main.py's
-# SlowAPIMiddleware) -- generous enough that no normal user session should
-# ever hit it, just a backstop against a runaway client/script hammering
-# the API. Specific expensive endpoints (OpenAI-calling ones) layer a
-# tighter @limiter.limit(...) on top where they're declared.
-limiter = Limiter(key_func=get_remote_address, default_limits=["120/minute"])
+# SlowAPIMiddleware) -- keyed by IP, and Ulkan's whole sales office sits
+# behind one shared/NAT'd public IP, all making normal dashboard traffic
+# (several panels prefetching on load, multiple staff, multiple tabs) at
+# once. 300/min is still a real backstop against a runaway client/script,
+# just not tight enough to fire during ordinary shared-office use -- a live
+# burst test (2026-08-09) showed 120/min getting uncomfortably close under
+# a legitimate-looking concurrent burst. Specific expensive endpoints
+# (OpenAI-calling ones) layer a much tighter @limiter.limit(...) on top
+# where they're declared -- that's the real cost protection, not this.
+limiter = Limiter(key_func=get_remote_address, default_limits=["300/minute"])

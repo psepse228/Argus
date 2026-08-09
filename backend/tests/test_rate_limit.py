@@ -52,3 +52,19 @@ def test_main_app_wires_up_the_shared_limiter():
 
     assert app.state.limiter is shared_limiter
     assert RateLimitExceeded in app.exception_handlers
+
+
+def test_health_endpoint_is_exempt_from_rate_limiting():
+    """Regression test for a real bug found via a live concurrency burst
+    (2026-08-09): /health used to share the global default limit, so a
+    burst of concurrent Railway health checks (or anything else hitting it)
+    could 429 -- Railway reads a failing health check as "app is down" and
+    can cycle a perfectly healthy deployment."""
+    from fastapi.testclient import TestClient
+
+    from app.main import app
+
+    client = TestClient(app)
+    statuses = [client.get("/health").status_code for _ in range(150)]
+
+    assert all(s == 200 for s in statuses)

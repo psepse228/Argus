@@ -3,6 +3,9 @@ webhook for proactive Argus Brain (2026-08-08) -- the pre-existing business-
 connection relay logic above/below it already has its own coverage plan
 tracked separately and isn't touched here.
 """
+import pytest
+from fastapi import HTTPException
+
 import app.routers.telegram_business as router_mod
 
 
@@ -122,6 +125,22 @@ def test_start_link_succeeds_even_if_confirmation_send_fails(monkeypatch):
     row = fake._tables["tenant_users"][0]
     assert row["telegram_chat_id"] == 777
     assert row["telegram_link_code"] is None
+
+
+def test_webhook_401s_on_wrong_secret_using_the_real_verifier(monkeypatch):
+    """Uses the real verify_webhook_signature (not mocked) -- an attacker
+    who doesn't know TELEGRAM_WEBHOOK_SECRET must never reach the linking
+    or relay logic below it, regardless of what's in the update body."""
+    monkeypatch.setenv("TELEGRAM_WEBHOOK_SECRET", "the-real-secret")
+    # get_service_client must never even be called -- rejection has to happen
+    # before touching the DB at all.
+    monkeypatch.setattr(router_mod, "get_service_client", lambda: (_ for _ in ()).throw(AssertionError("should not reach the DB")))
+    update = {"message": {"text": "/start abcd1234", "chat": {"id": 777}}}
+
+    with pytest.raises(HTTPException) as exc_info:
+        router_mod.telegram_business_webhook(update, _FakeRequest({"x-telegram-bot-api-secret-token": "wrong-secret"}))
+
+    assert exc_info.value.status_code == 401
 
 
 def test_non_start_direct_message_falls_through_without_crashing(monkeypatch):
