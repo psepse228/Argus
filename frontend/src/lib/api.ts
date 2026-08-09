@@ -1,4 +1,4 @@
-import { AiEvent, BrainGreeting, BrainItem, CalendarEvent, Client, ClientSegment, CompanySummary, DailyBriefingItem, TelegramConversation, TelegramMessage } from "./types";
+import { AiEvent, BrainGreeting, BrainItem, CalendarEvent, Client, ClientSegment, CompanySummary, TelegramConversation, TelegramMessage } from "./types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8010";
 
@@ -45,6 +45,8 @@ export const api = {
   unitInterest: (unitId: string) => request(`/api/units/${unitId}/interest`),
   unitPdfUrl: (unitId: string) => `${API_BASE}/api/units/${unitId}/pdf`,
   leads: () => request("/api/leads"),
+  createLead: (body: { client_name?: string; client_phone: string; building_id?: string; source?: string }) =>
+    request("/api/leads", { method: "POST", body: JSON.stringify(body) }),
   updateLeadStage: (id: string, stage: string) =>
     request(`/api/leads/${id}/stage`, { method: "PATCH", body: JSON.stringify({ stage }) }),
   openLeadClient: (id: string): Promise<{ client_id: string }> =>
@@ -135,10 +137,6 @@ export const api = {
     const qs = query.toString();
     return request(`/api/ai-events${qs ? `?${qs}` : ""}`);
   },
-
-  dailyBriefing: (): Promise<DailyBriefingItem[]> => request("/api/brain/daily-briefing"),
-  refreshDailyBriefing: (): Promise<DailyBriefingItem[]> =>
-    request("/api/brain/daily-briefing/refresh", { method: "POST" }),
   addMeetingNote: (eventId: string, note: string) =>
     request(`/api/calendar/${eventId}/meeting-note`, { method: "POST", body: JSON.stringify({ note }) }),
   companySummary: (): Promise<CompanySummary> =>

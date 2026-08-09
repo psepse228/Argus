@@ -11,6 +11,8 @@ rationale (the "two AI voices" confusion this was built to fix).
 
 from datetime import datetime, timedelta, timezone
 
+from app.tenant_time import TENANT_TZ
+
 
 def gather_client_context(client, tenant_id: str, client_id: str) -> dict:
     """Everything Argus currently knows about one client: identity, leads,
@@ -158,13 +160,23 @@ def gather_company_context(client, tenant_id: str) -> dict:
         .eq("tenant_id", tenant_id).eq("status", "pending").execute().data
     )
 
-    today = datetime.now(timezone.utc).date().isoformat()
-    tomorrow = (datetime.now(timezone.utc).date() + timedelta(days=1)).isoformat()
+    # Local calendar date, not UTC -- see app/tenant_time.py's docstring for
+    # why a naive UTC "today" briefly disagrees with Tashkent's real date
+    # every day and was caught reporting yesterday evening's event as today's.
+    today_local = datetime.now(TENANT_TZ).date()
     all_events = (
         client.table("calendar_events").select("*, clients(name, phone)")
         .eq("tenant_id", tenant_id).neq("status", "dismissed").execute().data
     )
-    today_events = [e for e in all_events if today <= e["event_at"][:10] < tomorrow]
+    today_events = []
+    for e in all_events:
+        event_local = datetime.fromisoformat(e["event_at"].replace("Z", "+00:00")).astimezone(TENANT_TZ)
+        if event_local.date() == today_local:
+            # The model only ever sees this local-time label, never the raw
+            # UTC event_at -- otherwise it has no way to tell "12:00 UTC" and
+            # "17:00 Tashkent" apart and will report the UTC number verbatim
+            # as if it were the local time a manager actually scheduled.
+            today_events.append({**e, "event_at_local": event_local.strftime("%H:%M")})
 
     return {
         "leads_by_stage": leads_by_stage,

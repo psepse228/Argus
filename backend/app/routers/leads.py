@@ -7,6 +7,7 @@ from pydantic import BaseModel
 from app.db import get_service_client
 from app.deps import get_current_user
 from app.services.client_service import get_or_create_client
+from app.telegram.matching import normalize_phone
 
 router = APIRouter(prefix="/api/leads")
 
@@ -65,6 +66,46 @@ def _flag_stale(leads: list[dict]) -> None:
         if touched_at and l["stage"] in STALE_STAGES:
             stale = datetime.fromisoformat(touched_at.replace("Z", "+00:00")) < cutoff
         l["is_stale"] = stale
+
+
+class LeadCreate(BaseModel):
+    client_name: str | None = None
+    client_phone: str
+    building_id: str | None = None
+    source: str | None = None
+
+
+@router.post("")
+def create_lead(body: LeadCreate, user=Depends(get_current_user)):
+    """Manual lead intake -- a walk-in, a referral, a phone call, anything
+    that doesn't arrive through the Telegram webhook. Found missing during a
+    live QA pass (2026-08-10): there was no way at all to add a client/lead
+    to Argus by hand, which also meant a tester couldn't create any test
+    data. Reuses get_or_create_client so a phone that already has a client
+    (or even a prior lead) attaches to the same identity instead of forking
+    a duplicate -- same discipline as the Telegram webhook's own intake path.
+    assigned_manager is left unset on purpose: list_leads' own
+    _auto_assign_unassigned already round-robins any unassigned lead to
+    whoever currently has the fewest, the same path a Facebook-ads lead
+    takes -- no need for a second assignment rule here."""
+    normalized_phone = normalize_phone(body.client_phone)
+    digits = normalized_phone.lstrip("+")
+    if not (9 <= len(digits) <= 15):
+        raise HTTPException(status_code=400, detail="Некорректный номер телефона")
+    client = get_service_client()
+    if body.building_id:
+        owned = (
+            client.table("buildings").select("id")
+            .eq("id", body.building_id).eq("tenant_id", user.tenant_id).execute().data
+        )
+        if not owned:
+            raise HTTPException(status_code=404, detail="Building not found")
+    client_id = get_or_create_client(client, user.tenant_id, normalized_phone, body.client_name)
+    inserted = client.table("leads").insert({
+        "tenant_id": user.tenant_id, "client_id": client_id, "phone": normalized_phone,
+        "building_id": body.building_id, "source": body.source or "Ручной ввод", "stage": "unsorted",
+    }).execute().data[0]
+    return inserted
 
 
 @router.get("")

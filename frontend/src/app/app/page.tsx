@@ -152,9 +152,6 @@ export default function AppPage() {
 
   if (!user || !effectiveUser) return null;
 
-  const activeKey = visibleSpaces[activeIndex]?.key;
-  const isAssistant = activeKey === "assistant";
-
   return (
     // overflow: "clip", not "hidden" -- "hidden" still lets a descendant's
     // native .scrollIntoView() (e.g. an input scrolling into view) set this
@@ -246,13 +243,16 @@ export default function AppPage() {
         ))}
       </div>
 
-      {!isAssistant && (
-        <AssistantWidget
-          user={effectiveUser}
-          forceClose={assistantForceClose}
-          onOpen={() => setHelpOpen(false)}
-        />
-      )}
+      {/* Always shown, including on the Ассистент screen itself -- that
+          screen (AssistantPanel) is Обзор/Мастерская now, not a freeform
+          chat (see its own header comment); hiding this FAB there used to
+          leave a real dead end with no way to reach chat at all. Found via
+          a live QA pass (2026-08-10). */}
+      <AssistantWidget
+        user={effectiveUser}
+        forceClose={assistantForceClose}
+        onOpen={() => setHelpOpen(false)}
+      />
     </div>
   );
 }

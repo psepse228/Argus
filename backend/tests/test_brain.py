@@ -251,8 +251,9 @@ def test_gather_company_context_pending_spravki_tenant_wide_not_manager_scoped()
 
 
 def test_gather_company_context_today_events_excludes_past_and_future():
-    from datetime import datetime, timezone
-    today_iso = datetime.now(timezone.utc).date().isoformat()
+    from datetime import datetime
+    from app.tenant_time import TENANT_TZ
+    today_iso = datetime.now(TENANT_TZ).date().isoformat()
     fake = _FakeClient({
         "leads": [], "buildings": [], "units": [], "spravka_requests": [],
         "calendar_events": [
@@ -264,3 +265,35 @@ def test_gather_company_context_today_events_excludes_past_and_future():
     })
     ctx = brain.gather_company_context(fake, "tenant-1")
     assert {e["id"] for e in ctx["today_events"]} == {"today"}
+
+
+def test_gather_company_context_today_events_uses_tenant_local_date_not_utc():
+    """Regression test for the exact bug caught live (2026-08-10): a naive
+    UTC "today" briefly disagrees with Tashkent's real calendar date every
+    day (UTC 19:00-23:59 is already tomorrow in Tashkent, UTC+5). An event
+    stored as UTC-tomorrow-morning is actually Tashkent-today-late-evening,
+    and must still be included -- and vice versa, an event that's
+    UTC-today-late-evening is already Tashkent-tomorrow and must be excluded."""
+    from datetime import datetime, time, timezone
+    from app.tenant_time import TENANT_TZ
+    today_local = datetime.now(TENANT_TZ).date()
+
+    # 23:00 Tashkent local time today -- as a raw UTC timestamp, this lands
+    # on UTC-tomorrow whenever Tashkent local time is ahead of the UTC date
+    # (i.e. it's currently past UTC midnight but before 05:00 UTC).
+    event_local = datetime.combine(today_local, time(23, 0), tzinfo=TENANT_TZ)
+    event_at_utc_iso = event_local.astimezone(timezone.utc).isoformat()
+    fake = _FakeClient({
+        "leads": [], "buildings": [], "units": [], "spravka_requests": [],
+        "calendar_events": [
+            {
+                "tenant_id": "tenant-1", "id": "tashkent-today-late",
+                "status": "confirmed", "event_at": event_at_utc_iso,
+            },
+        ],
+    })
+
+    ctx = brain.gather_company_context(fake, "tenant-1")
+
+    assert {e["id"] for e in ctx["today_events"]} == {"tashkent-today-late"}
+    assert ctx["today_events"][0]["event_at_local"] == "23:00"

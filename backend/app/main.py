@@ -12,7 +12,7 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 
 from app.rate_limit import limiter
-from app.routers import auth_google, units, leads, spravka, assistant, pricing, analytics, clients, conversations, payments, workspace, telegram_business, calendar, call_logs, ai_events, daily_briefing, company_summary, brain_items, brain_greeting, telegram_brain
+from app.routers import auth_google, units, leads, spravka, assistant, pricing, analytics, clients, conversations, payments, workspace, telegram_business, calendar, call_logs, ai_events, company_summary, brain_items, brain_greeting, telegram_brain
 
 logger = logging.getLogger(__name__)
 
@@ -67,7 +67,6 @@ app.include_router(telegram_business.api_router)
 app.include_router(calendar.router)
 app.include_router(call_logs.router)
 app.include_router(ai_events.router)
-app.include_router(daily_briefing.router)
 app.include_router(company_summary.router)
 app.include_router(brain_items.router)
 app.include_router(brain_greeting.router)

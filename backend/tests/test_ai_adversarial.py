@@ -16,6 +16,7 @@ from dotenv import load_dotenv
 
 load_dotenv()  # bare pytest runs don't go through app/main.py's own load_dotenv() call
 
+from app.ai.client_context import summarize_client_context
 from app.ai.telegram_evaluator import evaluate_conversation
 
 pytestmark = pytest.mark.skipif(
@@ -76,6 +77,28 @@ def test_does_not_fabricate_a_calendar_event_from_vague_language():
 
     assert result["has_event"] is False
     assert result["event_at"] is None
+
+
+def test_client_handover_brief_does_not_repeat_an_ungrounded_building_name():
+    """Regression test for the exact bug caught live (2026-08-10): the
+    client's telegram_summary mentions a building ("Roma") the client has
+    no real lead/справка record for -- the brief must not repeat it."""
+    client_data = {
+        "name": "Азиз", "phone": "+998911110002", "priority": "hot",
+        "leads": [{"stage": "meeting_held", "source": "Telegram", "buildings": {"name": "Florencia"}}],
+        "spravka_requests": [{"status": "pending", "plan_type": "installment_12", "units": {"unit_number": "102", "buildings": {"name": "Milano"}}}],
+        "telegram_summary": {
+            "summary": "Клиент интересовался 2-комнатной квартирой, уделил внимание объекту Roma.",
+            "next_step_suggestion": "Уточнить бюджет",
+        },
+    }
+
+    summary = summarize_client_context(client_data)
+
+    assert "Roma" not in summary
+    # The grounded facts should still come through -- this isn't just
+    # censoring everything, only the ungrounded building name.
+    assert "Milano" in summary or "Florencia" in summary
 
 
 def test_detects_a_genuinely_concrete_meeting_request():

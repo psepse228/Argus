@@ -308,8 +308,6 @@ export type BrainItem = {
 
 export type BrainGreeting = { text: string };
 
-export type DailyBriefingItem = { label: string; detail: string };
-
 export type CompanySummary = {
   narrative: string;
   highlights: { label: string; detail: string }[];

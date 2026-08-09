@@ -4,6 +4,7 @@ import { api } from "@/lib/api";
 import { Lead, PRIORITY_COLORS, PRIORITY_LABELS, Priority } from "@/lib/types";
 import { CallButton } from "./CallButton";
 import { Dropdown } from "./Dropdown";
+import { NewLeadModal } from "./NewLeadModal";
 import { Skeleton } from "./Skeleton";
 
 const PRIORITIES: Priority[] = ["hot", "warm", "cold"];
@@ -29,10 +30,12 @@ export function LeadsPanel({ onOpenClient }: { onOpenClient: (clientId: string) 
   const [leads, setLeads] = useState<Lead[] | null>(null);
   const [error, setError] = useState("");
   const [openingId, setOpeningId] = useState<string | null>(null);
+  const [showNewLead, setShowNewLead] = useState(false);
 
-  useEffect(() => {
+  function refresh() {
     api.leads().then(setLeads).catch((e) => { setError(`Не удалось загрузить лидов: ${e.message}`); setLeads([]); });
-  }, []);
+  }
+  useEffect(refresh, []);
 
   async function move(id: string, stage: string) {
     setError("");
@@ -88,9 +91,19 @@ export function LeadsPanel({ onOpenClient }: { onOpenClient: (clientId: string) 
 
   return (
     <div style={{ flex: 1, minHeight: 0, overflowY: "auto" }}>
-      <h1 style={{ fontFamily: "var(--font-heading)", fontSize: 23, fontWeight: 700, margin: "0 0 6px", color: "var(--color-text)" }}>Лиды</h1>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, marginBottom: 6 }}>
+        <h1 style={{ fontFamily: "var(--font-heading)", fontSize: 23, fontWeight: 700, margin: 0, color: "var(--color-text)" }}>Лиды</h1>
+        <button
+          onClick={() => setShowNewLead(true)}
+          className="press"
+          style={{ fontSize: 12.5, fontWeight: 700, color: "var(--v-text-on-accent)", background: "var(--v-accent)", border: "none", borderRadius: 99, padding: "9px 16px", cursor: "pointer", whiteSpace: "nowrap" }}
+        >
+          + Новый лид
+        </button>
+      </div>
       <p style={{ color: "var(--color-text-soft)", fontSize: 13, margin: "0 0 18px" }}>Воронка продаж — {leads.length} лидов</p>
       {error && <div style={{ color: "var(--danger)", fontSize: 13, marginBottom: 14 }}>{error}</div>}
+      {showNewLead && <NewLeadModal onClose={() => setShowNewLead(false)} onCreated={refresh} />}
       {leads.length === 0 && (
         <div style={{ color: "var(--color-text-faint)", fontSize: 13 }}>
           Пока нет лидов в базе — реальные лиды из Facebook-рекламы ещё не загружены.

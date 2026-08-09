@@ -34,6 +34,45 @@ def test_generate_company_summary_parses_response(monkeypatch):
     assert result["highlights"][0]["label"] == "4 справки ждут"
 
 
+def test_generate_company_summary_strips_raw_utc_event_at_before_prompting(monkeypatch):
+    """Regression test for the exact bug caught live (2026-08-10): the
+    model must never see the raw UTC event_at, only event_at_local -- see
+    app/tenant_time.py for why. Otherwise it can (and did) report the UTC
+    number verbatim as if it were the real local meeting time."""
+    captured = {}
+
+    class FakeMessage:
+        content = json.dumps({"narrative": "ok", "highlights": []})
+
+    class FakeChoice:
+        message = FakeMessage()
+
+    class FakeResponse:
+        choices = [FakeChoice()]
+
+    class FakeCompletions:
+        def create(self, **kwargs):
+            captured["messages"] = kwargs["messages"]
+            return FakeResponse()
+
+    class FakeChat:
+        completions = FakeCompletions()
+
+    class FakeClient:
+        chat = FakeChat()
+
+    monkeypatch.setattr(mod, "_get_client", lambda: FakeClient())
+    mod.generate_company_summary({
+        "leads_by_stage": {},
+        "today_events": [{"id": "e1", "title": "Подписание справки", "event_at": "2026-08-09T12:00:00+00:00", "event_at_local": "17:00"}],
+    })
+
+    prompt_json = captured["messages"][1]["content"]
+    assert "event_at_local" in prompt_json
+    assert "17:00" in prompt_json
+    assert "2026-08-09T12:00:00" not in prompt_json
+
+
 def test_generate_company_summary_propagates_openai_failure(monkeypatch):
     class FakeCompletions:
         def create(self, **kwargs):

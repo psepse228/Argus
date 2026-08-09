@@ -164,6 +164,23 @@ def create_spravka(
     if (balloon_months is None) != (balloon_monthly_payment_usd is None):
         raise SpravkaCreationError("balloon_months and balloon_monthly_payment_usd must be set together")
 
+    # Real duplicates found live (2026-08-10 QA pass): 3 separate pending
+    # requests for the same unit+client, most likely a double-click on
+    # "Оформить справку" while file generation was still in flight (there
+    # was previously no guard at all against this) -- a second identical
+    # submission while one's already awaiting the boss's decision is never
+    # useful, just confusing (which of the duplicates does the boss act on?).
+    existing_pending = (
+        client.table("spravka_requests").select("id")
+        .eq("tenant_id", tenant_id).eq("unit_id", unit_id).eq("client_phone", client_phone)
+        .eq("status", "pending").execute().data
+    )
+    if existing_pending:
+        raise SpravkaCreationError(
+            "У этого клиента уже есть справка на этот юнит, ожидающая решения — "
+            "дождитесь одобрения или отклонения перед повторной подачей"
+        )
+
     unit = _get_unit_by_id(client, unit_id, tenant_id)
     building = client.table("buildings").select("name").eq("id", unit["building_id"]).execute().data[0]
     rate = _get_plan_rate(client, tenant_id, unit["building_id"], plan_type)

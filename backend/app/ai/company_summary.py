@@ -36,6 +36,9 @@ _SYSTEM_PROMPT = """Ты помогаешь руководителю отдел�
 Правила:
 - Используй ТОЛЬКО данные из входного JSON. Никогда не выдумывай числа, здания, лидов или события,
   которых там нет.
+- Для времени события в today_events используй ТОЛЬКО поле event_at_local (это уже реальное местное
+  время) — никогда не бери время из event_at (это технический UTC-таймстемп, не то время, на которое
+  событие реально назначено).
 - Если справок ждёт решения больше 3 -- обязательно упомяни это как отдельный highlight.
 - Если данных мало (например, лидов и событий почти нет), narrative может быть короче, но не
   выдумывай активность, которой не было."""
@@ -101,6 +104,17 @@ def generate_company_summary(facts: dict) -> dict:
             _STAGE_LABELS.get(stage, stage): count
             for stage, count in facts.get("leads_by_stage", {}).items()
         },
+        # Strip the raw UTC event_at before it ever reaches the model --
+        # event_at_local (already computed in the tenant's real local time,
+        # see gather_company_context) is the only time value that should
+        # exist in this prompt, so there's no UTC number left for the model
+        # to mistakenly quote as if it were the local time (see
+        # docs/superpowers -- caught live reporting "12:00" for a 17:00
+        # Tashkent meeting).
+        "today_events": [
+            {k: v for k, v in e.items() if k != "event_at"}
+            for e in facts.get("today_events", [])
+        ],
     }
     messages = [
         {"role": "system", "content": _SYSTEM_PROMPT},
