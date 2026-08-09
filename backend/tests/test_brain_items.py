@@ -78,7 +78,7 @@ class _FakeClient:
 
 def _base_tables(**overrides):
     tables = {
-        "tenant_users": [{"tenant_id": "tenant-1", "email": "a@x.com", "name": "Азиз"}],
+        "tenant_users": [{"id": "tu-1", "tenant_id": "tenant-1", "email": "a@x.com", "name": "Азиз", "brain_synced_at": None}],
         "leads": [], "calendar_events": [], "meeting_notes": [],
         "spravka_requests": [], "call_logs": [], "ai_events": [], "brain_items": [],
     }
@@ -291,6 +291,51 @@ def test_sync_boss_brain_items_respects_dismissal():
     assert result == []
     row = next(r for r in fake._tables["brain_items"] if r["dedupe_key"] == "spravka_requests:s1")
     assert row["status"] == "dismissed"
+
+
+def test_sync_brain_items_skips_gpt_pass_within_throttle_window(monkeypatch):
+    recent = datetime.now(timezone.utc).isoformat()
+    fake = _FakeClient(_base_tables(
+        tenant_users=[{"id": "tu-1", "tenant_id": "tenant-1", "email": "a@x.com", "name": "Азиз", "brain_synced_at": recent}],
+    ))
+    calls = []
+    monkeypatch.setattr(mod, "_generate_candidates", lambda facts: calls.append(1) or [])
+    monkeypatch.setattr(mod, "_promoted_ai_event_candidates", lambda client, tenant_id, manager_email: [])
+
+    mod.sync_brain_items(fake, "tenant-1", "a@x.com")
+
+    assert calls == []
+    row = next(r for r in fake._tables["tenant_users"] if r["id"] == "tu-1")
+    assert row["brain_synced_at"] == recent  # untouched -- no pass ran, no reason to bump it
+
+
+def test_sync_brain_items_runs_gpt_pass_after_throttle_window_expires(monkeypatch):
+    stale = (datetime.now(timezone.utc) - timedelta(minutes=10)).isoformat()
+    fake = _FakeClient(_base_tables(
+        tenant_users=[{"id": "tu-1", "tenant_id": "tenant-1", "email": "a@x.com", "name": "Азиз", "brain_synced_at": stale}],
+    ))
+    calls = []
+    monkeypatch.setattr(mod, "_generate_candidates", lambda facts: calls.append(1) or [])
+    monkeypatch.setattr(mod, "_promoted_ai_event_candidates", lambda client, tenant_id, manager_email: [])
+
+    mod.sync_brain_items(fake, "tenant-1", "a@x.com")
+
+    assert calls == [1]
+    row = next(r for r in fake._tables["tenant_users"] if r["id"] == "tu-1")
+    assert row["brain_synced_at"] != stale
+
+
+def test_sync_brain_items_runs_gpt_pass_when_never_synced(monkeypatch):
+    fake = _FakeClient(_base_tables(
+        tenant_users=[{"id": "tu-1", "tenant_id": "tenant-1", "email": "a@x.com", "name": "Азиз", "brain_synced_at": None}],
+    ))
+    calls = []
+    monkeypatch.setattr(mod, "_generate_candidates", lambda facts: calls.append(1) or [])
+    monkeypatch.setattr(mod, "_promoted_ai_event_candidates", lambda client, tenant_id, manager_email: [])
+
+    mod.sync_brain_items(fake, "tenant-1", "a@x.com")
+
+    assert calls == [1]
 
 
 def test_generate_candidates_drops_hallucinated_ref_id(monkeypatch):

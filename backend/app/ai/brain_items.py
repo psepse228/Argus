@@ -108,6 +108,32 @@ def _valid_ids(facts: dict) -> dict:
     }
 
 
+_GPT_PASS_THROTTLE = timedelta(minutes=3)
+
+
+def _get_tenant_user_row(client, tenant_id: str, email: str) -> dict | None:
+    rows = (
+        client.table("tenant_users").select("id, brain_synced_at")
+        .eq("tenant_id", tenant_id).eq("email", email)
+        .execute().data
+    )
+    return rows[0] if rows else None
+
+
+def _should_run_gpt_pass(tenant_user_row: dict | None) -> bool:
+    """Guards the one expensive part of a sync (the gpt-4o call below) --
+    the deterministic candidate sources stay live on every call regardless,
+    they're plain DB reads. Without this, nothing stops repeated calls to
+    GET /api/brain-items (a second tab, a fast re-navigation, a future
+    caller without the frontend's own dedup cache) from each firing a fresh
+    GPT call; a stale/missing timestamp always runs it (first sync ever, or
+    the throttle window has passed)."""
+    if tenant_user_row is None or not tenant_user_row.get("brain_synced_at"):
+        return True
+    last = datetime.fromisoformat(tenant_user_row["brain_synced_at"].replace("Z", "+00:00"))
+    return datetime.now(timezone.utc) - last >= _GPT_PASS_THROTTLE
+
+
 def _generate_candidates(facts: dict) -> list[dict]:
     """One GPT call, judgment same discipline as daily_briefing.py. Filters
     out any item whose ref_id isn't actually present in the input facts --
@@ -234,13 +260,20 @@ def _upsert_and_resolve(client, tenant_id: str, assigned_to: str, candidates: li
 
 def sync_brain_items(client, tenant_id: str, manager_email: str) -> list[dict]:
     """Diffs current candidates against existing brain_items rows and
-    returns this manager's open items, priority-then-recency sorted."""
+    returns this manager's open items, priority-then-recency sorted. The
+    GPT pass (_generate_candidates) is throttled per manager -- see
+    _should_run_gpt_pass; the deterministic sources below it always run."""
     facts = gather_manager_context(client, tenant_id, manager_email)
-    candidates = (
-        _generate_candidates(facts)
-        + _promoted_ai_event_candidates(client, tenant_id, manager_email)
-        + _unconfirmed_event_candidates(facts)
-    )
+    tenant_user_row = _get_tenant_user_row(client, tenant_id, manager_email)
+    candidates = []
+    if _should_run_gpt_pass(tenant_user_row):
+        candidates += _generate_candidates(facts)
+        if tenant_user_row is not None:
+            client.table("tenant_users").update(
+                {"brain_synced_at": datetime.now(timezone.utc).isoformat()}
+            ).eq("id", tenant_user_row["id"]).execute()
+    candidates += _promoted_ai_event_candidates(client, tenant_id, manager_email)
+    candidates += _unconfirmed_event_candidates(facts)
     return _upsert_and_resolve(client, tenant_id, manager_email, candidates)
 
 
