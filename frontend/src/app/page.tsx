@@ -46,6 +46,11 @@ export default function LoginPage() {
         >
           Войти через Google
         </a>
+        <div style={{ marginTop: 20, fontSize: 11, color: "var(--color-text-faint)" }}>
+          <a href="/privacy" style={{ color: "inherit", textDecoration: "none" }}>Конфиденциальность</a>
+          {" · "}
+          <a href="/terms" style={{ color: "inherit", textDecoration: "none" }}>Условия использования</a>
+        </div>
       </div>
     </div>
   );
