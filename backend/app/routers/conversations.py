@@ -71,7 +71,17 @@ def get_messages(conversation_id: str, user=Depends(get_current_user)):
 def get_or_create_client_conversation(client_id: str, user=Depends(get_current_user)):
     """A client's profile-chat is 1:1 per (rep, client) -- get the existing
     one or create it, so clicking into a client from Клиенты always lands
-    on the same running thread instead of spawning a new one each time."""
+    on the same running thread instead of spawning a new one each time.
+
+    Real bug found live (2026-08-10): this select-then-insert used to have
+    no DB-level guard, so two near-simultaneous requests (two components
+    mounting at once, a fast re-render, two tabs) could both see "none
+    found" and both insert -- two competing threads for the same (rep,
+    client), and whichever one a later page load happened to pick back up
+    looked like a different, incomplete history each time. migration 0036
+    adds a partial unique index on (tenant_id, user_email, client_id); the
+    insert here now expects a possible conflict and re-selects instead of
+    trusting its own insert blindly."""
     client = get_service_client()
     owned = client.table("clients").select("id").eq("id", client_id).eq("tenant_id", user.tenant_id).execute()
     if not owned.data:
@@ -83,17 +93,27 @@ def get_or_create_client_conversation(client_id: str, user=Depends(get_current_u
     )
     if existing.data:
         return existing.data[0]
-    row = client.table("conversations").insert({
-        "tenant_id": user.tenant_id, "user_email": user.email, "client_id": client_id,
-    }).execute().data[0]
-    return row
+    try:
+        return client.table("conversations").insert({
+            "tenant_id": user.tenant_id, "user_email": user.email, "client_id": client_id,
+        }).execute().data[0]
+    except Exception:
+        # Lost the race -- a concurrent request already inserted between our
+        # SELECT and this INSERT. The unique index rejected ours; the real
+        # row is the other one, so re-select instead of erroring.
+        return (
+            client.table("conversations").select("*")
+            .eq("tenant_id", user.tenant_id).eq("user_email", user.email).eq("client_id", client_id)
+            .execute().data[0]
+        )
 
 
 @router.post("/help")
 def get_or_create_help_conversation(user=Depends(get_current_user)):
     """The help chatbot has exactly one running thread per user -- same
-    get-existing-or-create shape as get_or_create_client_conversation above,
-    keyed on purpose='help' instead of client_id."""
+    get-existing-or-create-with-race-fallback shape as
+    get_or_create_client_conversation above, keyed on purpose='help'
+    instead of client_id (see migration 0036 for the matching unique index)."""
     client = get_service_client()
     existing = (
         client.table("conversations").select("*")
@@ -102,10 +122,16 @@ def get_or_create_help_conversation(user=Depends(get_current_user)):
     )
     if existing.data:
         return existing.data[0]
-    row = client.table("conversations").insert({
-        "tenant_id": user.tenant_id, "user_email": user.email, "purpose": "help",
-    }).execute().data[0]
-    return row
+    try:
+        return client.table("conversations").insert({
+            "tenant_id": user.tenant_id, "user_email": user.email, "purpose": "help",
+        }).execute().data[0]
+    except Exception:
+        return (
+            client.table("conversations").select("*")
+            .eq("tenant_id", user.tenant_id).eq("user_email", user.email).eq("purpose", "help")
+            .execute().data[0]
+        )
 
 
 def touch_conversation(client, conversation_id: str) -> None:
